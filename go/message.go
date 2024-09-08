@@ -8,8 +8,6 @@ import (
 	"strings"
 )
 
-// TODO: implement mprob, plus func errormes(merror)
-
 // message type
 type mtype byte
 
@@ -76,6 +74,13 @@ func (t mtype) hasname() bool {
 
 func (t mtype) hastext() bool {
 	return t == msend || t == mrecv
+}
+
+func errormes(err merror) mes {
+	return mes{
+		t:    mprob,
+		room: uint32(err.code),
+	}
 }
 
 func (m mes) String() string {

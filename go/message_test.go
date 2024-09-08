@@ -10,8 +10,12 @@ import (
 	"testing"
 )
 
+// TODO: include mprob in tests
+
+// TODO: test hashroom, hasname, hastext
+
 func TestMtypes(t *testing.T) {
-	all := []mtype{mping, mpong, mjoin, mjned, msend, mrecv, mexit, mexed}
+	all := []mtype{mping, mpong, mjoin, mjned, msend, mrecv, mexit, mexed, mprob}
 
 	for i := range all {
 		for j := range all {
