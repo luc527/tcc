@@ -154,8 +154,16 @@ func (c client) consumeoutgoing(w io.Writer) {
 }
 
 func (c client) consumeincoming() {
-	for range c.in {
-		// TODO
+	// TODO
+	for m := range c.in {
+		switch m.t {
+		case mpong:
+		case mjoin:
+		case mexit:
+		case msend:
+		default:
+			c.trysend(c.out, errormes(errInvalidMessageType))
+		}
 	}
 }
 
