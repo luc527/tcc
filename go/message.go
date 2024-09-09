@@ -85,12 +85,12 @@ func errormes(err merror) mes {
 
 func (m mes) String() string {
 	if m.t == mping {
-		return ":ping"
+		return "ping"
 	} else if m.t == mpong {
-		return ":pong"
+		return "pong"
 	} else {
 		bb := new(bytes.Buffer)
-		bb.WriteString("{:")
+		bb.WriteString("{")
 		switch m.t {
 		case msend:
 			bb.WriteString("send")
