@@ -84,47 +84,46 @@ func errormes(err merror) mes {
 }
 
 func (m mes) String() string {
-	if m.t == mping {
-		return "ping"
-	} else if m.t == mpong {
-		return "pong"
-	} else {
-		bb := new(bytes.Buffer)
-		bb.WriteString("{")
-		switch m.t {
-		case msend:
-			bb.WriteString("send")
-		case mrecv:
-			bb.WriteString("recv")
-		case mjoin:
-			bb.WriteString("join")
-		case mexit:
-			bb.WriteString("exit")
-		case mjned:
-			bb.WriteString("jned")
-		case mexed:
-			bb.WriteString("exed")
-		}
+	bb := new(bytes.Buffer)
+	bb.WriteString("{")
+	switch m.t {
+	case msend:
+		bb.WriteString("send")
+	case mrecv:
+		bb.WriteString("recv")
+	case mjoin:
+		bb.WriteString("join")
+	case mexit:
+		bb.WriteString("exit")
+	case mjned:
+		bb.WriteString("jned")
+	case mexed:
+		bb.WriteString("exed")
+	case mprob:
+		bb.WriteString("prob")
+	}
+
+	if m.t.hasroom() {
 		bb.WriteString(", ")
 		bb.WriteString(fmt.Sprintf("%d", m.room))
-
-		if m.t.hasname() {
-			bb.WriteString(", ")
-			bb.WriteRune('"')
-			strings.NewReplacer(`"`, `\"`).WriteString(bb, m.name)
-			bb.WriteRune('"')
-		}
-		if m.t.hastext() {
-			bb.WriteString(", ")
-			bb.WriteRune('"')
-			strings.NewReplacer(`"`, `\"`).WriteString(bb, m.text)
-			bb.WriteRune('"')
-		}
-
-		bb.WriteRune('}')
-
-		return bb.String()
 	}
+
+	if m.t.hasname() {
+		bb.WriteString(", ")
+		bb.WriteRune('"')
+		strings.NewReplacer(`"`, `\"`).WriteString(bb, m.name)
+		bb.WriteRune('"')
+	}
+	if m.t.hastext() {
+		bb.WriteString(", ")
+		bb.WriteRune('"')
+		strings.NewReplacer(`"`, `\"`).WriteString(bb, m.text)
+		bb.WriteRune('"')
+	}
+
+	bb.WriteRune('}')
+
+	return bb.String()
 }
 
 // all numbers little endian

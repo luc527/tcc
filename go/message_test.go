@@ -14,6 +14,8 @@ import (
 
 // TODO: test hashroom, hasname, hastext
 
+// TODO: also test the size of the encoded messages, e.g. ping only 1 byte
+
 func TestMtypes(t *testing.T) {
 	all := []mtype{mping, mpong, mjoin, mjned, msend, mrecv, mexit, mexed, mprob}
 
@@ -43,12 +45,9 @@ func TestMtypes(t *testing.T) {
 	}
 }
 
+// TODO: test decoding of invalid messages
+
 func TestMessageEncodingAndDecodingValid(t *testing.T) {
-	// tests encoding valid and invalid messages
-	// but also decoding of valid messages
-
-	// don't think I'll test decoding of invalid messages
-
 	type testcase struct {
 		m   mes
 		err error
