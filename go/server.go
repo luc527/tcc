@@ -74,12 +74,12 @@ func handle(conn net.Conn) {
 	})
 
 	go cli.ping()
-	go cli.produceincoming(conn)
-	go cli.consumeoutgoing(conn)
+	go cli.readincoming(conn)
+	go cli.writeoutgoing(conn)
 	cli.consumeincoming()
 }
 
-func (c client) produceincoming(conn net.Conn) {
+func (c client) readincoming(conn net.Conn) {
 	defer func() {
 		c.cancel()
 		close(c.in)
@@ -88,18 +88,16 @@ func (c client) produceincoming(conn net.Conn) {
 
 	deadline := time.Now().Add(timeout)
 	if err := conn.SetReadDeadline(deadline); err != nil {
-		err := fmt.Errorf("client %d: failed to set (1st) readline: %w", c.id, err)
+		err := fmt.Errorf("client %d: failed to set (1st) read deadline: %w", c.id, err)
 		svlog.Println(err)
 		return
 	}
 
 	for {
-		im := mes{}
-		_, err := im.ReadFrom(conn)
-
-		if err == nil {
-			svlog.Printf("client %d: read %v", c.id, im)
-			if !c.trysend(c.in, im) {
+		m := mes{}
+		if _, err := m.ReadFrom(conn); err == nil {
+			svlog.Printf("client %d: read %v", c.id, m)
+			if !c.trysend(c.in, m) {
 				return
 			}
 		} else if err == io.EOF {
@@ -113,7 +111,7 @@ func (c client) produceincoming(conn net.Conn) {
 				return
 			}
 		} else {
-			err := fmt.Errorf("client %d: failed to read, partial %v: %w", c.id, im, err)
+			err := fmt.Errorf("client %d: failed to read, partial %v: %w", c.id, m, err)
 			svlog.Println(err)
 			return
 		}
@@ -122,7 +120,7 @@ func (c client) produceincoming(conn net.Conn) {
 
 		deadline := time.Now().Add(timeout)
 		if err := conn.SetReadDeadline(deadline); err != nil {
-			err := fmt.Errorf("client %d: failed to set readline: %w", c.id, err)
+			err := fmt.Errorf("client %d: failed to set read deadline: %w", c.id, err)
 			svlog.Println(err)
 			return
 		}
@@ -130,7 +128,7 @@ func (c client) produceincoming(conn net.Conn) {
 	}
 }
 
-func (c client) consumeoutgoing(w io.Writer) {
+func (c client) writeoutgoing(w io.Writer) {
 	defer func() {
 		c.cancel()
 		svlog.Printf("client %d: writer stopped", c.id)
@@ -140,9 +138,7 @@ func (c client) consumeoutgoing(w io.Writer) {
 		case <-c.ctx.Done():
 			return
 		case m := <-c.out:
-			_, err := m.WriteTo(w)
-			if err == nil {
-				c.resetping()
+			if _, err := m.WriteTo(w); err == nil {
 				svlog.Printf("client %d: wrote %v", c.id, m)
 			} else {
 				err := fmt.Errorf("client %d: failed to write %v: %w", c.id, m, err)
