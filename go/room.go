@@ -8,7 +8,7 @@ import (
 type roomhandle struct {
 	ctx    context.Context    // room context, to check whether the room closed
 	cancel context.CancelFunc // cancel func to quit the room
-	mesc   chan string
+	mesc   chan<- string
 }
 
 // a room message is a message the user receives from a room
@@ -28,11 +28,11 @@ type clienthandle struct {
 // the request the client sends in order to join a room
 type joinroomreq struct {
 	name  string
-	mesc  chan roommes    // channel for the room to send messages in
-	jnedc chan string     // channel for the room to send joined signals to
-	exedc chan string     // channel for the room to send exited signals to
-	resp  chan roomhandle // if the request succeeds, the room sends a room handle to this channel
-	prob  chan zero       // if the request fails, zero{} is sent to this channel
+	mesc  chan<- roommes    // channel for the room to send messages in
+	jnedc chan<- string     // channel for the room to send joined signals to
+	exedc chan<- string     // channel for the room to send exited signals to
+	resp  chan<- roomhandle // if the request succeeds, the room sends a room handle to this channel
+	prob  chan<- zero       // if the request fails, zero{} is sent to this channel
 }
 
 type room struct {
@@ -112,28 +112,35 @@ func (r room) run() {
 				case ch.jnedc <- req.name:
 				}
 			}
-
-			go rh.run(req.name, mesc, r.ctx, exitc)
+			go consumeclient(req.name, clientc, mesc, exitc, clientctx, r.ctx)
 			req.resp <- rh
 		}
 	}
 }
 
-func (rh roomhandle) run(name string, mesc chan<- roommes, parentctx context.Context, exitc chan<- string) {
+func consumeclient(
+	name string,
+	inc <-chan string,
+	outc chan<- roommes,
+	exitc chan<- string,
+	clientctx context.Context,
+	roomctx context.Context,
+) {
 	defer func() {
 		select {
-		case <-parentctx.Done():
+		case <-roomctx.Done():
 		case exitc <- name:
 		}
 	}()
 	for {
 		select {
-		case <-rh.ctx.Done():
+		case <-clientctx.Done():
 			return
-		case mes := <-rh.mesc:
-			mesc <- roommes{name, mes}
+		case mes := <-inc:
+			outc <- roommes{name, mes}
 		}
 	}
+
 }
 
 func (rh roomhandle) exit() {
@@ -147,9 +154,4 @@ func (rh roomhandle) exit() {
 func makeclientc() (mesc chan roommes, jnedc chan string, exedc chan string) {
 	mesc, jnedc, exedc = make(chan roommes), make(chan string), make(chan string)
 	return
-}
-
-func makejoinreq(name string, mesc chan roommes, jnedc chan string, exedc chan string) joinroomreq {
-	resp, prob := make(chan roomhandle), make(chan zero)
-	return joinroomreq{name, mesc, jnedc, exedc, resp, prob}
 }

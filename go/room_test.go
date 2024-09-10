@@ -58,18 +58,20 @@ func assertClosed[T any](t *testing.T, s string, c <-chan T) {
 
 func assertJoins(t *testing.T, s string, r room, name string, mesc chan roommes, jnedc chan string, exedc chan string) roomhandle {
 	var rh roomhandle
-	req := makejoinreq(name, mesc, jnedc, exedc)
+	// TODO: rename prob->probc, resp->handlec?
+	prob, resp := make(chan zero), make(chan roomhandle)
+	req := joinroomreq{name, mesc, jnedc, exedc, resp, prob}
 	r.join(req)
 	select {
-	case <-req.prob:
+	case <-prob:
 		t.Logf("failed (%v): failed to join (name %v)", s, name)
 		t.FailNow()
-	case rh = <-req.resp:
+	case rh = <-resp:
 	}
 	return rh
 }
 
-func assertSends[T any](t *testing.T, s string, c chan T, v T) {
+func assertSends[T any](t *testing.T, s string, c chan<- T, v T) {
 	timer := time.NewTimer(roomTestTimeout)
 	defer timer.Stop()
 	select {
