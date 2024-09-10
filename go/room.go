@@ -41,11 +41,11 @@ type room struct {
 	cancel context.CancelFunc
 }
 
-func startroom() room {
-	ctx, cancel := context.WithCancel(context.Background())
+func startroom(hubctx context.Context, rid uint32, emptyc chan<- uint32) room {
+	ctx, cancel := context.WithCancel(hubctx)
 	reqc := make(chan joinroomreq)
 	r := room{reqc, ctx, cancel}
-	go r.run()
+	go r.run(hubctx, rid, emptyc)
 	return r
 }
 
@@ -57,12 +57,16 @@ func (r room) join(req joinroomreq) {
 	}
 }
 
-func (r room) run() {
+func (r room) run(hubctx context.Context, rid uint32, emptyc chan<- uint32) {
 	defer func() {
 		select {
 		case <-r.ctx.Done():
 		default:
 			r.cancel()
+		}
+		select {
+		case <-hubctx.Done():
+		case emptyc <- rid:
 		}
 	}()
 

@@ -22,8 +22,8 @@ type client struct {
 	id         uint64
 	ctx        context.Context
 	cancelf    context.CancelFunc
-	in         chan mes
-	out        chan mes
+	inc        chan mes
+	outc       chan mes
 	resetpingc chan zero
 }
 
@@ -37,6 +37,8 @@ var (
 func init() {
 	nextid.Store(0)
 }
+
+// TODO: rename all .close() methods to .cancel()
 
 func (c client) cancel() {
 	select {
@@ -55,16 +57,29 @@ func (c client) trysend(dest chan mes, m mes) bool {
 	}
 }
 
-func handle(conn net.Conn) {
+func serve(listener net.Listener) {
+	h := starthub(context.Background())
+	defer h.close()
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			svlog.Printf("accept error: %v", err)
+			continue
+		}
+		go handle(conn, h)
+	}
+}
+
+func handle(conn net.Conn, h hub) {
 	id := nextid.Add(1)
 
-	ctx, cancelf := context.WithCancel(context.Background())
+	ctx, cancelf := context.WithCancel(h.ctx)
 	cli := client{
 		id:         id,
 		ctx:        ctx,
 		cancelf:    cancelf,
-		in:         make(chan mes),
-		out:        make(chan mes),
+		inc:        make(chan mes),
+		outc:       make(chan mes),
 		resetpingc: make(chan zero),
 	}
 
@@ -76,13 +91,12 @@ func handle(conn net.Conn) {
 	go cli.ping()
 	go cli.readincoming(conn)
 	go cli.writeoutgoing(conn)
-	cli.consumeincoming()
+	cli.consumeincoming(h)
 }
 
 func (c client) readincoming(conn net.Conn) {
 	defer func() {
 		c.cancel()
-		close(c.in)
 		svlog.Printf("client %d: reader stopped", c.id)
 	}()
 
@@ -97,7 +111,7 @@ func (c client) readincoming(conn net.Conn) {
 		m := mes{}
 		if _, err := m.ReadFrom(conn); err == nil {
 			svlog.Printf("client %d: read %v", c.id, m)
-			if !c.trysend(c.in, m) {
+			if !c.trysend(c.inc, m) {
 				return
 			}
 		} else if err == io.EOF {
@@ -107,7 +121,7 @@ func (c client) readincoming(conn net.Conn) {
 			svlog.Printf("client %d: timed out", c.id)
 			return
 		} else if merr, ok := err.(merror); ok {
-			if !c.trysend(c.out, errormes(merr)) {
+			if !c.trysend(c.outc, errormes(merr)) {
 				return
 			}
 		} else {
@@ -137,7 +151,7 @@ func (c client) writeoutgoing(w io.Writer) {
 		select {
 		case <-c.ctx.Done():
 			return
-		case m := <-c.out:
+		case m := <-c.outc:
 			if _, err := m.WriteTo(w); err == nil {
 				svlog.Printf("client %d: wrote %v", c.id, m)
 			} else {
@@ -149,16 +163,21 @@ func (c client) writeoutgoing(w io.Writer) {
 	}
 }
 
-func (c client) consumeincoming() {
-	// TODO
-	for m := range c.in {
-		switch m.t {
-		case mpong:
-		case mjoin:
-		case mexit:
-		case msend:
-		default:
-			c.trysend(c.out, errormes(errInvalidMessageType))
+func (c client) consumeincoming(h hub) {
+	defer c.cancel()
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case m := <-c.inc:
+			switch m.t {
+			case mpong:
+			case mjoin:
+			case mexit:
+			case msend:
+			default:
+				c.trysend(c.outc, errormes(errInvalidMessageType))
+			}
 		}
 	}
 }
@@ -182,7 +201,7 @@ func (c client) ping() {
 		case <-c.ctx.Done():
 			return
 		case <-timer.C:
-			if !c.trysend(c.out, mes{t: mping}) {
+			if !c.trysend(c.outc, mes{t: mping}) {
 				return
 			}
 		}

@@ -25,11 +25,6 @@ const (
 	// ^ is the pin operator, as in Elixir
 )
 
-const (
-	maxMessageLength = 1000 // todo max uint16
-	maxNameLength    = 24
-)
-
 type merror struct {
 	error
 	code uint8
@@ -55,6 +50,11 @@ type mes struct {
 var _ io.WriterTo = &mes{}
 var _ io.ReaderFrom = &mes{}
 var _ fmt.Stringer = mes{}
+
+const (
+	maxMessageLength = 2048
+	maxNameLength    = 24
+)
 
 func (t mtype) valid() bool {
 	return t == mping || t == mpong ||

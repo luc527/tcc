@@ -3,6 +3,7 @@ package main
 // TODO: standardise nomeclature (whole codebase, not this file only)
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -89,7 +90,7 @@ func TestTwoJoinExit(t *testing.T) {
 	msg := ""
 	g := newg()
 
-	r := startroom()
+	r := startroom(context.Background(), 0, make(chan uint32))
 
 	joaoMesc, joaoJnedc, joaoExedc := makeclientc()
 	mariaMesc, mariaJnedc, mariaExedc := makeclientc()

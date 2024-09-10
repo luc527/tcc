@@ -41,14 +41,7 @@ func main() {
 		}
 		defer listener.Close()
 		log.Printf("server running on %v\n", listener.Addr().String())
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				svlog.Printf("accept error: %v", err)
-				continue
-			}
-			go handle(conn)
-		}
+		serve(listener)
 	default:
 		usage()
 	}
