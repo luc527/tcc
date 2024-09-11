@@ -10,23 +10,13 @@ type hjoinroomreq struct {
 }
 
 type hub struct {
-	ctx      context.Context
-	cancelf  context.CancelFunc
+	ctx
 	joinreqc chan hjoinroomreq
 }
 
-func (h hub) close() {
-	select {
-	case <-h.ctx.Done():
-	default:
-		h.cancelf()
-	}
-}
-
 func starthub(parent context.Context) hub {
-	ctx, cancelf := context.WithCancel(parent)
-	joinreqc := make(chan hjoinroomreq)
-	h := hub{ctx, cancelf, joinreqc}
+	reqc := make(chan hjoinroomreq)
+	h := hub{makectx(parent), reqc}
 	go h.run()
 	return h
 }
@@ -34,20 +24,20 @@ func starthub(parent context.Context) hub {
 func (h hub) join(rid uint32, req joinroomreq) {
 	hreq := hjoinroomreq{rid, req}
 	select {
-	case <-h.ctx.Done():
+	case <-h.done():
 	case h.joinreqc <- hreq:
 	}
 }
 
 func (h hub) run() {
-	defer h.cancelf()
+	defer h.cancel()
 
 	emptyc := make(chan uint32)
 	rooms := make(map[uint32]room)
 
 	for {
 		select {
-		case <-h.ctx.Done():
+		case <-h.done():
 			return
 		case rid := <-emptyc:
 			delete(rooms, rid)

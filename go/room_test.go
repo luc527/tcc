@@ -1,29 +1,10 @@
 package main
 
-// TODO: standardise nomeclature (whole codebase, not this file only)
-
 import (
 	"context"
 	"testing"
 	"time"
 )
-
-func discardc[T any](z chan zero) chan T {
-	c := make(chan T)
-	go func() {
-		for {
-			select {
-			case _, ok := <-c:
-				if !ok {
-					return
-				}
-			case <-z:
-				return
-			}
-		}
-	}()
-	return c
-}
 
 const roomTestTimeout = 10 * time.Millisecond
 
@@ -59,7 +40,6 @@ func assertClosed[T any](t *testing.T, s string, c <-chan T) {
 
 func assertJoins(t *testing.T, s string, r room, name string, mesc chan roommes, jnedc chan string, exedc chan string) roomhandle {
 	var rh roomhandle
-	// TODO: rename prob->probc, resp->handlec?
 	prob, resp := make(chan zero), make(chan roomhandle)
 	req := joinroomreq{name, mesc, jnedc, exedc, resp, prob}
 	r.join(req)
@@ -90,7 +70,7 @@ func TestTwoJoinExit(t *testing.T) {
 	msg := ""
 	g := newg()
 
-	r := startroom(context.Background(), 0, make(chan uint32))
+	r := startroom(makectx(context.Background()), 0, make(chan uint32))
 
 	joaoMesc, joaoJnedc, joaoExedc := makeclientc()
 	mariaMesc, mariaJnedc, mariaExedc := makeclientc()
@@ -123,11 +103,11 @@ func TestTwoJoinExit(t *testing.T) {
 	g.w()
 
 	g.r(func() { assertReceives(t, "maria <- joao exited", mariaExedc, "joao") })
-	joaoRh.exit()
-	assertClosed(t, "joao exited", joaoRh.ctx.Done())
+	joaoRh.cancel()
+	assertClosed(t, "joao exited", joaoRh.done())
 	g.w()
 
-	mariaRh.exit()
-	assertClosed(t, "maria exited", mariaRh.ctx.Done())
-	assertClosed(t, "room closed after maria exited", mariaRh.ctx.Done())
+	mariaRh.cancel()
+	assertClosed(t, "maria exited", mariaRh.done())
+	assertClosed(t, "room closed after maria exited", mariaRh.done())
 }

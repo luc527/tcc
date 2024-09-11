@@ -1,14 +1,9 @@
 package main
 
-import (
-	"context"
-)
-
 // a room handle is what a client uses to send messages to the room
 type roomhandle struct {
-	ctx    context.Context    // room context, to check whether the room closed
-	cancel context.CancelFunc // cancel func to quit the room
-	mesc   chan<- string
+	ctx
+	mesc chan<- string
 }
 
 // a room message is a message the user receives from a room
@@ -19,7 +14,7 @@ type roommes struct {
 
 // a client handle is what the room uses to send messages and joined/exited signals to the client
 type clienthandle struct {
-	ctx   context.Context // client context, child of room context, to check whether the client quit
+	ctx
 	mesc  chan<- roommes
 	jnedc chan<- string
 	exedc chan<- string
@@ -36,36 +31,30 @@ type joinroomreq struct {
 }
 
 type room struct {
-	reqc   chan joinroomreq
-	ctx    context.Context
-	cancel context.CancelFunc
+	ctx
+	reqc chan joinroomreq
 }
 
-func startroom(hubctx context.Context, rid uint32, emptyc chan<- uint32) room {
-	ctx, cancel := context.WithCancel(hubctx)
+func startroom(parent ctx, rid uint32, emptyc chan<- uint32) room {
 	reqc := make(chan joinroomreq)
-	r := room{reqc, ctx, cancel}
-	go r.run(hubctx, rid, emptyc)
+	r := room{parent.childctx(), reqc}
+	go r.run(parent, rid, emptyc)
 	return r
 }
 
 func (r room) join(req joinroomreq) {
 	select {
-	case <-r.ctx.Done():
+	case <-r.done():
 		req.prob <- zero{}
 	case r.reqc <- req:
 	}
 }
 
-func (r room) run(hubctx context.Context, rid uint32, emptyc chan<- uint32) {
+func (r room) run(parent ctx, rid uint32, emptyc chan<- uint32) {
 	defer func() {
+		r.cancel()
 		select {
-		case <-r.ctx.Done():
-		default:
-			r.cancel()
-		}
-		select {
-		case <-hubctx.Done():
+		case <-parent.done():
 		case emptyc <- rid:
 		}
 	}()
@@ -77,12 +66,12 @@ func (r room) run(hubctx context.Context, rid uint32, emptyc chan<- uint32) {
 
 	for {
 		select {
-		case <-r.ctx.Done():
+		case <-r.done():
 			return
 		case mes := <-mesc:
 			for _, ch := range clients {
 				select {
-				case <-ch.ctx.Done():
+				case <-ch.done():
 				case ch.mesc <- mes:
 				}
 			}
@@ -96,7 +85,7 @@ func (r room) run(hubctx context.Context, rid uint32, emptyc chan<- uint32) {
 			}
 			for _, ch := range clients {
 				select {
-				case <-ch.ctx.Done():
+				case <-ch.done():
 				case ch.exedc <- name:
 				}
 			}
@@ -105,19 +94,18 @@ func (r room) run(hubctx context.Context, rid uint32, emptyc chan<- uint32) {
 				req.prob <- zero{}
 				continue
 			}
-			clientctx, clientcancel := context.WithCancel(r.ctx)
-			clientc := make(chan string)
-			rh := roomhandle{clientctx, clientcancel, clientc}
+			clientctx := r.childctx()
+			clientmesc := make(chan string)
 
 			clients[req.name] = clienthandle{clientctx, req.mesc, req.jnedc, req.exedc}
 			for _, ch := range clients {
 				select {
-				case <-ch.ctx.Done():
+				case <-ch.done():
 				case ch.jnedc <- req.name:
 				}
 			}
-			go consumeclient(req.name, clientc, mesc, exitc, clientctx, r.ctx)
-			req.resp <- rh
+			go consumeclient(req.name, clientmesc, mesc, exitc, r.ctx, clientctx)
+			req.resp <- roomhandle{clientctx, clientmesc}
 		}
 	}
 }
@@ -127,32 +115,24 @@ func consumeclient(
 	inc <-chan string,
 	outc chan<- roommes,
 	exitc chan<- string,
-	clientctx context.Context,
-	roomctx context.Context,
+	parent ctx,
+	ctx ctx,
 ) {
 	defer func() {
 		select {
-		case <-roomctx.Done():
+		case <-parent.done():
 		case exitc <- name:
 		}
 	}()
 	for {
 		select {
-		case <-clientctx.Done():
+		case <-ctx.done():
 			return
 		case mes := <-inc:
 			outc <- roommes{name, mes}
 		}
 	}
 
-}
-
-func (rh roomhandle) exit() {
-	select {
-	case <-rh.ctx.Done():
-	default:
-		rh.cancel()
-	}
 }
 
 func makeclientc() (mesc chan roommes, jnedc chan string, exedc chan string) {

@@ -19,16 +19,14 @@ const (
 type zero = struct{}
 
 type client struct {
+	ctx
 	id         uint64
-	ctx        context.Context
-	cancelf    context.CancelFunc
 	inc        chan mes
 	outc       chan mes
 	resetpingc chan zero
 }
 
-// TODO remove
-// or maybe only for debug builds or something
+// TODO: remove, or maybe only for debug builds or something
 var (
 	svlog  = log.New(os.Stderr, "<srv> ", 0)
 	nextid = atomic.Uint64{}
@@ -38,19 +36,9 @@ func init() {
 	nextid.Store(0)
 }
 
-// TODO: rename all .close() methods to .cancel()
-
-func (c client) cancel() {
+func (cli client) trysend(dest chan mes, m mes) bool {
 	select {
-	case <-c.ctx.Done():
-	default:
-		c.cancelf()
-	}
-}
-
-func (c client) trysend(dest chan mes, m mes) bool {
-	select {
-	case <-c.ctx.Done():
+	case <-cli.done():
 		return false
 	case dest <- m:
 		return true
@@ -59,7 +47,7 @@ func (c client) trysend(dest chan mes, m mes) bool {
 
 func serve(listener net.Listener) {
 	h := starthub(context.Background())
-	defer h.close()
+	defer h.cancel()
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
@@ -73,17 +61,15 @@ func serve(listener net.Listener) {
 func handle(conn net.Conn, h hub) {
 	id := nextid.Add(1)
 
-	ctx, cancelf := context.WithCancel(h.ctx)
 	cli := client{
 		id:         id,
-		ctx:        ctx,
-		cancelf:    cancelf,
+		ctx:        makectx(context.Background()),
 		inc:        make(chan mes),
 		outc:       make(chan mes),
 		resetpingc: make(chan zero),
 	}
 
-	context.AfterFunc(cli.ctx, func() {
+	context.AfterFunc(cli.ctx.c, func() {
 		svlog.Printf("client %d: closed", id)
 		conn.Close()
 	})
@@ -94,15 +80,15 @@ func handle(conn net.Conn, h hub) {
 	cli.consumeincoming(h)
 }
 
-func (c client) readincoming(conn net.Conn) {
+func (cli client) readincoming(conn net.Conn) {
 	defer func() {
-		c.cancel()
-		svlog.Printf("client %d: reader stopped", c.id)
+		cli.cancel()
+		svlog.Printf("client %d: reader stopped", cli.id)
 	}()
 
 	deadline := time.Now().Add(timeout)
 	if err := conn.SetReadDeadline(deadline); err != nil {
-		err := fmt.Errorf("client %d: failed to set (1st) read deadline: %w", c.id, err)
+		err := fmt.Errorf("client %d: failed to set (1st) read deadline: %w", cli.id, err)
 		svlog.Println(err)
 		return
 	}
@@ -110,31 +96,30 @@ func (c client) readincoming(conn net.Conn) {
 	for {
 		m := mes{}
 		if _, err := m.ReadFrom(conn); err == nil {
-			svlog.Printf("client %d: read %v", c.id, m)
-			if !c.trysend(c.inc, m) {
+			svlog.Printf("client %d: read %v", cli.id, m)
+			if !cli.trysend(cli.inc, m) {
 				return
 			}
 		} else if err == io.EOF {
-			svlog.Printf("client %d: disconnected", c.id)
+			svlog.Printf("client %d: disconnected", cli.id)
 			return
 		} else if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
-			svlog.Printf("client %d: timed out", c.id)
+			svlog.Printf("client %d: timed out", cli.id)
 			return
 		} else if merr, ok := err.(merror); ok {
-			if !c.trysend(c.outc, errormes(merr)) {
+			if !cli.trysend(cli.outc, errormes(merr)) {
 				return
 			}
 		} else {
-			err := fmt.Errorf("client %d: failed to read, partial %v: %w", c.id, m, err)
+			err := fmt.Errorf("client %d: failed to read, partial %v: %w", cli.id, m, err)
 			svlog.Println(err)
 			return
 		}
 
-		c.resetping()
-
+		cli.resetping()
 		deadline := time.Now().Add(timeout)
 		if err := conn.SetReadDeadline(deadline); err != nil {
-			err := fmt.Errorf("client %d: failed to set read deadline: %w", c.id, err)
+			err := fmt.Errorf("client %d: failed to set read deadline: %w", cli.id, err)
 			svlog.Println(err)
 			return
 		}
@@ -142,20 +127,20 @@ func (c client) readincoming(conn net.Conn) {
 	}
 }
 
-func (c client) writeoutgoing(w io.Writer) {
+func (cli client) writeoutgoing(w io.Writer) {
 	defer func() {
-		c.cancel()
-		svlog.Printf("client %d: writer stopped", c.id)
+		cli.cancel()
+		svlog.Printf("client %d: writer stopped", cli.id)
 	}()
 	for {
 		select {
-		case <-c.ctx.Done():
+		case <-cli.done():
 			return
-		case m := <-c.outc:
+		case m := <-cli.outc:
 			if _, err := m.WriteTo(w); err == nil {
-				svlog.Printf("client %d: wrote %v", c.id, m)
+				svlog.Printf("client %d: wrote %v", cli.id, m)
 			} else {
-				err := fmt.Errorf("client %d: failed to write %v: %w", c.id, m, err)
+				err := fmt.Errorf("client %d: failed to write %v: %w", cli.id, m, err)
 				svlog.Println(err)
 				return
 			}
@@ -163,45 +148,45 @@ func (c client) writeoutgoing(w io.Writer) {
 	}
 }
 
-func (c client) consumeincoming(h hub) {
-	defer c.cancel()
+func (cli client) consumeincoming(h hub) {
+	defer cli.cancel()
 	for {
 		select {
-		case <-c.ctx.Done():
+		case <-cli.done():
 			return
-		case m := <-c.inc:
+		case m := <-cli.inc:
 			switch m.t {
 			case mpong:
 			case mjoin:
 			case mexit:
 			case msend:
 			default:
-				c.trysend(c.outc, errormes(errInvalidMessageType))
+				cli.trysend(cli.outc, errormes(errInvalidMessageType))
 			}
 		}
 	}
 }
 
-func (c client) resetping() {
+func (cli client) resetping() {
 	select {
-	case <-c.ctx.Done():
-	case c.resetpingc <- zero{}:
+	case <-cli.done():
+	case cli.resetpingc <- zero{}:
 	}
 }
 
-func (c client) ping() {
+func (cli client) ping() {
 	timer := time.NewTimer(pingInterval)
 	defer func() {
 		timer.Stop()
-		svlog.Printf("client %d: ping stopped", c.id)
+		svlog.Printf("client %d: ping stopped", cli.id)
 	}()
 	for {
 		select {
-		case <-c.resetpingc:
-		case <-c.ctx.Done():
+		case <-cli.resetpingc:
+		case <-cli.done():
 			return
 		case <-timer.C:
-			if !c.trysend(c.outc, mes{t: mping}) {
+			if !cli.trysend(cli.outc, mes{t: mping}) {
 				return
 			}
 		}

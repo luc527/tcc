@@ -2,11 +2,14 @@ package main
 
 import "context"
 
-// TODO: embed in other structs with the same behaviour (client, hub, room, roomhandle?)
-
 type ctx struct {
 	c context.Context
 	f context.CancelFunc
+}
+
+func makectx(parent context.Context) ctx {
+	c, f := context.WithCancel(parent)
+	return ctx{c, f}
 }
 
 func (c ctx) done() <-chan zero {
@@ -19,4 +22,8 @@ func (c ctx) cancel() {
 	default:
 		c.f()
 	}
+}
+
+func (c ctx) childctx() ctx {
+	return makectx(c.c)
 }
