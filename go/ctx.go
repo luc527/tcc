@@ -24,6 +24,6 @@ func (c ctx) cancel() {
 	}
 }
 
-func (c ctx) childctx() ctx {
+func (c ctx) makechild() ctx {
 	return makectx(c.c)
 }

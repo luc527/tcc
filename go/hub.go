@@ -25,6 +25,7 @@ func (h hub) join(rid uint32, req joinroomreq) {
 	hreq := hjoinroomreq{rid, req}
 	select {
 	case <-h.done():
+		req.prob <- zero{}
 	case h.joinreqc <- hreq:
 	}
 }

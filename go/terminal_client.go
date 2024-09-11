@@ -38,7 +38,7 @@ func termclient(address string, r io.Reader, w io.Writer) error {
 					break
 				}
 			}
-			clog.Printf("message: %v\n", rm)
+			clog.Printf("received message: %v\n", rm)
 			if rm.t == mping {
 				wm := mes{t: mpong}
 				if _, err := wm.WriteTo(conn); err != nil {

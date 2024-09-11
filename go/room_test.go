@@ -72,37 +72,37 @@ func TestTwoJoinExit(t *testing.T) {
 
 	r := startroom(makectx(context.Background()), 0, make(chan uint32))
 
-	joaoMesc, joaoJnedc, joaoExedc := makeclientc()
-	mariaMesc, mariaJnedc, mariaExedc := makeclientc()
+	joao := makeroomclient()
+	maria := makeroomclient()
 
-	g.r(func() { assertReceives(t, "joao <- joao jned", joaoJnedc, "joao") })
-	joaoRh := assertJoins(t, "joins", r, "joao", joaoMesc, joaoJnedc, joaoExedc)
+	g.r(func() { assertReceives(t, "joao <- joao jned", joao.jnedc, "joao") })
+	joaoRh := assertJoins(t, "joins", r, "joao", joao.mesc, joao.jnedc, joao.exedc)
 	g.w()
 
-	g.r(func() { assertReceives(t, "maria <- maria jned", mariaJnedc, "maria") })
-	g.r(func() { assertReceives(t, "joao <- maria jned", joaoJnedc, "maria") })
-	mariaRh := assertJoins(t, "joins", r, "maria", mariaMesc, mariaJnedc, mariaExedc)
+	g.r(func() { assertReceives(t, "maria <- maria jned", maria.jnedc, "maria") })
+	g.r(func() { assertReceives(t, "joao <- maria jned", joao.jnedc, "maria") })
+	mariaRh := assertJoins(t, "joins", r, "maria", maria.mesc, maria.jnedc, maria.exedc)
 	g.w()
 
 	msg = "hii"
-	g.r(func() { assertReceives(t, "joao <- maria message", joaoMesc, roommes{"maria", msg}) })
-	g.r(func() { assertReceives(t, "maria <- maria message", mariaMesc, roommes{"maria", msg}) })
+	g.r(func() { assertReceives(t, "joao <- maria message", joao.mesc, roommes{"maria", msg}) })
+	g.r(func() { assertReceives(t, "maria <- maria message", maria.mesc, roommes{"maria", msg}) })
 	assertSends(t, "maria sends hi", mariaRh.mesc, msg)
 	g.w()
 
 	msg = "hii HII"
-	g.r(func() { assertReceives(t, "joao <- maria 2nd message", joaoMesc, roommes{"maria", msg}) })
-	g.r(func() { assertReceives(t, "maria <- maria 2nd message", mariaMesc, roommes{"maria", msg}) })
+	g.r(func() { assertReceives(t, "joao <- maria 2nd message", joao.mesc, roommes{"maria", msg}) })
+	g.r(func() { assertReceives(t, "maria <- maria 2nd message", maria.mesc, roommes{"maria", msg}) })
 	assertSends(t, "maria sends hi again", mariaRh.mesc, msg)
 	g.w()
 
 	msg = "Good bye"
-	g.r(func() { assertReceives(t, "joao <- joao message", joaoMesc, roommes{"joao", msg}) })
-	g.r(func() { assertReceives(t, "maria <- joao message", mariaMesc, roommes{"joao", msg}) })
+	g.r(func() { assertReceives(t, "joao <- joao message", joao.mesc, roommes{"joao", msg}) })
+	g.r(func() { assertReceives(t, "maria <- joao message", maria.mesc, roommes{"joao", msg}) })
 	assertSends(t, "joao sends bye", joaoRh.mesc, msg)
 	g.w()
 
-	g.r(func() { assertReceives(t, "maria <- joao exited", mariaExedc, "joao") })
+	g.r(func() { assertReceives(t, "maria <- joao exited", maria.exedc, "joao") })
 	joaoRh.cancel()
 	assertClosed(t, "joao exited", joaoRh.done())
 	g.w()

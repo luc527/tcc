@@ -37,6 +37,7 @@ var (
 	errMessageTooLong     = merror{errors.New("tccgo: message is too long"), 0x02}
 	errNameTooLong        = merror{errors.New("tccgo: name is too long"), 0x04}
 	errNameEmpty          = merror{errors.New("tccgo: name is empty"), 0x08}
+	errJoinFailed         = merror{errors.New("tccgo: failed to join room; name might be in use"), 0x10}
 )
 
 // message
@@ -87,6 +88,10 @@ func (m mes) String() string {
 	bb := new(bytes.Buffer)
 	bb.WriteString("{")
 	switch m.t {
+	case mping:
+		bb.WriteString("ping")
+	case mpong:
+		bb.WriteString("pong")
 	case msend:
 		bb.WriteString("send")
 	case mrecv:

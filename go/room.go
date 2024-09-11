@@ -1,6 +1,7 @@
 package main
 
 // a room handle is what a client uses to send messages to the room
+// uses ctx to detect if the room closed, and to close its own connection to the room
 type roomhandle struct {
 	ctx
 	mesc chan<- string
@@ -13,6 +14,7 @@ type roommes struct {
 }
 
 // a client handle is what the room uses to send messages and joined/exited signals to the client
+// uses ctx to detect if the client exited, or to close the client in case the room closes
 type clienthandle struct {
 	ctx
 	mesc  chan<- roommes
@@ -37,7 +39,7 @@ type room struct {
 
 func startroom(parent ctx, rid uint32, emptyc chan<- uint32) room {
 	reqc := make(chan joinroomreq)
-	r := room{parent.childctx(), reqc}
+	r := room{parent.makechild(), reqc}
 	go r.run(parent, rid, emptyc)
 	return r
 }
@@ -49,6 +51,17 @@ func (r room) join(req joinroomreq) {
 	case r.reqc <- req:
 	}
 }
+
+// TODO: when sending to the client, the room maybe shouldn't only check
+// whether the client closed. maybe it should also give up on sending a message
+// if some time passes. otherwise one slow client could block the room
+// (the room sends to the clients one by one)
+// ofc using buffered channels for mesc/jnedc/exedc would help a lot, but may not be enough?
+// then, what's the timeout? 1 millisecond? idk really, what's the amount that would actually help?
+// but also, is it ok to create a timer for each and every message to the client?
+// ! that's not necessary, could just reuse the same timer, it could even be one timer per room (maybe?)
+// anyhow, with a large enough buffered channel and a decent client connection
+// it's very unlikely that we'd even get to the point of losing messages like that
 
 func (r room) run(parent ctx, rid uint32, emptyc chan<- uint32) {
 	defer func() {
@@ -94,8 +107,11 @@ func (r room) run(parent ctx, rid uint32, emptyc chan<- uint32) {
 				req.prob <- zero{}
 				continue
 			}
-			clientctx := r.childctx()
+			clientctx := r.makechild()
 			clientmesc := make(chan string)
+
+			go consumeclient(req.name, clientmesc, mesc, exitc, r.ctx, clientctx)
+			req.resp <- roomhandle{clientctx, clientmesc}
 
 			clients[req.name] = clienthandle{clientctx, req.mesc, req.jnedc, req.exedc}
 			for _, ch := range clients {
@@ -104,8 +120,6 @@ func (r room) run(parent ctx, rid uint32, emptyc chan<- uint32) {
 				case ch.jnedc <- req.name:
 				}
 			}
-			go consumeclient(req.name, clientmesc, mesc, exitc, r.ctx, clientctx)
-			req.resp <- roomhandle{clientctx, clientmesc}
 		}
 	}
 }
@@ -135,7 +149,9 @@ func consumeclient(
 
 }
 
-func makeclientc() (mesc chan roommes, jnedc chan string, exedc chan string) {
-	mesc, jnedc, exedc = make(chan roommes), make(chan string), make(chan string)
-	return
+func (rh roomhandle) trysend(text string) {
+	select {
+	case <-rh.done():
+	case rh.mesc <- text:
+	}
 }
