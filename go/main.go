@@ -42,6 +42,11 @@ func main() {
 		defer listener.Close()
 		log.Printf("server running on %v\n", listener.Addr().String())
 		serve(listener)
+	case "_test":
+		if len(args) == 1 {
+			fmt.Println("missing address")
+		}
+		runbots(args[1])
 	default:
 		usage()
 	}

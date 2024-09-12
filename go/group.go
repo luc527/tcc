@@ -9,11 +9,11 @@ type group struct {
 	*sync.WaitGroup
 }
 
-func newg() group {
+func newgroup() group {
 	return group{new(sync.WaitGroup)}
 }
 
-func (g group) r(f func()) {
+func (g group) run(f func()) {
 	g.Add(1)
 	go func() {
 		defer g.Done()
@@ -21,6 +21,6 @@ func (g group) r(f func()) {
 	}()
 }
 
-func (g group) w() {
+func (g group) wait() {
 	g.Wait()
 }
