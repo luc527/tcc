@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"slices"
 	"strings"
 	"time"
 )
@@ -57,14 +58,11 @@ func runbots(address string) {
 		go conn.readincoming(rawconn)
 		go bot0(name, conn)
 		go func() {
-			h := hist{name, nil}
-			conn.consume(func(m protomes, ok bool) {
-				if !ok {
-					histc <- h
-					return
-				}
-				h.ms = append(h.ms, m)
-			})
+			h := hist{
+				name: name,
+				ms:   slices.Collect(conn.messages()),
+			}
+			histc <- h
 		}()
 	}
 	for range names {

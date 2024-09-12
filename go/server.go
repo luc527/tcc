@@ -72,47 +72,41 @@ func (c clientconn) consume(h hub) {
 	// -- client sends mqury, server responds minfo
 	// maybe mstat instead of mqury
 
-	for {
-		// verbose svlog.Printf("cection %d status: joined rooms %v", c.id, slices.Collect(maps.Keys(rooms)))
-		select {
-		case <-c.done():
-			return
-		case m := <-c.inc:
-			switch m.t {
-			case mpong:
-			case msend:
-				if rh, joined := rooms[m.room]; joined {
-					rh.trysend(m.text)
-				} else {
-					// TODO: respond with error, user hasn't joined the room
-					continue
-				}
-			case mjoin:
-				if _, alreadyjoined := rooms[m.room]; alreadyjoined {
-					continue
-				}
-				cli := makeroomclient()
-				req, resp, prob := cli.makereq(m.name)
-				h.join(m.room, req)
-				select {
-				case <-prob:
-					// TODO: this might be because the name is in use
-					// or might be for some other reason
-					// so change prob to be not a chan zero but a chan joinerror
-					// or something, where joinerror is either canceled or nameInUse
-					c.trysend(c.outc, errormes(errJoinFailed))
-				case rh := <-resp:
-					rooms[m.room] = rh
-					go cli.run(m.room, c, rh)
-				}
-			case mexit:
-				if rh, joined := rooms[m.room]; joined {
-					rh.cancel()
-					delete(rooms, m.room)
-				}
-			default:
-				c.trysend(c.outc, errormes(errInvalidMessageType))
+	for m := range c.messages() {
+		switch m.t {
+		case mpong:
+		case msend:
+			if rh, joined := rooms[m.room]; joined {
+				rh.trysend(m.text)
+			} else {
+				// TODO: respond with error, user hasn't joined the room
+				continue
 			}
+		case mjoin:
+			if _, alreadyjoined := rooms[m.room]; alreadyjoined {
+				continue
+			}
+			cli := makeroomclient()
+			req, resp, prob := cli.makereq(m.name)
+			h.join(m.room, req)
+			select {
+			case <-prob:
+				// TODO: this might be because the name is in use
+				// or might be for some other reason
+				// so change prob to be not a chan zero but a chan joinerror
+				// or something, where joinerror is either canceled or nameInUse
+				c.trysend(c.outc, errormes(errJoinFailed))
+			case rh := <-resp:
+				rooms[m.room] = rh
+				go cli.run(m.room, c, rh)
+			}
+		case mexit:
+			if rh, joined := rooms[m.room]; joined {
+				rh.cancel()
+				delete(rooms, m.room)
+			}
+		default:
+			c.trysend(c.outc, errormes(errInvalidMessageType))
 		}
 	}
 }

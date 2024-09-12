@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"iter"
 	"net"
 	"time"
 )
@@ -67,6 +68,31 @@ func (conn protoconn) writeoutgoing(w io.Writer) {
 		case m := <-conn.outc:
 			if _, err := m.WriteTo(w); err != nil {
 				return
+			}
+		}
+	}
+}
+
+func (conn protoconn) messages() iter.Seq[protomes] {
+	return func(yield func(protomes) bool) {
+		defer conn.cancel()
+		for {
+			select {
+			case <-conn.done():
+				return
+			case m, ok := <-conn.inc:
+				if !ok {
+					return
+				}
+				if m.t == mping {
+					m := protomes{t: mpong}
+					if !conn.trysend(conn.outc, m) {
+						return
+					}
+				}
+				if !yield(m) {
+					return
+				}
 			}
 		}
 	}

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"iter"
 	"net"
 	"regexp"
 	"strconv"
@@ -13,12 +14,8 @@ var (
 	respace = regexp.MustCompile(`\s+`)
 )
 
-func termconsumer(w io.Writer) consumefunc {
-	return func(m protomes, ok bool) {
-		if !ok {
-			fmt.Fprintf(w, "! connection ended\n")
-			return
-		}
+func termconsumer(w io.Writer, ms iter.Seq[protomes]) {
+	for m := range ms {
 		switch m.t {
 		case mping:
 			fmt.Fprintf(w, "< ping\n")
@@ -32,6 +29,7 @@ func termconsumer(w io.Writer) consumefunc {
 			fmt.Fprintf(w, "! invalid message %v\n", m)
 		}
 	}
+	fmt.Fprintf(w, "! connection ended\n")
 }
 
 func termclient(address string, r io.Reader, w io.Writer) error {
@@ -45,7 +43,7 @@ func termclient(address string, r io.Reader, w io.Writer) error {
 
 	go conn.writeoutgoing(rawconn)
 	go conn.readincoming(rawconn)
-	go conn.consume(termconsumer(w))
+	go termconsumer(w, conn.messages())
 
 	sc := bufio.NewScanner(r)
 	for sc.Scan() {
