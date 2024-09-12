@@ -4,9 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log"
 	"net"
-	"os"
 	"regexp"
 	"strconv"
 )
@@ -15,39 +13,39 @@ var (
 	respace = regexp.MustCompile(`\s+`)
 )
 
-var (
-	clog = log.New(os.Stderr, "<cli> ", 0)
-)
+func termconsumer(w io.Writer) consumefunc {
+	return func(m protomes, ok bool) {
+		if !ok {
+			fmt.Fprintf(w, "! connection ended\n")
+			return
+		}
+		switch m.t {
+		case mping:
+			fmt.Fprintf(w, "< ping\n")
+		case mjned:
+			fmt.Fprintf(w, "< (%d: %v) joined\n", m.room, m.name)
+		case mexed:
+			fmt.Fprintf(w, "< (%d: %v) left\n", m.room, m.name)
+		case mrecv:
+			fmt.Fprintf(w, "< (%d: %v) %s\n", m.room, m.name, m.text)
+		default:
+			fmt.Fprintf(w, "! invalid message %v\n", m)
+		}
+	}
+}
 
 func termclient(address string, r io.Reader, w io.Writer) error {
-	conn, err := net.Dial("tcp", address)
+	rawconn, err := net.Dial("tcp", address)
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
-	clog.Printf("connected to %v, waiting for messages...\n", address)
+	defer rawconn.Close()
 
-	go func() {
-		for {
-			rm := mes{}
-			if _, err := rm.ReadFrom(conn); err != nil {
-				if _, ok := err.(merror); ok {
-					clog.Printf("merror: %v\n", err)
-					continue
-				} else {
-					break
-				}
-			}
-			clog.Printf("received message: %v\n", rm)
-			if rm.t == mping {
-				wm := mes{t: mpong}
-				if _, err := wm.WriteTo(conn); err != nil {
-					clog.Printf("error writing pong: %v", err)
-					break
-				}
-			}
-		}
-	}()
+	conn := serverconn{makeconn(backgroundctx())}
+
+	go conn.writeoutgoing(rawconn)
+	go conn.readincoming(rawconn)
+	go conn.consume(termconsumer(w))
 
 	sc := bufio.NewScanner(r)
 	for sc.Scan() {
@@ -65,36 +63,35 @@ func termclient(address string, r io.Reader, w io.Writer) error {
 				continue
 			}
 			toks = respace.Split(toks[1], 2)
-			room, err := strconv.ParseUint(toks[0], 10, 32)
+			iroom, err := strconv.ParseUint(toks[0], 10, 32)
+			room := uint32(iroom)
 			if err != nil {
 				fmt.Fprintf(w, "invalid message; expected room; atoi err: %v\n", err)
 				continue
 			}
-			var m mes
 			if t0 == "!" {
 				if len(toks) == 1 {
 					fmt.Fprintf(w, "not enough tokens; missing name\n")
 					continue
 				}
 				name := toks[1]
-				m = mes{t: mjoin, room: uint32(room), name: name}
+				if !conn.join(room, name) {
+					break
+				}
 			} else {
-				m = mes{t: mexit, room: uint32(room)}
+				if !conn.exit(room) {
+					break
+				}
 			}
-			if _, err := m.WriteTo(conn); err != nil {
-				clog.Printf("error writing message to client: %v", err)
-				continue
-			}
-		} else if room, err := strconv.ParseUint(t0, 10, 32); err == nil { //send
+		} else if iroom, err := strconv.ParseUint(t0, 10, 32); err == nil { //send
+			room := uint32(iroom)
 			if len(toks) == 1 {
 				fmt.Fprintf(w, "not enough tokens; missing message text\n")
 				continue
 			}
 			text := toks[1]
-			m := mes{t: msend, room: uint32(room), text: text}
-			if _, err := m.WriteTo(conn); err != nil {
-				clog.Printf("error writing message to server: %v", err)
-				continue
+			if !conn.send(room, text) {
+				break
 			}
 		} else {
 			fmt.Fprintf(w, "invalid message; atoi err: %v\n", err)

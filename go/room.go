@@ -81,11 +81,11 @@ func (r room) run(parent ctx, rid uint32, emptyc chan<- uint32) {
 		select {
 		case <-r.done():
 			return
-		case mes := <-mesc:
+		case m := <-mesc:
 			for _, ch := range clients {
 				select {
 				case <-ch.done():
-				case ch.mesc <- mes:
+				case ch.mesc <- m:
 				}
 			}
 		case name := <-exitc:
@@ -142,8 +142,8 @@ func consumeclient(
 		select {
 		case <-ctx.done():
 			return
-		case mes := <-inc:
-			outc <- roommes{name, mes}
+		case text := <-inc:
+			outc <- roommes{name, text}
 		}
 	}
 

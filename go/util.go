@@ -4,6 +4,8 @@ import (
 	"io"
 )
 
+type zero = struct{}
+
 func readfull(r io.Reader, destination []byte) (n int, err error) {
 	remaining := destination
 	for len(remaining) > 0 {

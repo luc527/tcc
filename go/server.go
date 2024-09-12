@@ -2,33 +2,16 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"io"
-	"log"
-	"maps"
 	"net"
-	"os"
-	"slices"
-	"sync/atomic"
 	"time"
 )
 
 const (
 	pingInterval = 30 * time.Second
-	timeout      = 60 * time.Second
 )
 
-type zero = struct{}
-
-// TODO: make it clearer that the "client" and the message (mes) are coupled with the network connection
-// maybe rename it to "connection"
-
-// abstraction over the network connection
-type connection struct {
-	ctx
-	id         uint64
-	inc        chan mes
-	outc       chan mes
+type clientconn struct {
+	protoconn
 	resetpingc chan zero
 }
 
@@ -38,22 +21,17 @@ type roomclient struct {
 	exedc chan string
 }
 
-// TODO: remove, or maybe only for debug builds or something
-var (
-	svlog  = log.New(os.Stderr, "<srv> ", 0)
-	nextid = atomic.Uint64{}
-)
-
-func init() {
-	nextid.Store(0)
-}
-
-func (conn connection) trysend(dest chan mes, m mes) bool {
-	select {
-	case <-conn.done():
-		return false
-	case dest <- m:
-		return true
+func (c clientconn) readincoming(rawconn net.Conn) {
+	defer c.cancel()
+	for {
+		select {
+		case <-c.done():
+			return
+		case c.resetpingc <- zero{}:
+		}
+		if err := c.readsingle(rawconn); err != nil {
+			return
+		}
 	}
 }
 
@@ -63,7 +41,6 @@ func serve(listener net.Listener) {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			svlog.Printf("accept error: %v", err)
 			continue
 		}
 		go handle(conn, h)
@@ -71,97 +48,22 @@ func serve(listener net.Listener) {
 }
 
 func handle(rawconn net.Conn, h hub) {
-	id := nextid.Add(1)
-
-	conn := connection{
-		id:         id,
-		ctx:        h.makechild(),
-		inc:        make(chan mes),
-		outc:       make(chan mes),
+	conn := clientconn{
+		protoconn:  makeconn(h.makechild()),
 		resetpingc: make(chan zero),
 	}
 
-	context.AfterFunc(conn.ctx.c, func() {
-		svlog.Printf("connection %d: closed", id)
-		rawconn.Close()
-	})
+	context.AfterFunc(conn.ctx.c, func() { rawconn.Close() })
 
-	go conn.ping()
 	go conn.readincoming(rawconn)
 	go conn.writeoutgoing(rawconn)
-	conn.consumeincoming(h)
+
+	go conn.ping()
+	conn.consume(h)
 }
 
-func (conn connection) readincoming(rawconn net.Conn) {
-	defer func() {
-		conn.cancel()
-		svlog.Printf("connection %d: reader stopped", conn.id)
-	}()
-
-	deadline := time.Now().Add(timeout)
-	if err := rawconn.SetReadDeadline(deadline); err != nil {
-		err := fmt.Errorf("connection %d: failed to set (1st) read deadline: %w", conn.id, err)
-		svlog.Println(err)
-		return
-	}
-
-	for {
-		m := mes{}
-		if _, err := m.ReadFrom(rawconn); err == nil {
-			svlog.Printf("connection %d: read %v", conn.id, m)
-			if !conn.trysend(conn.inc, m) {
-				return
-			}
-		} else if err == io.EOF {
-			svlog.Printf("connection %d: disconnected", conn.id)
-			return
-		} else if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
-			svlog.Printf("connection %d: timed out", conn.id)
-			return
-		} else if merr, ok := err.(merror); ok {
-			if !conn.trysend(conn.outc, errormes(merr)) {
-				return
-			}
-		} else {
-			err := fmt.Errorf("connection %d: failed to read, partial %v: %w", conn.id, m, err)
-			svlog.Println(err)
-			return
-		}
-
-		conn.resetping()
-		deadline := time.Now().Add(timeout)
-		if err := rawconn.SetReadDeadline(deadline); err != nil {
-			err := fmt.Errorf("connection %d: failed to set read deadline: %w", conn.id, err)
-			svlog.Println(err)
-			return
-		}
-
-	}
-}
-
-func (conn connection) writeoutgoing(w io.Writer) {
-	defer func() {
-		conn.cancel()
-		svlog.Printf("connection %d: writer stopped", conn.id)
-	}()
-	for {
-		select {
-		case <-conn.done():
-			return
-		case m := <-conn.outc:
-			if _, err := m.WriteTo(w); err == nil {
-				svlog.Printf("connection %d: wrote %v", conn.id, m)
-			} else {
-				err := fmt.Errorf("connection %d: failed to write %v: %w", conn.id, m, err)
-				svlog.Println(err)
-				return
-			}
-		}
-	}
-}
-
-func (conn connection) consumeincoming(h hub) {
-	defer conn.cancel()
+func (c clientconn) consume(h hub) {
+	defer c.cancel()
 
 	rooms := make(map[uint32]roomhandle)
 
@@ -171,11 +73,11 @@ func (conn connection) consumeincoming(h hub) {
 	// maybe mstat instead of mqury
 
 	for {
-		svlog.Printf("connection %d status: joined rooms %v", conn.id, slices.Collect(maps.Keys(rooms)))
+		// verbose svlog.Printf("cection %d status: joined rooms %v", c.id, slices.Collect(maps.Keys(rooms)))
 		select {
-		case <-conn.done():
+		case <-c.done():
 			return
-		case m := <-conn.inc:
+		case m := <-c.inc:
 			switch m.t {
 			case mpong:
 			case msend:
@@ -198,10 +100,10 @@ func (conn connection) consumeincoming(h hub) {
 					// or might be for some other reason
 					// so change prob to be not a chan zero but a chan joinerror
 					// or something, where joinerror is either canceled or nameInUse
-					conn.trysend(conn.outc, errormes(errJoinFailed))
+					c.trysend(c.outc, errormes(errJoinFailed))
 				case rh := <-resp:
 					rooms[m.room] = rh
-					go cli.run(m.room, conn, rh)
+					go cli.run(m.room, c, rh)
 				}
 			case mexit:
 				if rh, joined := rooms[m.room]; joined {
@@ -209,32 +111,22 @@ func (conn connection) consumeincoming(h hub) {
 					delete(rooms, m.room)
 				}
 			default:
-				conn.trysend(conn.outc, errormes(errInvalidMessageType))
+				c.trysend(c.outc, errormes(errInvalidMessageType))
 			}
 		}
 	}
 }
 
-func (conn connection) resetping() {
-	select {
-	case <-conn.done():
-	case conn.resetpingc <- zero{}:
-	}
-}
-
-func (conn connection) ping() {
+func (c clientconn) ping() {
 	timer := time.NewTimer(pingInterval)
-	defer func() {
-		timer.Stop()
-		svlog.Printf("connection %d: ping stopped", conn.id)
-	}()
+	defer timer.Stop()
 	for {
 		select {
-		case <-conn.resetpingc:
-		case <-conn.done():
+		case <-c.resetpingc:
+		case <-c.done():
 			return
 		case <-timer.C:
-			if !conn.trysend(conn.outc, mes{t: mping}) {
+			if !c.trysend(c.outc, protomes{t: mping}) {
 				return
 			}
 		}
@@ -264,7 +156,7 @@ func (cli roomclient) makereq(name string) (joinroomreq, chan roomhandle, chan z
 	}, resp, prob
 }
 
-func (cli roomclient) run(room uint32, conn connection, rh roomhandle) {
+func (cli roomclient) run(room uint32, conn clientconn, rh roomhandle) {
 	defer rh.cancel()
 	for {
 		select {
@@ -273,13 +165,13 @@ func (cli roomclient) run(room uint32, conn connection, rh roomhandle) {
 		case <-rh.done():
 			return
 		case rmes := <-cli.mesc:
-			m := mes{mrecv, room, rmes.name, rmes.text}
+			m := protomes{mrecv, room, rmes.name, rmes.text}
 			conn.trysend(conn.outc, m)
 		case name := <-cli.jnedc:
-			m := mes{mjned, room, name, ""}
+			m := protomes{mjned, room, name, ""}
 			conn.trysend(conn.outc, m)
 		case name := <-cli.exedc:
-			m := mes{mexed, room, name, ""}
+			m := protomes{mexed, room, name, ""}
 			conn.trysend(conn.outc, m)
 		}
 	}

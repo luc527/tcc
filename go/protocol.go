@@ -25,32 +25,32 @@ const (
 	// ^ is the pin operator, as in Elixir
 )
 
-type merror struct {
+type protoerror struct {
 	error
 	code uint8
 }
 
-var _ error = merror{}
+var _ error = protoerror{}
 
 var (
-	errInvalidMessageType = merror{errors.New("tccgo: message type is invalid"), 0x01}
-	errMessageTooLong     = merror{errors.New("tccgo: message is too long"), 0x02}
-	errNameTooLong        = merror{errors.New("tccgo: name is too long"), 0x04}
-	errNameEmpty          = merror{errors.New("tccgo: name is empty"), 0x08}
-	errJoinFailed         = merror{errors.New("tccgo: failed to join room; name might be in use"), 0x10}
+	errInvalidMessageType = protoerror{errors.New("tccgo: message type is invalid"), 0x01}
+	errMessageTooLong     = protoerror{errors.New("tccgo: message is too long"), 0x02}
+	errNameTooLong        = protoerror{errors.New("tccgo: name is too long"), 0x04}
+	errNameEmpty          = protoerror{errors.New("tccgo: name is empty"), 0x08}
+	errJoinFailed         = protoerror{errors.New("tccgo: failed to join room; name might be in use"), 0x10}
 )
 
-// message
-type mes struct {
+// protocol message
+type protomes struct {
 	t    mtype
 	room uint32
 	name string
 	text string
 }
 
-var _ io.WriterTo = &mes{}
-var _ io.ReaderFrom = &mes{}
-var _ fmt.Stringer = mes{}
+var _ io.WriterTo = &protomes{}
+var _ io.ReaderFrom = &protomes{}
+var _ fmt.Stringer = protomes{}
 
 const (
 	maxMessageLength = 2048
@@ -77,14 +77,14 @@ func (t mtype) hastext() bool {
 	return t == msend || t == mrecv
 }
 
-func errormes(err merror) mes {
-	return mes{
+func errormes(err protoerror) protomes {
+	return protomes{
 		t:    mprob,
 		room: uint32(err.code),
 	}
 }
 
-func (m mes) String() string {
+func (m protomes) String() string {
 	bb := new(bytes.Buffer)
 	bb.WriteString("{")
 	switch m.t {
@@ -133,7 +133,7 @@ func (m mes) String() string {
 
 // all numbers little endian
 
-func (m mes) WriteTo(w io.Writer) (n int64, err error) {
+func (m protomes) WriteTo(w io.Writer) (n int64, err error) {
 	if !m.t.valid() {
 		return n, errInvalidMessageType
 	}
@@ -208,7 +208,7 @@ func (m mes) WriteTo(w io.Writer) (n int64, err error) {
 	return n, nil
 }
 
-func (m *mes) ReadFrom(r io.Reader) (n int64, err error) {
+func (m *protomes) ReadFrom(r io.Reader) (n int64, err error) {
 	tb := make([]byte, 1)
 	if nn, err := readfull(r, tb); err != nil {
 		return n, err

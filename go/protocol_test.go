@@ -49,7 +49,7 @@ func TestMtypes(t *testing.T) {
 
 func TestMessageEncodingAndDecodingValid(t *testing.T) {
 	type testcase struct {
-		m   mes
+		m   protomes
 		err error
 	}
 
@@ -70,20 +70,20 @@ func TestMessageEncodingAndDecodingValid(t *testing.T) {
 	bb := new(bytes.Buffer)
 
 	testcases := []testcase{
-		{mes{t: mping}, nil},
-		{mes{t: mpong}, nil},
-		{mes{t: 0xff}, errInvalidMessageType},
-		{mes{t: mexit, room: 0}, nil},
-		{mes{t: mexit, room: 0xabcdef01}, nil},
-		{mes{t: mexit, room: math.MaxUint32}, nil},
-		{mes{t: mjoin, room: 2567, name: "helloo 1234!!!"}, nil},
-		{mes{t: mjoin, room: 2567, name: "this is a fairly long string"}, errNameTooLong},
-		{mes{t: mjoin, room: 2567, name: ""}, errNameEmpty},
-		{mes{t: msend, room: 9999, text: "hello friends"}, nil},
-		{mes{t: msend, room: 9999, text: ""}, nil},
-		{mes{t: msend, room: 9999, text: longok}, nil},
-		{mes{t: msend, room: 9999, text: longerr}, errMessageTooLong},
-		{mes{t: mrecv, room: 7172, name: "figmund", text: "mi nombre es figmundo"}, nil},
+		{protomes{t: mping}, nil},
+		{protomes{t: mpong}, nil},
+		{protomes{t: 0xff}, errInvalidMessageType},
+		{protomes{t: mexit, room: 0}, nil},
+		{protomes{t: mexit, room: 0xabcdef01}, nil},
+		{protomes{t: mexit, room: math.MaxUint32}, nil},
+		{protomes{t: mjoin, room: 2567, name: "helloo 1234!!!"}, nil},
+		{protomes{t: mjoin, room: 2567, name: "this is a fairly long string"}, errNameTooLong},
+		{protomes{t: mjoin, room: 2567, name: ""}, errNameEmpty},
+		{protomes{t: msend, room: 9999, text: "hello friends"}, nil},
+		{protomes{t: msend, room: 9999, text: ""}, nil},
+		{protomes{t: msend, room: 9999, text: longok}, nil},
+		{protomes{t: msend, room: 9999, text: longerr}, errMessageTooLong},
+		{protomes{t: mrecv, room: 7172, name: "figmund", text: "mi nombre es figmundo"}, nil},
 	}
 
 	for _, tc := range testcases {
@@ -97,7 +97,7 @@ func TestMessageEncodingAndDecodingValid(t *testing.T) {
 		if err != nil {
 			continue
 		}
-		m := mes{}
+		m := protomes{}
 		if _, err := m.ReadFrom(bb); err != nil {
 			t.Logf("failed decoding %v", tc.m)
 			t.Fail()
