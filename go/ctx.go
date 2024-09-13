@@ -12,13 +12,17 @@ func makectx(parent context.Context) ctx {
 	return ctx{c, f}
 }
 
-func backgroundctx() ctx {
-	c, f := context.WithCancel(context.Background())
-	return ctx{c, f}
-}
-
 func (c ctx) done() <-chan zero {
 	return c.c.Done()
+}
+
+func (c ctx) isdone() bool {
+	select {
+	case <-c.done():
+		return true
+	default:
+		return false
+	}
 }
 
 func (c ctx) cancel() {

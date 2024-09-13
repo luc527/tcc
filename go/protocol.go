@@ -40,6 +40,17 @@ var (
 	errJoinFailed         = protoerror{errors.New("tccgo: failed to join room; name might be in use"), 0x10}
 )
 
+var allprotoerrs = []protoerror{errInvalidMessageType, errMessageTooLong, errNameTooLong, errNameEmpty, errJoinFailed}
+
+func protoerrcode(code uint8) (protoerror, bool) {
+	for _, perr := range allprotoerrs {
+		if perr.code == code {
+			return perr, true
+		}
+	}
+	return protoerror{}, false
+}
+
 // protocol message
 type protomes struct {
 	t    mtype

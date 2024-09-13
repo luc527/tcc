@@ -1,9 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"iter"
+	"log"
 	"net"
 	"time"
 )
@@ -18,81 +18,73 @@ type protoconn struct {
 	outc chan protomes
 }
 
-func makeconn(c ctx) protoconn {
-	return protoconn{
-		ctx:  c,
-		inc:  make(chan protomes),
-		outc: make(chan protomes),
-	}
-}
-
-func (conn protoconn) trysend(dest chan protomes, m protomes) bool {
+func (pc protoconn) trysend(c chan protomes, m protomes) bool {
 	select {
-	case <-conn.done():
-		return false
-	case dest <- m:
+	case c <- m:
 		return true
+	case <-pc.done():
+		return false
 	}
 }
 
-func (conn protoconn) readsingle(rawconn net.Conn) error {
-	deadline := time.Now().Add(timeout)
-	if err := rawconn.SetReadDeadline(deadline); err != nil {
-		return err
-	}
+func (pc protoconn) produceinc(conn net.Conn) {
+	defer pc.cancel()
+	for {
+		if pc.isdone() {
+			return
+		}
 
-	m := protomes{}
-	if _, err := m.ReadFrom(rawconn); err != nil {
-		if merr, ok := err.(protoerror); ok {
-			if !conn.trysend(conn.outc, errormes(merr)) {
-				return fmt.Errorf("failed to send merror %w", err)
+		deadline := time.Now().Add(timeout)
+		if err := conn.SetReadDeadline(deadline); err != nil {
+			log.Printf("failed to advance deadline: %v", err)
+			return
+		}
+
+		m := protomes{}
+		if _, err := m.ReadFrom(conn); err == nil {
+			if !pc.trysend(pc.inc, m) {
+				return
 			}
+		} else if perr, ok := err.(protoerror); ok {
+			if !pc.trysend(pc.outc, errormes(perr)) {
+				return
+			}
+		} else if err == io.EOF {
+			return
+		} else if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+			return
 		} else {
-			return err
+			log.Printf("failed to read message: %v", err)
+			return
 		}
 	}
-
-	if !conn.trysend(conn.inc, m) {
-		return fmt.Errorf("failed to send message %v", m)
-	}
-
-	return nil
 }
 
-func (conn protoconn) writeoutgoing(w io.Writer) {
-	defer conn.cancel()
+func (pc protoconn) consumeoutc(conn net.Conn) {
+	defer pc.cancel()
 	for {
 		select {
-		case <-conn.done():
+		case <-pc.done():
 			return
-		case m := <-conn.outc:
-			if _, err := m.WriteTo(w); err != nil {
+		case m := <-pc.outc:
+			if _, err := m.WriteTo(conn); err != nil {
 				return
 			}
 		}
 	}
 }
 
-func (conn protoconn) messages() iter.Seq[protomes] {
+func (pc protoconn) messages() iter.Seq[protomes] {
 	return func(yield func(protomes) bool) {
-		defer conn.cancel()
+		defer pc.cancel()
 		for {
 			select {
-			case <-conn.done():
-				return
-			case m, ok := <-conn.inc:
-				if !ok {
-					return
-				}
-				if m.t == mping {
-					m := protomes{t: mpong}
-					if !conn.trysend(conn.outc, m) {
-						return
-					}
-				}
+			case m := <-pc.inc:
 				if !yield(m) {
 					return
 				}
+			case <-pc.done():
+				return
 			}
 		}
 	}

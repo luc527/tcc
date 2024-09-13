@@ -8,10 +8,9 @@ import (
 )
 
 func usage() {
-	path := os.Args[0]
-	fmt.Printf("usage:\n")
-	fmt.Printf("\t%s client address\n", path)
-	fmt.Printf("\t%s server\n", path)
+	fmt.Printf("\nusage:\n")
+	fmt.Printf("\t%s server\n", os.Args[0])
+	fmt.Printf("\t%s client <address>\n", os.Args[0])
 	os.Exit(1)
 }
 
@@ -21,33 +20,25 @@ func main() {
 		usage()
 	}
 
-	// TODO: take address when running as server in order to run on a remote server
-
-	// TODO: client could also set a read deadline for when the server stops working
-
 	switch args[0] {
+	case "server":
+		servermain()
 	case "client":
 		if len(args) == 1 {
 			usage()
 		}
 		address := args[1]
-		if err := termclient(address, os.Stdin, os.Stdout); err != nil {
-			log.Fatal(err)
-		}
-	case "server":
-		listener, err := net.Listen("tcp", "127.0.0.1:")
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer listener.Close()
-		log.Printf("server running on %v\n", listener.Addr().String())
-		serve(listener)
-	case "_test":
-		if len(args) == 1 {
-			fmt.Println("missing address")
-		}
-		runbots(args[1])
-	default:
-		usage()
+		clientmain(address)
 	}
+
+}
+
+func servermain() {
+	listener, err := net.Listen("tcp", "127.0.0.1:")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer listener.Close()
+	log.Printf("server running on %v\n", listener.Addr().String())
+	serve(listener)
 }

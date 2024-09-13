@@ -21,20 +21,6 @@ type roomclient struct {
 	exedc chan string
 }
 
-func (c clientconn) readincoming(rawconn net.Conn) {
-	defer c.cancel()
-	for {
-		select {
-		case <-c.done():
-			return
-		case c.resetpingc <- zero{}:
-		}
-		if err := c.readsingle(rawconn); err != nil {
-			return
-		}
-	}
-}
-
 func serve(listener net.Listener) {
 	h := starthub(context.Background())
 	defer h.cancel()
@@ -43,36 +29,57 @@ func serve(listener net.Listener) {
 		if err != nil {
 			continue
 		}
-		go handle(conn, h)
+		go handleclient(conn, h)
 	}
 }
 
-func handle(rawconn net.Conn, h hub) {
-	conn := clientconn{
-		protoconn:  makeconn(h.makechild()),
+func handleclient(conn net.Conn, h hub) {
+	cc := clientconn{
+		protoconn: protoconn{
+			ctx:  h.makechild(),
+			inc:  make(chan protomes),
+			outc: make(chan protomes),
+		},
 		resetpingc: make(chan zero),
 	}
 
-	context.AfterFunc(conn.ctx.c, func() { rawconn.Close() })
+	context.AfterFunc(cc.ctx.c, func() {
+		conn.Close()
+	})
 
-	go conn.readincoming(rawconn)
-	go conn.writeoutgoing(rawconn)
-
-	go conn.ping()
-	conn.consume(h)
+	go cc.produceinc(conn)
+	go cc.consumeoutc(conn)
+	go cc.ping()
+	cc.main(h)
 }
 
-func (c clientconn) consume(h hub) {
-	defer c.cancel()
+func (cc clientconn) ping() {
+	timer := time.NewTimer(pingInterval)
+	defer timer.Stop()
+	for {
+		select {
+		case <-cc.resetpingc:
+		case <-timer.C:
+			m := protomes{t: mping}
+			if !cc.trysend(cc.outc, m) {
+				return
+			}
+		case <-cc.done():
+			return
+		}
+	}
+}
+
+func (cc clientconn) main(h hub) {
+	defer cc.cancel()
 
 	rooms := make(map[uint32]roomhandle)
 
-	// TODO: make a message so the client can query which rooms they
-	// have joined and with which name
-	// -- client sends mqury, server responds minfo
-	// maybe mstat instead of mqury
+	for m := range cc.messages() {
+		// TODO: check if this an ok place to reset ping
+		// -- doesn't ignore when there are read errors
+		cc.resetping()
 
-	for m := range c.messages() {
 		switch m.t {
 		case mpong:
 		case msend:
@@ -86,19 +93,18 @@ func (c clientconn) consume(h hub) {
 			if _, alreadyjoined := rooms[m.room]; alreadyjoined {
 				continue
 			}
-			cli := makeroomclient()
-			req, resp, prob := cli.makereq(m.name)
+
+			rc := makeroomclient()
+			req, resp, prob := rc.makereq(m.name)
+
 			h.join(m.room, req)
+
 			select {
 			case <-prob:
-				// TODO: this might be because the name is in use
-				// or might be for some other reason
-				// so change prob to be not a chan zero but a chan joinerror
-				// or something, where joinerror is either canceled or nameInUse
-				c.trysend(c.outc, errormes(errJoinFailed))
+				cc.trysend(cc.outc, errormes(errJoinFailed))
 			case rh := <-resp:
 				rooms[m.room] = rh
-				go cli.run(m.room, c, rh)
+				go rc.main(m.room, cc, rh)
 			}
 		case mexit:
 			if rh, joined := rooms[m.room]; joined {
@@ -106,25 +112,17 @@ func (c clientconn) consume(h hub) {
 				delete(rooms, m.room)
 			}
 		default:
-			c.trysend(c.outc, errormes(errInvalidMessageType))
+			cc.trysend(cc.outc, errormes(errInvalidMessageType))
 		}
 	}
 }
 
-func (c clientconn) ping() {
-	timer := time.NewTimer(pingInterval)
-	defer timer.Stop()
-	for {
-		select {
-		case <-c.resetpingc:
-		case <-c.done():
-			return
-		case <-timer.C:
-			if !c.trysend(c.outc, protomes{t: mping}) {
-				return
-			}
-		}
-		timer.Reset(pingInterval)
+func (cc clientconn) resetping() bool {
+	select {
+	case cc.resetpingc <- zero{}:
+		return true
+	case <-cc.done():
+		return false
 	}
 }
 
@@ -137,36 +135,36 @@ func makeroomclient() roomclient {
 	}
 }
 
-func (cli roomclient) makereq(name string) (joinroomreq, chan roomhandle, chan zero) {
+func (rc roomclient) makereq(name string) (joinroomreq, chan roomhandle, chan zero) {
 	resp := make(chan roomhandle)
 	prob := make(chan zero)
 	return joinroomreq{
 		name:  name,
-		mesc:  cli.mesc,
-		jnedc: cli.jnedc,
-		exedc: cli.exedc,
+		mesc:  rc.mesc,
+		jnedc: rc.jnedc,
+		exedc: rc.exedc,
 		resp:  resp,
 		prob:  prob,
 	}, resp, prob
 }
 
-func (cli roomclient) run(room uint32, conn clientconn, rh roomhandle) {
+func (rc roomclient) main(room uint32, cc clientconn, rh roomhandle) {
 	defer rh.cancel()
 	for {
 		select {
-		case <-conn.done():
+		case rmes := <-rc.mesc:
+			m := protomes{mrecv, room, rmes.name, rmes.text}
+			cc.trysend(cc.outc, m)
+		case name := <-rc.jnedc:
+			m := protomes{mjned, room, name, ""}
+			cc.trysend(cc.outc, m)
+		case name := <-rc.exedc:
+			m := protomes{mexed, room, name, ""}
+			cc.trysend(cc.outc, m)
+		case <-cc.done():
 			return
 		case <-rh.done():
 			return
-		case rmes := <-cli.mesc:
-			m := protomes{mrecv, room, rmes.name, rmes.text}
-			conn.trysend(conn.outc, m)
-		case name := <-cli.jnedc:
-			m := protomes{mjned, room, name, ""}
-			conn.trysend(conn.outc, m)
-		case name := <-cli.exedc:
-			m := protomes{mexed, room, name, ""}
-			conn.trysend(conn.outc, m)
 		}
 	}
 }
