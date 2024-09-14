@@ -6,8 +6,10 @@ import (
 	"time"
 )
 
+// TODO: also reset ping on successful writes?
+
 const (
-	pingInterval = 30 * time.Second
+	pingInterval = 20 * time.Second
 )
 
 type clientconn struct {
@@ -43,12 +45,7 @@ func handleclient(conn net.Conn, h hub) {
 		resetpingc: make(chan zero),
 	}
 
-	context.AfterFunc(cc.ctx.c, func() {
-		conn.Close()
-	})
-
-	go cc.produceinc(conn)
-	go cc.consumeoutc(conn)
+	go cc.start(conn)
 	go cc.ping()
 	cc.main(h)
 }
@@ -67,6 +64,7 @@ func (cc clientconn) ping() {
 		case <-cc.done():
 			return
 		}
+		timer.Reset(pingInterval)
 	}
 }
 
@@ -75,44 +73,51 @@ func (cc clientconn) main(h hub) {
 
 	rooms := make(map[uint32]roomhandle)
 
-	for m := range cc.messages() {
-		// TODO: check if this an ok place to reset ping
-		// -- doesn't ignore when there are read errors
-		cc.resetping()
+	for {
+		select {
+		case m := <-cc.inc:
+			// TODO: check if this an ok place to reset ping
+			// -- doesn't ignore when there are read errors
+			cc.resetping()
 
-		switch m.t {
-		case mpong:
-		case msend:
-			if rh, joined := rooms[m.room]; joined {
-				rh.trysend(m.text)
-			} else {
-				// TODO: respond with error, user hasn't joined the room
-				continue
-			}
-		case mjoin:
-			if _, alreadyjoined := rooms[m.room]; alreadyjoined {
-				continue
+			switch m.t {
+			case mpong:
+			case msend:
+				if rh, joined := rooms[m.room]; joined {
+					rh.trysend(m.text)
+				} else {
+					// TODO: respond with error, user hasn't joined the room
+					continue
+				}
+			case mjoin:
+				if _, alreadyjoined := rooms[m.room]; alreadyjoined {
+					// TODO: respond with error?
+					continue
+				}
+
+				rc := makeroomclient()
+				req, resp, prob := rc.makereq(m.name)
+
+				h.join(m.room, req)
+
+				select {
+				case <-prob:
+					cc.trysend(cc.outc, errormes(errJoinFailed))
+				case rh := <-resp:
+					rooms[m.room] = rh
+					go rc.main(m.room, cc, rh)
+				}
+			case mexit:
+				if rh, joined := rooms[m.room]; joined {
+					rh.cancel()
+					delete(rooms, m.room)
+				}
+			default:
+				cc.trysend(cc.outc, errormes(errInvalidMessageType))
 			}
 
-			rc := makeroomclient()
-			req, resp, prob := rc.makereq(m.name)
-
-			h.join(m.room, req)
-
-			select {
-			case <-prob:
-				cc.trysend(cc.outc, errormes(errJoinFailed))
-			case rh := <-resp:
-				rooms[m.room] = rh
-				go rc.main(m.room, cc, rh)
-			}
-		case mexit:
-			if rh, joined := rooms[m.room]; joined {
-				rh.cancel()
-				delete(rooms, m.room)
-			}
-		default:
-			cc.trysend(cc.outc, errormes(errInvalidMessageType))
+		case <-cc.done():
+			return
 		}
 	}
 }

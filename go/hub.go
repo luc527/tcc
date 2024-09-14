@@ -47,7 +47,7 @@ func (h hub) run() {
 			if r0, ok := rooms[hreq.rid]; ok {
 				r = r0
 			} else {
-				r = startroom(h.ctx, hreq.rid, emptyc)
+				r = startroom(hreq.rid, h.ctx, emptyc)
 				rooms[hreq.rid] = r
 			}
 			r.join(hreq.req)

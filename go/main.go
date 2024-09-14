@@ -29,6 +29,12 @@ func main() {
 		}
 		address := args[1]
 		clientmain(address)
+	case "console":
+		if len(args) == 1 {
+			usage()
+		}
+		address := args[1]
+		conmain(address)
 	}
 
 }

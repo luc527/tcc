@@ -2,7 +2,10 @@ package main
 
 import (
 	"io"
+	"regexp"
 )
+
+var respace = regexp.MustCompile(`\s+`)
 
 type zero = struct{}
 

@@ -37,10 +37,10 @@ type room struct {
 	reqc chan joinroomreq
 }
 
-func startroom(parent ctx, rid uint32, emptyc chan<- uint32) room {
+func startroom(rid uint32, parent ctx, emptyc chan<- uint32) room {
 	reqc := make(chan joinroomreq)
 	r := room{parent.makechild(), reqc}
-	go r.run(parent, rid, emptyc)
+	go r.main(rid, parent, emptyc)
 	return r
 }
 
@@ -63,7 +63,7 @@ func (r room) join(req joinroomreq) {
 // anyhow, with a large enough buffered channel and a decent client connection
 // it's very unlikely that we'd even get to the point of losing messages like that
 
-func (r room) run(parent ctx, rid uint32, emptyc chan<- uint32) {
+func (r room) main(rid uint32, parent ctx, emptyc chan<- uint32) {
 	defer func() {
 		r.cancel()
 		select {
@@ -143,6 +143,7 @@ func consumeclient(
 		case <-ctx.done():
 			return
 		case text := <-inc:
+			// no select around here?
 			outc <- roommes{name, text}
 		}
 	}

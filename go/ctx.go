@@ -1,6 +1,8 @@
 package main
 
-import "context"
+import (
+	"context"
+)
 
 type ctx struct {
 	c context.Context
@@ -35,4 +37,8 @@ func (c ctx) cancel() {
 
 func (c ctx) makechild() ctx {
 	return makectx(c.c)
+}
+
+func (c ctx) after(f func()) func() bool {
+	return context.AfterFunc(c.c, f)
 }

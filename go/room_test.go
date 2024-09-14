@@ -70,7 +70,7 @@ func TestTwoJoinExit(t *testing.T) {
 	msg := ""
 	g := newgroup()
 
-	r := startroom(makectx(context.Background()), 0, make(chan uint32))
+	r := startroom(0, makectx(context.Background()), make(chan uint32))
 
 	joao := makeroomclient()
 	maria := makeroomclient()

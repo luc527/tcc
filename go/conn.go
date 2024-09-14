@@ -2,20 +2,29 @@ package main
 
 import (
 	"io"
-	"iter"
 	"log"
 	"net"
 	"time"
 )
 
 const (
-	timeout = 60 * time.Second
+	timeout = 30 * time.Second
 )
 
 type protoconn struct {
 	ctx
 	inc  chan protomes
 	outc chan protomes
+}
+
+func (pc protoconn) start(rawconn net.Conn) {
+	go pc.produceinc(rawconn)
+	go pc.consumeoutc(rawconn)
+	pc.after(func() {
+		if err := rawconn.Close(); err != nil {
+			log.Printf("failed to close conn: %v", err)
+		}
+	})
 }
 
 func (pc protoconn) trysend(c chan protomes, m protomes) bool {
@@ -36,7 +45,6 @@ func (pc protoconn) produceinc(conn net.Conn) {
 
 		deadline := time.Now().Add(timeout)
 		if err := conn.SetReadDeadline(deadline); err != nil {
-			log.Printf("failed to advance deadline: %v", err)
 			return
 		}
 
@@ -68,22 +76,6 @@ func (pc protoconn) consumeoutc(conn net.Conn) {
 			return
 		case m := <-pc.outc:
 			if _, err := m.WriteTo(conn); err != nil {
-				return
-			}
-		}
-	}
-}
-
-func (pc protoconn) messages() iter.Seq[protomes] {
-	return func(yield func(protomes) bool) {
-		defer pc.cancel()
-		for {
-			select {
-			case m := <-pc.inc:
-				if !yield(m) {
-					return
-				}
-			case <-pc.done():
 				return
 			}
 		}
