@@ -1,5 +1,3 @@
-// TODO adjust
-
 package main
 
 import (
@@ -7,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"iter"
 	"log"
 	"math/rand"
 	"net"
@@ -33,8 +30,8 @@ type botspec struct {
 }
 
 type army struct {
-	ctx
-	bots []bot
+	cancel context.CancelFunc
+	bots   []bot
 }
 
 type joinspec struct {
@@ -43,27 +40,20 @@ type joinspec struct {
 }
 
 type bot struct {
-	conn  *protoconn // TODO: remove ref?
-	joinc chan joinspec
-	exitc chan uint32
+	spec    botspec
+	connser sender[protomes]
+	joinc   chan joinspec
+	exitc   chan uint32
 }
 
-type roombot struct {
-	ctx
-	outc     chan<- protomes
-	room     uint32
-	messages iter.Seq[string]
-}
-
-var namedbotspecs = make(map[string]botspec)
-
-func init() {
-	namedbotspecs["tinyslow"] = botmustparse("5s 3 -1")
-}
+var (
+	namedbotspecs = map[string]botspec{
+		"tinyslow": botmustparse("5s 3 -1"),
+	}
+	wordpool = []string{"hello", "goodbye", "ok", "yeah", "nah", "true", "false", "is", "it", "the", "do", "don't", "they", "you", "them", "your", "me", "I", "mine", "dog", "cat", "duck", "robot", "squid", "tiger", "lion", "snake", "truth", "lie"}
+)
 
 func conmain(address string) {
-	wordpool := []string{"hello", "goodbye", "ok", "yeah", "nah", "true", "false", "is", "it", "the", "do", "don't", "they", "you", "them", "your", "me", "I", "mine", "dog", "cat", "duck", "robot", "squid", "tiger", "lion", "snake", "truth", "lie"}
-
 	sc := bufio.NewScanner(os.Stdin)
 
 	armies := make(map[string]army)
@@ -133,11 +123,8 @@ func conmain(address string) {
 				fmt.Printf("! invalid spec length %d\n", len(aspec))
 				continue
 			}
-			messagesf := func() iter.Seq[string] {
-				return spec.messages(wordpool)
-			}
 			armyctx := makectx(context.Background())
-			army, err := startarmy(address, armyctx, armysize, messagesf)
+			army, err := startarmy(spec, address, armysize)
 			if err != nil {
 				armyctx.cancel()
 				fmt.Printf("! failed to start the bot army: %v\n", err)
@@ -145,9 +132,7 @@ func conmain(address string) {
 			}
 			fmt.Printf("< army %q spawned\n", armyname)
 			armies[armyname] = army
-		}
-
-		if cmd == "kill" {
+		} else if cmd == "kill" {
 			armyname, ok := nextarg()
 			if !ok {
 				fmt.Printf("! missing army name\n")
@@ -160,10 +145,7 @@ func conmain(address string) {
 			}
 			army.cancel()
 			delete(armies, armyname)
-			continue
-		}
-
-		if cmd == "join" || cmd == "exit" {
+		} else if cmd == "join" || cmd == "exit" {
 			armyname, ok := nextarg()
 			if !ok {
 				fmt.Printf("! missing army name\n")
@@ -197,7 +179,6 @@ func conmain(address string) {
 				army.exit(room)
 				fmt.Printf("< army %q exited room %d\n", armyname, room)
 			}
-			continue
 		}
 
 	}
@@ -207,8 +188,16 @@ func conmain(address string) {
 	}
 }
 
-// TODO: turn into channel
-func (bs botspec) messages(wordpool []string) iter.Seq[string] {
+func (bs botspec) sendmessages(s sender[string]) {
+	defer s.close()
+
+	if bs.nmes == 0 {
+		return
+	}
+	if bs.nword == 0 {
+		return
+	}
+
 	minword := bs.nword
 	maxword := bs.nword
 	if bs.nword < 0 {
@@ -234,46 +223,40 @@ func (bs botspec) messages(wordpool []string) iter.Seq[string] {
 		mindur = int64(-bs.dur) - third
 		maxdur = int64(-bs.dur) + third
 	}
+	sent := 0
 
-	return func(yield func(string) bool) {
-		if bs.nmes == 0 {
+	for {
+		bbuf.Reset()
+		n := minword
+		if d := maxword - minword; d > 0 {
+			n += rand.Intn(d)
+		}
+		sep := ""
+		for range n {
+			word := wordpool[rand.Intn(len(wordpool))]
+			bbuf.WriteString(sep)
+			bbuf.WriteString(word)
+			sep = " "
+		}
+		message := bbuf.String()
+
+		select {
+		case <-s.done:
 			return
+		default:
+			s.send(message)
 		}
-		if bs.nword == 0 {
-			return
+
+		sent++
+		if bs.nmes > 0 && sent >= bs.nmes {
+			break
 		}
-		sent := 0
 
-		for {
-			bbuf.Reset()
-			n := minword
-			if d := maxword - minword; d > 0 {
-				n += rand.Intn(d)
-			}
-			sep := ""
-			for range n {
-				word := wordpool[rand.Intn(len(wordpool))]
-				bbuf.WriteString(sep)
-				bbuf.WriteString(word)
-				sep = " "
-			}
-			message := bbuf.String()
-
-			if !yield(message) {
-				break
-			}
-
-			sent++
-			if bs.nmes > 0 && sent >= bs.nmes {
-				break
-			}
-
-			dur := mindur
-			if d := maxdur - mindur; d > 0 {
-				dur += rand.Int63() % d
-			}
-			time.Sleep(time.Duration(dur))
+		dur := mindur
+		if d := maxdur - mindur; d > 0 {
+			dur += rand.Int63() % d
 		}
+		time.Sleep(time.Duration(dur))
 	}
 }
 
@@ -313,46 +296,33 @@ func botparsea(args []string) (bs botspec, rerr error) {
 	return
 }
 
-func startarmy(address string, ctx ctx, size uint, messagesf func() iter.Seq[string]) (a army, e error) {
+func startarmy(spec botspec, address string, size uint) (a army, e error) {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	bots := make([]bot, size)
 	for i := range bots {
 		rawconn, err := net.Dial("tcp", address)
 		if err != nil {
+			cancel()
 			e = err
 			return
 		}
 
 		pc := makeconn(rawconn)
-		pc.start()
+		go pc.produceinc()
+		go pc.consumeoutc()
 
-		// TODO: need to add inc and outc somewhere to register all incoming/outgoing messages
+		s := pc.sender()
+		context.AfterFunc(ctx, s.close)
 
-		joinc := make(chan joinspec)
-		exitc := make(chan uint32)
-
-		b := bot{&pc, joinc, exitc}
+		b := makebot(spec, s)
 		bots[i] = b
 
-		go func() {
-			defer pc.close()
-			for {
-				select {
-				case <-pc.done():
-					return
-				case m := <-pc.inc:
-					log.Printf("< {message %v}", m)
-					if m.t == mping {
-						pc.send(protomes{t: mpong})
-					}
-				}
-			}
-		}()
-
-		go b.main(messagesf)
-
+		go b.handlemessages(pc.receiver())
+		go b.main()
 	}
 
-	a = army{ctx, bots}
+	a = army{cancel, bots}
 	return
 }
 
@@ -361,7 +331,7 @@ func (a army) join(room uint32, prefix string) {
 		name := fmt.Sprintf("%s%d", prefix, i)
 		select {
 		case b.joinc <- joinspec{room, name}:
-		case <-b.done():
+		case <-b.connser.done:
 		}
 	}
 }
@@ -370,91 +340,84 @@ func (a army) exit(room uint32) {
 	for _, b := range a.bots {
 		select {
 		case b.exitc <- room:
-		case <-b.done():
+		case <-b.connser.done:
 		}
 	}
 }
 
-func (b bot) trysend(m protomes) bool {
-	select {
-	case b.outc <- m:
-		return true
-	case <-b.done():
-		return false
+func makebot(spec botspec, s sender[protomes]) bot {
+	joinc := make(chan joinspec)
+	exitc := make(chan uint32)
+	return bot{spec, s, joinc, exitc}
+}
+
+func (b bot) handlemessages(r receiver[protomes]) {
+	for {
+		m, ok := r.receive()
+		if !ok {
+			break
+		}
+		log.Printf("< message: %v", m)
+		if m.t == mping {
+			b.connser.send(protomes{t: mpong})
+		}
 	}
 }
 
-func (b bot) main(messagesf func() iter.Seq[string]) {
-	defer b.cancel()
-	rooms := make(map[uint32]ctx)
+func (b bot) main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	rooms := make(map[uint32]context.CancelFunc)
 	endedc := make(chan uint32)
-	fmt.Printf("< bot started...\n")
+
 	for {
 		select {
+		case join := <-b.joinc:
+			if _, joined := rooms[join.room]; !joined {
+				m := protomes{t: mjoin, name: join.name, room: join.room}
+				b.connser.send(m)
+
+				roomctx, cancelroom := context.WithCancel(ctx)
+				rooms[join.room] = cancelroom
+
+				f := freer[uint32]{
+					done: b.connser.done,
+					c:    endedc,
+					id:   join.room,
+				}
+
+				textc := make(chan string)
+				textser, textrer := senderreceiver(roomctx.Done(), textc, nil)
+
+				go b.spec.sendmessages(textser)
+				go roombotmain(join.room, b.connser, textrer, f)
+			}
 		case room := <-b.exitc:
-			fmt.Printf("< bot: exit room %d\n", room)
-			if rctx, joined := rooms[room]; joined {
-				rctx.cancel()
+			if cancelroom, joined := rooms[room]; joined {
+				cancelroom()
 			}
 		case room := <-endedc:
-			fmt.Printf("< bot: ended room %d\n", room)
 			delete(rooms, room)
-			exitmes := protomes{t: mexit, room: room}
-			if !b.trysend(exitmes) {
-				return
-			}
-		case join := <-b.joinc:
-			fmt.Printf("< bot: join room %d with name %q\n", join.room, join.name)
-			joinmes := protomes{t: mjoin, name: join.name, room: join.room}
-			if !b.trysend(joinmes) {
-				return
-			}
-			if _, joined := rooms[join.room]; !joined {
-				fmt.Printf("< bot: joining room...\n")
-				roomctx := b.ctx.makechild()
-				rooms[join.room] = roomctx
-				rb := roombot{roomctx, b.outc, join.room, messagesf()}
-				go func() {
-					delay := time.Duration(rand.Uint64() % uint64(5*time.Second))
-					time.Sleep(delay)
-					rb.main(b.ctx, endedc)
-				}()
-			}
-		case <-b.done():
+			m := protomes{t: mexit, room: room}
+			b.connser.send(m)
+		case <-b.connser.done:
 			return
 		}
 	}
 }
 
-// TODO: fix: when bots still sending to some room, ctrl+d STILL causes connection reset on the server
-
-func (rb roombot) trysend(text string) bool {
-	m := protomes{t: msend, room: rb.room, text: text}
-	select {
-	case rb.outc <- m:
-		return true
-	case <-rb.done():
-		return false
-	}
-}
-
-func (rb roombot) main(parent ctx, endedc chan<- uint32) {
-	defer func() {
-		rb.cancel()
-		select {
-		case endedc <- rb.room:
-		case <-parent.done():
-		}
-	}()
-	next, stop := iter.Pull(rb.messages)
-	defer stop()
+func roombotmain(room uint32, s sender[protomes], r receiver[string], f freer[uint32]) {
+	defer f.free()
+	// TODO: test delay
+	delay := time.Duration(rand.Uint64() % uint64(5*time.Second))
+	time.Sleep(delay)
 	for {
-		text, ok := next()
+		text, ok := r.receive()
 		if !ok {
 			break
 		}
-		if !rb.trysend(text) {
-			break
-		}
+		m := protomes{t: msend, room: room, text: text}
+		s.send(m)
 	}
 }

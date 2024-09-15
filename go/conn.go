@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"net"
@@ -53,6 +54,13 @@ func (pc protoconn) sender() sender[protomes] {
 	}
 }
 
+func (pc protoconn) receiver() receiver[protomes] {
+	return receiver[protomes]{
+		done: pc.ctx.Done(),
+		c:    pc.inc,
+	}
+}
+
 func (pc protoconn) produceinc() {
 	defer pc.cancelf()
 	for {
@@ -77,6 +85,8 @@ func (pc protoconn) produceinc() {
 		} else if err == io.EOF {
 			return
 		} else if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+			return
+		} else if errors.Is(err, net.ErrClosed) {
 			return
 		} else {
 			log.Printf("failed to read message: %v", err)

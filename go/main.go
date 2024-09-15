@@ -11,7 +11,7 @@ func usage() {
 	fmt.Printf("\nusage:\n")
 	fmt.Printf("\t%s server\n", os.Args[0])
 	fmt.Printf("\t%s client <address>\n", os.Args[0])
-	// fmt.Printf("\t%s console <address>\n", os.Args[0])
+	fmt.Printf("\t%s console <address>\n", os.Args[0])
 	os.Exit(1)
 }
 
@@ -30,12 +30,12 @@ func main() {
 		}
 		address := args[1]
 		clientmain(address)
-		// case "console":
-		// 	if len(args) == 1 {
-		// 		usage()
-		// 	}
-		// 	address := args[1]
-		// 	conmain(address)
+	case "console":
+		if len(args) == 1 {
+			usage()
+		}
+		address := args[1]
+		conmain(address)
 	}
 
 }
