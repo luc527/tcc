@@ -18,11 +18,11 @@ func clientmain(address string) {
 	}
 
 	pc := makeconn(rawconn)
-	go pc.produceinc()
-	go pc.consumeoutc()
+	go pc.producein()
+	go pc.consumeout()
 
 	s := pc.sender()
-	go handleserver(pc.inc, s)
+	go handleserver(pc.in, s)
 
 	respace := regexp.MustCompile(`\s+`)
 
@@ -87,6 +87,9 @@ loop:
 }
 
 func handleserver(ms <-chan protomes, s sender[protomes]) {
+	goinc()
+	defer godec()
+
 	defer s.close()
 	for {
 		select {

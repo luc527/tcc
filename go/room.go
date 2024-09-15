@@ -10,47 +10,40 @@ type roommes struct {
 }
 
 type clienthandle struct {
-	ctx   context.Context
-	mesc  chan<- roommes
-	jnedc chan<- string
-	exedc chan<- string
+	ctx  context.Context
+	rms  chan<- roommes
+	jned chan<- string
+	exed chan<- string
 }
 
 type joinroomreq struct {
-	name  string
-	mesc  chan<- roommes        // channel for the room to send messages to
-	jnedc chan<- string         // channel for the room to send joined signals to
-	exedc chan<- string         // channel for the room to send exited signals to
-	resp  chan<- sender[string] // if the request succeeds, the room sends a room handle to this channel
-	prob  chan<- zero           // if the request fails, zero{} is sent to this channel
+	name string
+	rms  chan<- roommes        // channel for the room to send messages to
+	jned chan<- string         // channel for the room to send joined signals to
+	exed chan<- string         // channel for the room to send exited signals to
+	resp chan<- sender[string] // if the request succeeds, the room sends a room handle to this channel
+	prob chan<- zero           // if the request fails, zero{} is sent to this channel
 }
 
 type room struct {
-	ctx     context.Context
-	cancelf context.CancelFunc
-	reqc    chan joinroomreq
-	mesc    chan roommes
+	ctx    context.Context
+	cancel context.CancelFunc
+	reqs   chan joinroomreq
+	rms    chan roommes
 }
 
 func makeroom(parctx context.Context) room {
-	ctx, cancelf := context.WithCancel(parctx)
-	reqc := make(chan joinroomreq)
-	mesc := make(chan roommes)
-	return room{ctx, cancelf, reqc, mesc}
+	ctx, cancel := context.WithCancel(parctx)
+	reqs := make(chan joinroomreq)
+	rms := make(chan roommes)
+	return room{ctx, cancel, reqs, rms}
 }
 
 func (r room) join(req joinroomreq) {
 	select {
 	case <-r.ctx.Done():
 		req.prob <- zero{}
-	case r.reqc <- req:
-	}
-}
-
-func (r room) send(rm roommes) {
-	select {
-	case <-r.ctx.Done():
-	case r.mesc <- rm:
+	case r.reqs <- req:
 	}
 }
 
@@ -58,7 +51,7 @@ func (r room) send(rm roommes) {
 // whether the client closed. maybe it should also give up on sending a message
 // if some time passes. otherwise one slow client could block the room
 // (the room sends to the clients one by one)
-// ofc using buffered channels for mesc/jnedc/exedc would help a lot, but may not be enough?
+// ofc using buffered channels for mesc/jned/exed would help a lot, but may not be enough?
 // then, what's the timeout? 1 millisecond? idk really, what's the amount that would actually help?
 // but also, is it ok to create a timer for each and every message to the client?
 // ! that's not necessary, could just reuse the same timer, it could even be one timer per room (maybe?)
@@ -66,41 +59,43 @@ func (r room) send(rm roommes) {
 // it's very unlikely that we'd even get to the point of losing messages like that
 
 func (r room) main(f roomfreer) {
+	goinc()
+	defer godec()
 	defer f.free()
-	defer r.cancelf()
+	defer r.cancel()
 
-	// TODO: check whether double cancelf() is a problem
-	// (hub gets canceled -> room gets canceled, but we still call cancelf in a defer)
+	// TODO: check whether double cancel() is a problem
+	// (hub gets canceled -> room gets canceled, but we still call cancel in a defer)
 
 	clients := make(map[string]clienthandle)
 
-	exitc := make(chan string)
-	mesc := make(chan roommes)
+	exit := make(chan string)
+	rms := make(chan roommes)
 
 	for {
 		select {
 		case <-r.ctx.Done():
 			return
-		case req := <-r.reqc:
+		case req := <-r.reqs:
 			if _, exists := clients[req.name]; exists {
 				req.prob <- zero{}
 				continue
 			}
-			clictx, clicancelf := context.WithCancel(r.ctx)
+			clictx, clicancel := context.WithCancel(r.ctx)
 			f := freer[string]{
 				done: r.ctx.Done(),
-				c:    exitc,
+				c:    exit,
 				id:   req.name,
 			}
 			roomser := sender[roommes]{
 				done: r.ctx.Done(),
-				c:    mesc,
-				cf:   clicancelf,
+				c:    rms,
+				cf:   clicancel,
 			}
-			textser, textrer := senderreceiver(clictx.Done(), make(chan string), clicancelf)
+			textser, textrer := senderreceiver(clictx.Done(), make(chan string), clicancel)
 			go handleroomclient(req.name, roomser, textrer, f)
 
-			ch := clienthandle{clictx, req.mesc, req.jnedc, req.exedc}
+			ch := clienthandle{clictx, req.rms, req.jned, req.exed}
 			clients[req.name] = ch
 
 			req.resp <- textser
@@ -108,26 +103,27 @@ func (r room) main(f roomfreer) {
 				ch.joined(req.name)
 			}
 
-		case m := <-mesc:
+		case rm := <-rms:
 			for _, ch := range clients {
-				ch.send(m)
+				ch.send(rm)
 			}
-		case name := <-exitc:
-			if _, exists := clients[name]; !exists {
-				continue
-			}
-			for _, ch := range clients {
-				ch.exited(name)
-			}
-			delete(clients, name)
-			if len(clients) == 0 {
-				return
+		case name := <-exit:
+			if _, exists := clients[name]; exists {
+				for _, ch := range clients {
+					ch.exited(name)
+				}
+				delete(clients, name)
+				if len(clients) == 0 {
+					return
+				}
 			}
 		}
 	}
 }
 
 func handleroomclient(name string, s sender[roommes], r receiver[string], f freer[string]) {
+	goinc()
+	defer godec()
 	defer f.free()
 	defer s.close()
 	for {
@@ -142,20 +138,20 @@ func handleroomclient(name string, s sender[roommes], r receiver[string], f free
 func (ch clienthandle) send(rm roommes) {
 	select {
 	case <-ch.ctx.Done():
-	case ch.mesc <- rm:
+	case ch.rms <- rm:
 	}
 }
 
 func (ch clienthandle) joined(name string) {
 	select {
 	case <-ch.ctx.Done():
-	case ch.jnedc <- name:
+	case ch.jned <- name:
 	}
 }
 
 func (ch clienthandle) exited(name string) {
 	select {
 	case <-ch.ctx.Done():
-	case ch.exedc <- name:
+	case ch.exed <- name:
 	}
 }

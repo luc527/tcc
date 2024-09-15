@@ -3,9 +3,26 @@ package main
 import (
 	"io"
 	"regexp"
+	"sync/atomic"
 )
 
 var respace = regexp.MustCompile(`\s+`)
+
+// goroutine count, for debugging
+// TODO: test console.go too
+var gocount = atomic.Int32{}
+
+func init() {
+	gocount.Store(0)
+}
+
+func goinc() {
+	// log.Printf("<go> count: %d", gocount.Add(1))
+}
+
+func godec() {
+	// log.Printf("<go> count: %d", gocount.Add(-1))
+}
 
 type zero = struct{}
 
@@ -41,11 +58,7 @@ func (s sender[T]) send(v T) {
 }
 
 func (s sender[T]) close() {
-	select {
-	case <-s.done:
-	default:
-		s.cf()
-	}
+	s.cf()
 }
 
 func (r receiver[T]) receive() (v T, b bool) {

@@ -11,16 +11,16 @@ type hjoinroomreq struct {
 
 type hub struct {
 	ctx      context.Context
-	cancelf  context.CancelFunc
-	joinreqc chan hjoinroomreq
+	cancel   context.CancelFunc
+	joinreqs chan hjoinroomreq
 }
 
 type roomfreer = freer[uint32]
 
 func makehub() hub {
-	ctx, cancelf := context.WithCancel(context.Background())
-	joinreqc := make(chan hjoinroomreq)
-	return hub{ctx, cancelf, joinreqc}
+	ctx, cancel := context.WithCancel(context.Background())
+	joinreqs := make(chan hjoinroomreq)
+	return hub{ctx, cancel, joinreqs}
 }
 
 func (h hub) join(rid uint32, req joinroomreq) {
@@ -28,14 +28,16 @@ func (h hub) join(rid uint32, req joinroomreq) {
 	select {
 	case <-h.ctx.Done():
 		req.prob <- zero{}
-	case h.joinreqc <- hreq:
+	case h.joinreqs <- hreq:
 	}
 }
 
 func (h hub) main() {
-	defer h.cancelf()
+	goinc()
+	defer godec()
+	defer h.cancel()
 
-	emptyc := make(chan uint32)
+	emptied := make(chan uint32)
 
 	rooms := make(map[uint32]room)
 
@@ -43,16 +45,16 @@ func (h hub) main() {
 		select {
 		case <-h.ctx.Done():
 			return
-		case rid := <-emptyc:
+		case rid := <-emptied:
 			delete(rooms, rid)
-		case hreq := <-h.joinreqc:
+		case hreq := <-h.joinreqs:
 			var r room
 			if r0, ok := rooms[hreq.rid]; ok {
 				r = r0
 			} else {
 				rf := roomfreer{
 					done: h.ctx.Done(),
-					c:    emptyc,
+					c:    emptied,
 					id:   hreq.rid,
 				}
 				r = makeroom(h.ctx)

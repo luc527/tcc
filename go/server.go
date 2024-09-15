@@ -7,9 +7,9 @@ import (
 
 type roomclient struct {
 	connser sender[protomes]
-	mesc    chan roommes
-	jnedc   chan string
-	exedc   chan string
+	rms     chan roommes
+	jned    chan string
+	exed    chan string
 }
 
 func serve(listener net.Listener) {
@@ -26,25 +26,24 @@ func serve(listener net.Listener) {
 }
 
 func handleclient(conn protoconn, h hub) {
-	go conn.produceinc()
-	go conn.consumeoutc()
+	go conn.producein()
+	go conn.consumeout()
 	connser := conn.sender()
 	go pingclient(connser)
-
-	handlemessages(h, conn.inc, connser)
+	handlemessages(h, conn.in, connser)
 }
 
 func handlemessages(h hub, ms <-chan protomes, connser sender[protomes]) {
 	defer connser.close()
 
 	rooms := make(map[uint32]sender[string])
-	exitedc := make(chan uint32)
+	exited := make(chan uint32)
 
 	for {
 		select {
 		case <-connser.done:
 			return
-		case room := <-exitedc:
+		case room := <-exited:
 			delete(rooms, room)
 		case m := <-ms:
 
@@ -66,7 +65,7 @@ func handlemessages(h hub, ms <-chan protomes, connser sender[protomes]) {
 					rooms[m.room] = roomser
 					f := freer[uint32]{
 						done: connser.done,
-						c:    exitedc,
+						c:    exited,
 						id:   m.room,
 					}
 					go rc.main(m.room, roomser, f)
@@ -92,9 +91,9 @@ func makeroomclient(connser sender[protomes]) roomclient {
 	// TODO: buffered
 	return roomclient{
 		connser: connser,
-		mesc:    make(chan roommes),
-		jnedc:   make(chan string),
-		exedc:   make(chan string),
+		rms:     make(chan roommes),
+		jned:    make(chan string),
+		exed:    make(chan string),
 	}
 }
 
@@ -102,29 +101,31 @@ func (rc roomclient) makereq(name string) (req joinroomreq, resp chan sender[str
 	resp = make(chan sender[string])
 	prob = make(chan zero)
 	req = joinroomreq{
-		name:  name,
-		mesc:  rc.mesc,
-		jnedc: rc.jnedc,
-		exedc: rc.exedc,
-		resp:  resp,
-		prob:  prob,
+		name: name,
+		rms:  rc.rms,
+		jned: rc.jned,
+		exed: rc.exed,
+		resp: resp,
+		prob: prob,
 	}
 	return
 }
 
 func (rc roomclient) main(room uint32, roomser sender[string], f freer[uint32]) {
+	goinc()
+	defer godec()
 	defer f.free()
 	defer roomser.close()
 
 	for {
 		select {
-		case rmes := <-rc.mesc:
-			m := protomes{mrecv, room, rmes.name, rmes.text}
+		case rm := <-rc.rms:
+			m := protomes{mrecv, room, rm.name, rm.text}
 			rc.connser.send(m)
-		case name := <-rc.jnedc:
+		case name := <-rc.jned:
 			m := protomes{mjned, room, name, ""}
 			rc.connser.send(m)
-		case name := <-rc.exedc:
+		case name := <-rc.exed:
 			m := protomes{mexed, room, name, ""}
 			rc.connser.send(m)
 		case <-rc.connser.done:
@@ -136,6 +137,8 @@ func (rc roomclient) main(room uint32, roomser sender[string], f freer[uint32]) 
 }
 
 func pingclient(s sender[protomes]) {
+	goinc()
+	defer godec()
 	ticker := time.NewTicker(pingInterval)
 	defer ticker.Stop()
 	for {

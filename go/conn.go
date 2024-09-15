@@ -16,53 +16,36 @@ const (
 
 func init() {
 	if pingInterval >= timeout {
-		panic("ping interval has to be lesser than the timeout")
+		panic("must have pingInterval < timeout")
 		// otherwise the server will ping but the timeout will close the connection before the client even gets the
 	}
 }
 
 type protoconn struct {
 	ctx     context.Context
-	cancelf context.CancelFunc
+	cancel  context.CancelFunc
 	rawconn net.Conn
-	inc     chan protomes
-	outc    chan protomes
+	in      chan protomes
+	out     chan protomes
 }
 
 func makeconn(rawconn net.Conn) protoconn {
-	ctx, cancelf := context.WithCancel(context.Background())
-	inc := make(chan protomes)
-	outc := make(chan protomes)
+	ctx, cancel := context.WithCancel(context.Background())
+	in := make(chan protomes)
+	out := make(chan protomes)
 	return protoconn{
 		ctx:     ctx,
-		cancelf: cancelf,
+		cancel:  cancel,
 		rawconn: rawconn,
-		inc:     inc,
-		outc:    outc,
+		in:      in,
+		out:     out,
 	}
 }
 
-func (pc protoconn) sender() sender[protomes] {
-	return sender[protomes]{
-		done: pc.ctx.Done(),
-		c:    pc.outc,
-		cf: func() {
-			if err := pc.rawconn.Close(); err != nil {
-				log.Printf("failed to close: %v", err)
-			}
-		},
-	}
-}
-
-func (pc protoconn) receiver() receiver[protomes] {
-	return receiver[protomes]{
-		done: pc.ctx.Done(),
-		c:    pc.inc,
-	}
-}
-
-func (pc protoconn) produceinc() {
-	defer pc.cancelf()
+func (pc protoconn) producein() {
+	goinc()
+	defer godec()
+	defer pc.cancel()
 	for {
 		deadline := time.Now().Add(timeout)
 		if err := pc.rawconn.SetReadDeadline(deadline); err != nil {
@@ -74,13 +57,13 @@ func (pc protoconn) produceinc() {
 			select {
 			case <-pc.ctx.Done():
 				return
-			case pc.inc <- m:
+			case pc.in <- m:
 			}
 		} else if perr, ok := err.(protoerror); ok {
 			select {
 			case <-pc.ctx.Done():
 				return
-			case pc.outc <- errormes(perr):
+			case pc.out <- errormes(perr):
 			}
 		} else if err == io.EOF {
 			return
@@ -95,16 +78,37 @@ func (pc protoconn) produceinc() {
 	}
 }
 
-func (pc protoconn) consumeoutc() {
-	defer pc.cancelf()
+func (pc protoconn) consumeout() {
+	goinc()
+	defer godec()
+	defer pc.cancel()
 	for {
 		select {
 		case <-pc.ctx.Done():
 			return
-		case m := <-pc.outc:
+		case m := <-pc.out:
 			if _, err := m.WriteTo(pc.rawconn); err != nil {
 				return
 			}
 		}
+	}
+}
+
+func (pc protoconn) sender() sender[protomes] {
+	return sender[protomes]{
+		done: pc.ctx.Done(),
+		c:    pc.out,
+		cf: func() {
+			if err := pc.rawconn.Close(); err != nil {
+				log.Printf("failed to close: %v", err)
+			}
+		},
+	}
+}
+
+func (pc protoconn) receiver() receiver[protomes] {
+	return receiver[protomes]{
+		done: pc.ctx.Done(),
+		c:    pc.in,
 	}
 }
