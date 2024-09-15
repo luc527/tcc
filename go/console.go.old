@@ -1,3 +1,5 @@
+// TODO adjust
+
 package main
 
 import (
@@ -41,8 +43,7 @@ type joinspec struct {
 }
 
 type bot struct {
-	ctx
-	outc  chan<- protomes
+	conn  *protoconn // TODO: remove ref?
 	joinc chan joinspec
 	exitc chan uint32
 }
@@ -206,6 +207,7 @@ func conmain(address string) {
 	}
 }
 
+// TODO: turn into channel
 func (bs botspec) messages(wordpool []string) iter.Seq[string] {
 	minword := bs.nword
 	maxword := bs.nword
@@ -320,34 +322,28 @@ func startarmy(address string, ctx ctx, size uint, messagesf func() iter.Seq[str
 			return
 		}
 
-		pc := protoconn{
-			ctx:  ctx.makechild(),
-			inc:  make(chan protomes),
-			outc: make(chan protomes),
-		}
-		pc.start(rawconn)
+		pc := makeconn(rawconn)
+		pc.start()
 
 		// TODO: need to add inc and outc somewhere to register all incoming/outgoing messages
 
 		joinc := make(chan joinspec)
 		exitc := make(chan uint32)
 
-		b := bot{pc.ctx, pc.outc, joinc, exitc}
+		b := bot{&pc, joinc, exitc}
 		bots[i] = b
 
 		go func() {
-			defer pc.cancel()
+			defer pc.close()
 			for {
 				select {
+				case <-pc.done():
+					return
 				case m := <-pc.inc:
 					log.Printf("< {message %v}", m)
 					if m.t == mping {
-						if !pc.trysend(pc.outc, protomes{t: mpong}) {
-							return
-						}
+						pc.send(protomes{t: mpong})
 					}
-				case <-pc.done():
-					return
 				}
 			}
 		}()

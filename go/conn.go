@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"log"
 	"net"
@@ -8,54 +9,70 @@ import (
 )
 
 const (
-	timeout = 30 * time.Second
+	timeout      = 30 * time.Second
+	pingInterval = 20 * time.Second
 )
 
-type protoconn struct {
-	ctx
-	inc  chan protomes
-	outc chan protomes
-}
-
-func (pc protoconn) start(rawconn net.Conn) {
-	go pc.produceinc(rawconn)
-	go pc.consumeoutc(rawconn)
-	pc.after(func() {
-		if err := rawconn.Close(); err != nil {
-			log.Printf("failed to close conn: %v", err)
-		}
-	})
-}
-
-func (pc protoconn) trysend(c chan protomes, m protomes) bool {
-	select {
-	case c <- m:
-		return true
-	case <-pc.done():
-		return false
+func init() {
+	if pingInterval >= timeout {
+		panic("ping interval has to be lesser than the timeout")
+		// otherwise the server will ping but the timeout will close the connection before the client even gets the
 	}
 }
 
-func (pc protoconn) produceinc(conn net.Conn) {
-	defer pc.cancel()
-	for {
-		if pc.isdone() {
-			return
-		}
+type protoconn struct {
+	ctx     context.Context
+	cancelf context.CancelFunc
+	rawconn net.Conn
+	inc     chan protomes
+	outc    chan protomes
+}
 
+func makeconn(rawconn net.Conn) protoconn {
+	ctx, cancelf := context.WithCancel(context.Background())
+	inc := make(chan protomes)
+	outc := make(chan protomes)
+	return protoconn{
+		ctx:     ctx,
+		cancelf: cancelf,
+		rawconn: rawconn,
+		inc:     inc,
+		outc:    outc,
+	}
+}
+
+func (pc protoconn) sender() sender[protomes] {
+	return sender[protomes]{
+		done: pc.ctx.Done(),
+		c:    pc.outc,
+		cf: func() {
+			if err := pc.rawconn.Close(); err != nil {
+				log.Printf("failed to close: %v", err)
+			}
+		},
+	}
+}
+
+func (pc protoconn) produceinc() {
+	defer pc.cancelf()
+	for {
 		deadline := time.Now().Add(timeout)
-		if err := conn.SetReadDeadline(deadline); err != nil {
+		if err := pc.rawconn.SetReadDeadline(deadline); err != nil {
 			return
 		}
 
 		m := protomes{}
-		if _, err := m.ReadFrom(conn); err == nil {
-			if !pc.trysend(pc.inc, m) {
+		if _, err := m.ReadFrom(pc.rawconn); err == nil {
+			select {
+			case <-pc.ctx.Done():
 				return
+			case pc.inc <- m:
 			}
 		} else if perr, ok := err.(protoerror); ok {
-			if !pc.trysend(pc.outc, errormes(perr)) {
+			select {
+			case <-pc.ctx.Done():
 				return
+			case pc.outc <- errormes(perr):
 			}
 		} else if err == io.EOF {
 			return
@@ -68,14 +85,14 @@ func (pc protoconn) produceinc(conn net.Conn) {
 	}
 }
 
-func (pc protoconn) consumeoutc(conn net.Conn) {
-	defer pc.cancel()
+func (pc protoconn) consumeoutc() {
+	defer pc.cancelf()
 	for {
 		select {
-		case <-pc.done():
+		case <-pc.ctx.Done():
 			return
 		case m := <-pc.outc:
-			if _, err := m.WriteTo(conn); err != nil {
+			if _, err := m.WriteTo(pc.rawconn); err != nil {
 				return
 			}
 		}

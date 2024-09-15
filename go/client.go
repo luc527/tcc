@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"log"
 	"net"
@@ -12,23 +11,23 @@ import (
 )
 
 func clientmain(address string) {
-	conn, err := net.Dial("tcp", address)
+	rawconn, err := net.Dial("tcp", address)
 	if err != nil {
 		log.Printf("failed to connect: %v", err)
 		return
 	}
 
-	pc := protoconn{
-		ctx:  makectx(context.Background()),
-		inc:  make(chan protomes),
-		outc: make(chan protomes),
-	}
-	pc.start(conn)
-	go handleserver(pc)
+	pc := makeconn(rawconn)
+	go pc.produceinc()
+	go pc.consumeoutc()
+
+	s := pc.sender()
+	go handleserver(pc.inc, s)
 
 	respace := regexp.MustCompile(`\s+`)
 
 	sc := bufio.NewScanner(os.Stdin)
+loop:
 	for sc.Scan() {
 		toks := respace.Split(sc.Text(), 3)
 		if len(toks) == 0 {
@@ -59,16 +58,10 @@ func clientmain(address string) {
 			}
 			name := toks[2]
 			m := protomes{t: mjoin, room: room, name: name}
-			if !pc.trysend(pc.outc, m) {
-				log.Printf("failed to join (%v)\n", m)
-				return
-			}
+			s.send(m)
 		case "exit":
 			m := protomes{t: mexit, room: room}
-			if !pc.trysend(pc.outc, m) {
-				log.Printf("failed to exit (%v)\n", m)
-				return
-			}
+			s.send(m)
 		case "send":
 			if len(toks) == 2 {
 				fmt.Println("! missing text")
@@ -76,12 +69,15 @@ func clientmain(address string) {
 			}
 			text := toks[2]
 			m := protomes{t: msend, room: room, text: text}
-			if !pc.trysend(pc.outc, m) {
-				log.Printf("failed to send (%v)\n", m)
-				return
-			}
+			s.send(m)
 		default:
 			log.Printf("! unknown command %q\n! available commands are: %q, %q, %q and %q\n", cmd, "quit", "join", "exit", "send")
+		}
+
+		select {
+		case <-s.done:
+			break loop
+		default:
 		}
 	}
 
@@ -90,18 +86,17 @@ func clientmain(address string) {
 	}
 }
 
-func handleserver(pc protoconn) {
-	defer pc.cancel()
+func handleserver(ms <-chan protomes, s sender[protomes]) {
+	defer s.close()
 	for {
 		select {
-		case m := <-pc.inc:
+		case <-s.done:
+			return
+		case m := <-ms:
 			switch m.t {
 			case mping:
 				log.Printf("< ping\n")
-				if !pc.trysend(pc.outc, protomes{t: mpong}) {
-					log.Printf("! disconnected\n")
-					return
-				}
+				s.send(protomes{t: mpong})
 			case mjned:
 				log.Printf("< (%d, %v) joined\n", m.room, m.name)
 			case mexed:
@@ -116,8 +111,6 @@ func handleserver(pc protoconn) {
 				}
 				log.Printf("< (error) %v\n", s)
 			}
-		case <-pc.done():
-			return
 		}
 	}
 }
