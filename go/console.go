@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log"
 	"math/rand"
 	"net"
 	"os"
@@ -12,35 +13,13 @@ import (
 	"time"
 )
 
-type botspec struct {
-	dur time.Duration
-	nw  int
-	nm  int
-}
-
-type army struct {
-	cancel context.CancelFunc
-	bots   []bot
-}
-
-type joinspec struct {
-	room uint32
-	name string
-}
-
-type bot struct {
-	spec    botspec
-	connser sender[protomes]
-	join    chan joinspec
-	exit    chan uint32
-}
-
 var (
-	namedbotspecs = map[string]botspec{
-		"tinyslow": botmustparse("5s 3 -1"),
-	}
-	wordpool = []string{"hello", "goodbye", "ok", "yeah", "nah", "true", "false", "is", "it", "the", "do", "don't", "they", "you", "them", "your", "me", "I", "mine", "dog", "cat", "duck", "robot", "squid", "tiger", "lion", "snake", "truth", "lie"}
+	namedbotspecs = map[string]botspec{ /*TODO*/ }
+	wordpool      = []string{"hello", "goodbye", "ok", "yeah", "nah", "true", "false", "is", "it", "the", "do", "don't", "they", "you", "them", "your", "me", "I", "mine", "dog", "cat", "duck", "robot", "squid", "tiger", "lion", "snake", "truth", "lie"}
 )
+
+// TODO: log in csv format all messages sent and received, to stdout
+// other program output all to stderr
 
 func conmain(address string) {
 	sc := bufio.NewScanner(os.Stdin)
@@ -72,7 +51,19 @@ func conmain(address string) {
 			break
 		}
 
-		if cmd == "spawn" {
+		if cmd == "sleep" {
+			sleeps, ok := nextarg()
+			if !ok {
+				fmt.Printf("! missing sleep duration\n")
+				continue
+			}
+			sleep, err := time.ParseDuration(sleeps)
+			if err != nil {
+				fmt.Printf("! invalid sleep duration: %v\n", err)
+				continue
+			}
+			time.Sleep(sleep)
+		} else if cmd == "spawn" {
 			armyname, ok := nextarg()
 			if !ok {
 				fmt.Printf("! missing army name\n")
@@ -175,8 +166,20 @@ func conmain(address string) {
 	}
 }
 
-func (bs botspec) sendmessages(s sender[string]) {
-	defer s.close()
+type botspec struct {
+	dur time.Duration
+	nw  int
+	nm  int
+}
+
+func (bs botspec) messages(done <-chan zero) <-chan string {
+	c := make(chan string)
+	go bs.sendmessages(done, c)
+	return c
+}
+
+func (bs botspec) sendmessages(done <-chan zero, c chan<- string) {
+	defer close(c)
 
 	if bs.nm == 0 {
 		return
@@ -228,10 +231,9 @@ func (bs botspec) sendmessages(s sender[string]) {
 		message := bbuf.String()
 
 		select {
-		case <-s.done:
+		case <-done:
 			return
-		default:
-			s.send(message)
+		case c <- message:
 		}
 
 		sent++
@@ -283,6 +285,11 @@ func botparsea(args []string) (bs botspec, rerr error) {
 	return
 }
 
+type army struct {
+	cancel context.CancelFunc
+	bots   []bot
+}
+
 func startarmy(spec botspec, address string, size uint) (a army, e error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -295,17 +302,22 @@ func startarmy(spec botspec, address string, size uint) (a army, e error) {
 			return
 		}
 
-		pc := makeconn(rawconn)
-		go pc.producein()
-		go pc.consumeout()
+		// TODO: fix make like other 'managed' goroutines (makearmy should take ctx, cancel)
+		// (then make a separate start func)
+		cctx, ccancel := context.WithCancel(ctx)
+		pc := makeconn(cctx, ccancel)
+		go pc.producein(rawconn)
+		go pc.consumeout(rawconn)
 
-		connser := pc.sender()
-		context.AfterFunc(ctx, connser.close)
-
-		b := makebot(spec, connser)
+		b := bot{
+			pc:   pc,
+			spec: spec,
+			join: make(chan joinspec),
+			exit: make(chan uint32),
+		}
 		bots[i] = b
 
-		go b.handlemessages(pc.receiver())
+		go b.handlemessages()
 		go b.main()
 	}
 
@@ -316,94 +328,116 @@ func startarmy(spec botspec, address string, size uint) (a army, e error) {
 func (a army) join(room uint32, prefix string) {
 	for i, b := range a.bots {
 		name := fmt.Sprintf("%s%d", prefix, i)
-		select {
-		case b.join <- joinspec{room, name}:
-		case <-b.connser.done:
-		}
+		js := joinspec{room, name}
+		trysend(b.join, js, b.pc.ctx.Done())
 	}
 }
 
 func (a army) exit(room uint32) {
 	for _, b := range a.bots {
-		select {
-		case b.exit <- room:
-		case <-b.connser.done:
-		}
+		trysend(b.exit, room, b.pc.ctx.Done())
 	}
 }
 
-func makebot(spec botspec, s sender[protomes]) bot {
-	join := make(chan joinspec)
-	exit := make(chan uint32)
-	return bot{spec, s, join, exit}
+type joinspec struct {
+	room uint32
+	name string
 }
 
-func (b bot) handlemessages(r receiver[protomes]) {
+type bot struct {
+	pc   protoconn
+	spec botspec
+	join chan joinspec
+	exit chan uint32
+}
+
+func (b bot) handlemessages() {
+	defer b.pc.cancel()
 	for {
-		m, ok := r.receive()
-		if !ok {
-			break
-		}
-		if m.t == mping {
-			b.connser.send(protomes{t: mpong})
+		select {
+		case <-b.pc.ctx.Done():
+			return
+		case m := <-b.pc.in:
+			log.Printf("bot handling %v", m)
+			if m.t == mping {
+				if !b.pc.send(protomes{t: mpong}) {
+					return
+				}
+			}
 		}
 	}
 }
 
 func (b bot) main() {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	defer b.pc.cancel()
 
 	rooms := make(map[uint32]context.CancelFunc)
-	endedc := make(chan uint32)
+	ended := make(chan uint32)
 
 	for {
 		select {
+		case <-b.pc.ctx.Done():
+			return
 		case join := <-b.join:
-			if _, joined := rooms[join.room]; !joined {
-				m := protomes{t: mjoin, name: join.name, room: join.room}
-				b.connser.send(m)
-
-				roomctx, cancelroom := context.WithCancel(ctx)
-				rooms[join.room] = cancelroom
-
-				f := freer[uint32]{
-					done: b.connser.done,
-					c:    endedc,
-					id:   join.room,
-				}
-
-				textc := make(chan string)
-				textser, textrer := senderreceiver(roomctx.Done(), textc, cancelroom)
-
-				go b.spec.sendmessages(textser)
-				go roombotmain(join.room, b.connser, textrer, f)
+			room := join.room
+			if _, joined := rooms[room]; joined {
+				continue
 			}
+			m := protomes{t: mjoin, name: join.name, room: join.room}
+			if !b.pc.send(m) {
+				return
+			}
+
+			ctx, cancel := context.WithCancel(b.pc.ctx)
+			context.AfterFunc(ctx, func() {
+				trysend(ended, room, b.pc.ctx.Done())
+			})
+			rooms[room] = cancel
+
+			texts := b.spec.messages(ctx.Done())
+			rb := roombot{
+				ctx:    ctx,
+				cancel: cancel,
+				texts:  texts,
+				out:    b.pc.out, // TODO: is this ok?
+			}
+			go rb.main(room)
 		case room := <-b.exit:
-			if cancelroom, joined := rooms[room]; joined {
-				cancelroom()
+			if cancel, joined := rooms[room]; joined {
+				cancel()
 			}
-		case room := <-endedc:
+		case room := <-ended:
 			delete(rooms, room)
 			m := protomes{t: mexit, room: room}
-			b.connser.send(m)
-		case <-b.connser.done:
-			return
+			if !b.pc.send(m) {
+				return
+			}
 		}
 	}
 }
 
-func roombotmain(room uint32, s sender[protomes], r receiver[string], f freer[uint32]) {
-	defer f.free()
-	// TODO: test delay
+type roombot struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	texts  <-chan string
+	out    chan<- protomes
+}
+
+func (rb roombot) main(room uint32) {
+	defer rb.cancel()
+
 	delay := time.Duration(rand.Uint64() % uint64(5*time.Second))
 	time.Sleep(delay)
+
 	for {
-		text, ok := r.receive()
-		if !ok {
-			break
+		select {
+		case <-rb.ctx.Done():
+			return
+		case text := <-rb.texts:
+			m := protomes{t: msend, room: room, text: text}
+			if !trysend(rb.out, m, rb.ctx.Done()) {
+				return
+			}
 		}
-		m := protomes{t: msend, room: room, text: text}
-		s.send(m)
 	}
 }

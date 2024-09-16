@@ -2,11 +2,11 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"log"
 	"net"
 	"os"
-	"regexp"
 	"strconv"
 )
 
@@ -17,17 +17,55 @@ func clientmain(address string) {
 		return
 	}
 
-	pc := makeconn(rawconn)
-	go pc.producein()
-	go pc.consumeout()
+	ctx, cancel := context.WithCancel(context.Background())
+	pc := makeconn(ctx, cancel).start(rawconn).
+		startmiddleware(
+			func(m protomes) { fmt.Printf("MW/I: %v\n", m) },
+			func(m protomes) { fmt.Printf("MW/O: %v\n", m) },
+		)
 
-	s := pc.sender()
-	go handleserver(pc.in, s)
+	go handleserver(pc)
+	handlescanner(bufio.NewScanner(os.Stdin), pc)
+}
 
-	respace := regexp.MustCompile(`\s+`)
+func handleserver(pc protoconn) {
+	goinc()
+	defer godec()
+	defer pc.cancel()
 
-	sc := bufio.NewScanner(os.Stdin)
-loop:
+	for {
+		for {
+			select {
+			case <-pc.ctx.Done():
+				return
+			case m := <-pc.in:
+				switch m.t {
+				case mping:
+					log.Printf("< ping\n")
+					if !pc.send(protomes{t: mpong}) {
+						return
+					}
+				case mjned:
+					log.Printf("< (%d, %v) joined\n", m.room, m.name)
+				case mexed:
+					log.Printf("< (%d, %v) exited\n", m.room, m.name)
+				case mrecv:
+					log.Printf("< (%d, %v) %v\n", m.room, m.name, m.text)
+				case mprob:
+					perr, ok := protoerrcode(uint8(m.room))
+					s := "invalid code"
+					if ok {
+						s = perr.Error()
+					}
+					log.Printf("< (error) %v\n", s)
+				}
+			}
+		}
+	}
+}
+
+func handlescanner(sc *bufio.Scanner, pc protoconn) {
+	defer pc.cancel()
 	for sc.Scan() {
 		toks := respace.Split(sc.Text(), 3)
 		if len(toks) == 0 {
@@ -58,10 +96,14 @@ loop:
 			}
 			name := toks[2]
 			m := protomes{t: mjoin, room: room, name: name}
-			s.send(m)
+			if !pc.send(m) {
+				return
+			}
 		case "exit":
 			m := protomes{t: mexit, room: room}
-			s.send(m)
+			if !pc.send(m) {
+				return
+			}
 		case "send":
 			if len(toks) == 2 {
 				fmt.Println("! missing text")
@@ -69,51 +111,19 @@ loop:
 			}
 			text := toks[2]
 			m := protomes{t: msend, room: room, text: text}
-			s.send(m)
+			if !pc.send(m) {
+				return
+			}
 		default:
 			log.Printf("! unknown command %q\n! available commands are: %q, %q, %q and %q\n", cmd, "quit", "join", "exit", "send")
 		}
 
-		select {
-		case <-s.done:
-			break loop
-		default:
+		if pc.isdone() {
+			return
 		}
 	}
 
 	if err := sc.Err(); err != nil {
 		fmt.Println(err)
-	}
-}
-
-func handleserver(ms <-chan protomes, s sender[protomes]) {
-	goinc()
-	defer godec()
-
-	defer s.close()
-	for {
-		select {
-		case <-s.done:
-			return
-		case m := <-ms:
-			switch m.t {
-			case mping:
-				log.Printf("< ping\n")
-				s.send(protomes{t: mpong})
-			case mjned:
-				log.Printf("< (%d, %v) joined\n", m.room, m.name)
-			case mexed:
-				log.Printf("< (%d, %v) exited\n", m.room, m.name)
-			case mrecv:
-				log.Printf("< (%d, %v) %v\n", m.room, m.name, m.text)
-			case mprob:
-				perr, ok := protoerrcode(uint8(m.room))
-				s := "invalid code"
-				if ok {
-					s = perr.Error()
-				}
-				log.Printf("< (error) %v\n", s)
-			}
-		}
 	}
 }

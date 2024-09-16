@@ -88,6 +88,31 @@ func (t mtype) hastext() bool {
 	return t == msend || t == mrecv
 }
 
+func (t mtype) String() string {
+	switch t {
+	case mjoin:
+		return "join"
+	case mexit:
+		return "exit"
+	case msend:
+		return "send"
+	case mrecv:
+		return "recv"
+	case mping:
+		return "ping"
+	case mpong:
+		return "pong"
+	case mjned:
+		return "jned"
+	case mexed:
+		return "exed"
+	case mprob:
+		return "prob"
+	default:
+		return "INVALIDMTYPE"
+	}
+}
+
 func errormes(err protoerror) protomes {
 	return protomes{
 		t:    mprob,

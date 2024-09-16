@@ -15,8 +15,6 @@ type hub struct {
 	joinreqs chan hjoinroomreq
 }
 
-type roomfreer = freer[uint32]
-
 func makehub() hub {
 	ctx, cancel := context.WithCancel(context.Background())
 	joinreqs := make(chan hjoinroomreq)
@@ -49,17 +47,17 @@ func (h hub) main() {
 			delete(rooms, rid)
 		case hreq := <-h.joinreqs:
 			var r room
-			if r0, ok := rooms[hreq.rid]; ok {
+			rid := hreq.rid
+			if r0, ok := rooms[rid]; ok {
 				r = r0
 			} else {
-				rf := roomfreer{
-					done: h.ctx.Done(),
-					c:    emptied,
-					id:   hreq.rid,
-				}
-				r = makeroom(h.ctx)
-				go r.main(rf)
-				rooms[hreq.rid] = r
+				ctx, cancel := context.WithCancel(h.ctx)
+				context.AfterFunc(ctx, func() {
+					trysend(emptied, rid, h.ctx.Done())
+				})
+				r = makeroom(ctx, cancel)
+				go r.main()
+				rooms[rid] = r
 			}
 			r.join(hreq.req)
 		}
