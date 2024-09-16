@@ -34,31 +34,29 @@ func handleserver(pc protoconn) {
 	defer pc.cancel()
 
 	for {
-		for {
-			select {
-			case <-pc.ctx.Done():
-				return
-			case m := <-pc.in:
-				switch m.t {
-				case mping:
-					log.Printf("< ping\n")
-					if !pc.send(protomes{t: mpong}) {
-						return
-					}
-				case mjned:
-					log.Printf("< (%d, %v) joined\n", m.room, m.name)
-				case mexed:
-					log.Printf("< (%d, %v) exited\n", m.room, m.name)
-				case mrecv:
-					log.Printf("< (%d, %v) %v\n", m.room, m.name, m.text)
-				case mprob:
-					perr, ok := protoerrcode(uint8(m.room))
-					s := "invalid code"
-					if ok {
-						s = perr.Error()
-					}
-					log.Printf("< (error) %v\n", s)
+		select {
+		case <-pc.ctx.Done():
+			return
+		case m := <-pc.in:
+			switch m.t {
+			case mping:
+				log.Printf("< ping\n")
+				if !pc.send(protomes{t: mpong}) {
+					return
 				}
+			case mjned:
+				log.Printf("< (%d, %v) joined\n", m.room, m.name)
+			case mexed:
+				log.Printf("< (%d, %v) exited\n", m.room, m.name)
+			case mrecv:
+				log.Printf("< (%d, %v) %v\n", m.room, m.name, m.text)
+			case mprob:
+				perr, ok := protoerrcode(uint8(m.room))
+				s := "invalid code"
+				if ok {
+					s = perr.Error()
+				}
+				log.Printf("< (error) %v\n", s)
 			}
 		}
 	}
