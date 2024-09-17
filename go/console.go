@@ -463,7 +463,7 @@ func (rb roombot) main(room uint32) {
 		case <-rb.ctx.Done():
 			return
 		case text := <-rb.texts:
-			m := protomes{t: msend, room: room, text: text}
+			m := protomes{t: mtalk, room: room, text: text}
 			if !trysend(rb.out, m, rb.ctx.Done()) {
 				return
 			}

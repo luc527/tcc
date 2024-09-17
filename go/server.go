@@ -86,7 +86,7 @@ func handlemessages(h hub, pc protoconn) {
 				if rh, ok := rooms[m.room]; ok {
 					rh.cancel()
 				}
-			case msend:
+			case mtalk:
 				if rh, ok := rooms[m.room]; ok {
 					trysend(rh.texts, m.text, rh.ctx.Done())
 				}
@@ -148,7 +148,7 @@ func (rc roomclient) main(room uint32, rh roomhandle) {
 	for {
 		select {
 		case rm := <-rc.rms:
-			m := protomes{mrecv, room, rm.name, rm.text}
+			m := protomes{mhear, room, rm.name, rm.text}
 			if !rc.send(m) {
 				return
 			}

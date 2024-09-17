@@ -17,7 +17,7 @@ import (
 // TODO: also test the size of the encoded messages, e.g. ping only 1 byte
 
 func TestMtypes(t *testing.T) {
-	all := []mtype{mping, mpong, mjoin, mjned, msend, mrecv, mexit, mexed, mprob}
+	all := []mtype{mping, mpong, mjoin, mjned, mtalk, mhear, mexit, mexed, mprob}
 
 	for i := range all {
 		for j := range all {
@@ -79,11 +79,11 @@ func TestMessageEncodingAndDecodingValid(t *testing.T) {
 		{protomes{t: mjoin, room: 2567, name: "helloo 1234!!!"}, nil},
 		{protomes{t: mjoin, room: 2567, name: "this is a fairly long string"}, errNameTooLong},
 		{protomes{t: mjoin, room: 2567, name: ""}, errNameEmpty},
-		{protomes{t: msend, room: 9999, text: "hello friends"}, nil},
-		{protomes{t: msend, room: 9999, text: ""}, nil},
-		{protomes{t: msend, room: 9999, text: longok}, nil},
-		{protomes{t: msend, room: 9999, text: longerr}, errMessageTooLong},
-		{protomes{t: mrecv, room: 7172, name: "figmund", text: "mi nombre es figmundo"}, nil},
+		{protomes{t: mtalk, room: 9999, text: "hello friends"}, nil},
+		{protomes{t: mtalk, room: 9999, text: ""}, nil},
+		{protomes{t: mtalk, room: 9999, text: longok}, nil},
+		{protomes{t: mtalk, room: 9999, text: longerr}, errMessageTooLong},
+		{protomes{t: mhear, room: 7172, name: "figmund", text: "mi nombre es figmundo"}, nil},
 	}
 
 	for _, tc := range testcases {

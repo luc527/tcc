@@ -15,8 +15,8 @@ const (
 	// bit 0x10 means it's sent by the server, otherwise by the client
 	mping = mtype(0x00) // << ^mping:1 >>
 	mpong = mtype(0x10) // << ^mpong:1 >>
-	msend = mtype(0x01) // << ^msend:1, room:4, textlen:2, text:^textlen >>
-	mrecv = mtype(0x11) // << ^mrecv:1, room:4, namelen:1, textlen:2, name:^namelen, text:^textlen >>
+	mtalk = mtype(0x01) // << ^mtalk:1, room:4, textlen:2, text:^textlen >>
+	mhear = mtype(0x11) // << ^mhear:1, room:4, namelen:1, textlen:2, name:^namelen, text:^textlen >>
 	mjoin = mtype(0x02) // << ^mjoin:1, room:4, namelen:1, name:^namelen >>
 	mjned = mtype(0x12) // << ^mjned:1, room:4, namelen:1, name:^namelen >>
 	mexit = mtype(0x04) // << ^mexit:1, room:4 >>
@@ -70,7 +70,7 @@ const (
 
 func (t mtype) valid() bool {
 	return t == mping || t == mpong ||
-		t == msend || t == mrecv ||
+		t == mtalk || t == mhear ||
 		t == mjoin || t == mjned ||
 		t == mexit || t == mexed ||
 		t == mprob
@@ -81,11 +81,11 @@ func (t mtype) hasroom() bool {
 }
 
 func (t mtype) hasname() bool {
-	return t == mjoin || t == mjned || t == mexed || t == mrecv
+	return t == mjoin || t == mjned || t == mexed || t == mhear
 }
 
 func (t mtype) hastext() bool {
-	return t == msend || t == mrecv
+	return t == mtalk || t == mhear
 }
 
 func (t mtype) String() string {
@@ -94,10 +94,10 @@ func (t mtype) String() string {
 		return "join"
 	case mexit:
 		return "exit"
-	case msend:
-		return "send"
-	case mrecv:
-		return "recv"
+	case mtalk:
+		return "talk"
+	case mhear:
+		return "hear"
 	case mping:
 		return "ping"
 	case mpong:
@@ -119,10 +119,10 @@ func parseMtype(s string) (mtype, error) {
 		return mjoin, nil
 	case "exit":
 		return mexit, nil
-	case "send":
-		return msend, nil
-	case "recv":
-		return mrecv, nil
+	case "talk":
+		return mtalk, nil
+	case "hear":
+		return mhear, nil
 	case "ping":
 		return mping, nil
 	case "pong":
@@ -153,10 +153,10 @@ func (m protomes) String() string {
 		bb.WriteString("ping")
 	case mpong:
 		bb.WriteString("pong")
-	case msend:
-		bb.WriteString("send")
-	case mrecv:
-		bb.WriteString("recv")
+	case mtalk:
+		bb.WriteString("talk")
+	case mhear:
+		bb.WriteString("hear")
 	case mjoin:
 		bb.WriteString("join")
 	case mexit:

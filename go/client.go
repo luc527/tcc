@@ -45,7 +45,7 @@ func handleserver(pc protoconn) {
 				log.Printf("< (%d, %v) joined\n", m.room, m.name)
 			case mexed:
 				log.Printf("< (%d, %v) exited\n", m.room, m.name)
-			case mrecv:
+			case mhear:
 				log.Printf("< (%d, %v) %v\n", m.room, m.name, m.text)
 			case mprob:
 				perr, ok := protoerrcode(uint8(m.room))
@@ -99,18 +99,18 @@ func handlescanner(sc *bufio.Scanner, pc protoconn) {
 			if !pc.send(m) {
 				return
 			}
-		case "send":
+		case "talk":
 			if len(toks) == 2 {
 				fmt.Fprintln(os.Stderr, "! missing text")
 				continue
 			}
 			text := toks[2]
-			m := protomes{t: msend, room: room, text: text}
+			m := protomes{t: mtalk, room: room, text: text}
 			if !pc.send(m) {
 				return
 			}
 		default:
-			log.Printf("! unknown command %q\n! available commands are: %q, %q, %q and %q\n", cmd, "quit", "join", "exit", "send")
+			log.Printf("! unknown command %q\n! available commands are: %q, %q, %q and %q\n", cmd, "quit", "join", "exit", "talk")
 		}
 
 		if pc.isdone() {
