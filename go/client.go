@@ -18,11 +18,8 @@ func clientmain(address string) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	pc := makeconn(ctx, cancel).start(rawconn).
-		startmiddleware(
-			func(m protomes) { fmt.Printf("MW/I: %v\n", m) },
-			func(m protomes) { fmt.Printf("MW/O: %v\n", m) },
-		)
+	pc := makeconn(ctx, cancel).
+		start(rawconn, rawconn)
 
 	go handleserver(pc)
 	handlescanner(bufio.NewScanner(os.Stdin), pc)
@@ -67,7 +64,7 @@ func handlescanner(sc *bufio.Scanner, pc protoconn) {
 	for sc.Scan() {
 		toks := respace.Split(sc.Text(), 3)
 		if len(toks) == 0 {
-			fmt.Println("! missing command")
+			fmt.Fprintln(os.Stderr, "! missing command")
 			continue
 		}
 		cmd := toks[0]
@@ -75,7 +72,7 @@ func handlescanner(sc *bufio.Scanner, pc protoconn) {
 			break
 		}
 		if len(toks) == 1 {
-			fmt.Println("! missing room")
+			fmt.Fprintln(os.Stderr, "! missing room")
 			continue
 		}
 		sroom := toks[1]
@@ -89,7 +86,7 @@ func handlescanner(sc *bufio.Scanner, pc protoconn) {
 		switch cmd {
 		case "join":
 			if len(toks) == 2 {
-				fmt.Println("! missing name")
+				fmt.Fprintln(os.Stderr, "! missing name")
 				continue
 			}
 			name := toks[2]
@@ -104,7 +101,7 @@ func handlescanner(sc *bufio.Scanner, pc protoconn) {
 			}
 		case "send":
 			if len(toks) == 2 {
-				fmt.Println("! missing text")
+				fmt.Fprintln(os.Stderr, "! missing text")
 				continue
 			}
 			text := toks[2]
@@ -122,6 +119,6 @@ func handlescanner(sc *bufio.Scanner, pc protoconn) {
 	}
 
 	if err := sc.Err(); err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, err)
 	}
 }

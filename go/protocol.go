@@ -113,6 +113,31 @@ func (t mtype) String() string {
 	}
 }
 
+func parseMtype(s string) (mtype, error) {
+	switch s {
+	case "join":
+		return mjoin, nil
+	case "exit":
+		return mexit, nil
+	case "send":
+		return msend, nil
+	case "recv":
+		return mrecv, nil
+	case "ping":
+		return mping, nil
+	case "pong":
+		return mpong, nil
+	case "jned":
+		return mjned, nil
+	case "exed":
+		return mexed, nil
+	case "prob":
+		return mprob, nil
+	default:
+		return 0, fmt.Errorf("invalid mtype string %q", s)
+	}
+}
+
 func errormes(err protoerror) protomes {
 	return protomes{
 		t:    mprob,

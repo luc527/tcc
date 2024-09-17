@@ -18,7 +18,6 @@ const (
 func init() {
 	if pingInterval >= timeout {
 		panic("must have pingInterval < timeout")
-		// otherwise the server will ping but the timeout will close the connection before the client even gets the
 	}
 }
 
@@ -40,9 +39,9 @@ func makeconn(ctx context.Context, cancel context.CancelFunc) protoconn {
 	}
 }
 
-func (pc protoconn) start(rawconn net.Conn) protoconn {
+func (pc protoconn) start(rawconn net.Conn, closer io.Closer) protoconn {
 	go pc.producein(rawconn)
-	go pc.consumeout(rawconn)
+	go pc.consumeout(rawconn, closer)
 	return pc
 }
 
@@ -91,7 +90,7 @@ func (pc protoconn) producein(rawconn net.Conn) {
 			ok := errors.Is(err, net.ErrClosed) ||
 				// ^ same side that closed the connection tried to read from it (?)
 				errors.Is(err, syscall.ECONNRESET)
-				// ^ seems to happen when the client side has lots of connections opens, is writing to them, and closes them all suddenly
+				// ^ seems to happen when the client side has lots of connections opens, is writing to them, and suddenly closes them
 				// TODO: check if disconnecting the bots in the console gradually helps to avoid this, although idk if it even really is a problem
 			if !ok {
 				log.Printf("unexpected read error: %v", err)
@@ -102,30 +101,30 @@ func (pc protoconn) producein(rawconn net.Conn) {
 	}
 }
 
-func (pc protoconn) consumeout(rawconn net.Conn) {
+func (pc protoconn) consumeout(w io.Writer, c io.Closer) {
 	goinc()
 	defer godec()
+
 	defer pc.cancel()
 	defer func() {
-		log.Printf("closing")
-		if err := rawconn.Close(); err != nil {
+		if err := c.Close(); err != nil {
 			log.Printf("failed to close: %v", err)
 		}
 	}()
+
 	for {
 		select {
 		case <-pc.ctx.Done():
 			return
 		case m := <-pc.out:
-			if _, err := m.WriteTo(rawconn); err != nil {
+			if _, err := m.WriteTo(w); err != nil {
 				return
 			}
 		}
 	}
 }
 
-// needs to be called before starting the underlying protoconn
-func (pc protoconn) startmiddleware(inf func(protomes), outf func(protomes)) protoconn {
+func (pc protoconn) withmiddleware(inf func(protomes), outf func(protomes)) protoconn {
 	fpc := pc
 	fpc.in = make(chan protomes)
 	fpc.out = make(chan protomes)

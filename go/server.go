@@ -2,18 +2,10 @@ package main
 
 import (
 	"context"
+	"log"
 	"net"
 	"time"
 )
-
-type roomclient struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	out    chan<- protomes
-	rms    chan roommes
-	jned   chan string
-	exed   chan string
-}
 
 func serve(listener net.Listener) {
 	h := makehub()
@@ -21,15 +13,33 @@ func serve(listener net.Listener) {
 	for {
 		rawconn, err := listener.Accept()
 		if err != nil {
+			log.Printf("failed to accept connection: %v", err)
 			continue
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
 		pc := makeconn(ctx, cancel)
 		go pc.producein(rawconn)
-		go pc.consumeout(rawconn)
+		go pc.consumeout(rawconn, rawconn)
 		go pingclient(pc)
 		go handlemessages(h, pc)
+	}
+}
+
+func pingclient(pc protoconn) {
+	goinc()
+	defer godec()
+	ticker := time.NewTicker(pingInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if !pc.send(protomes{t: mping}) {
+				return
+			}
+		case <-pc.ctx.Done():
+			return
+		}
 	}
 }
 
@@ -101,6 +111,15 @@ func makeroomclient(ctx context.Context, cancel context.CancelFunc, out chan<- p
 	}
 }
 
+type roomclient struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	out    chan<- protomes
+	rms    chan roommes
+	jned   chan string
+	exed   chan string
+}
+
 func (rc roomclient) makereq(name string) (req joinroomreq, resp chan roomhandle, prob chan zero) {
 	resp = make(chan roomhandle)
 	prob = make(chan zero)
@@ -146,23 +165,6 @@ func (rc roomclient) main(room uint32, rh roomhandle) {
 		case <-rc.ctx.Done():
 			return
 		case <-rh.ctx.Done():
-			return
-		}
-	}
-}
-
-func pingclient(pc protoconn) {
-	goinc()
-	defer godec()
-	ticker := time.NewTicker(pingInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			if !pc.send(protomes{t: mping}) {
-				return
-			}
-		case <-pc.ctx.Done():
 			return
 		}
 	}

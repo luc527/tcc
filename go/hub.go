@@ -35,9 +35,8 @@ func (h hub) main() {
 	defer godec()
 	defer h.cancel()
 
-	emptied := make(chan uint32)
-
 	rooms := make(map[uint32]room)
+	emptied := make(chan uint32)
 
 	for {
 		select {

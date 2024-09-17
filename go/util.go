@@ -4,17 +4,28 @@ import (
 	"io"
 	"regexp"
 	"sync/atomic"
+	"time"
 )
+
+type zero = struct{}
+
+type waitcloser struct {
+	d time.Duration
+	c io.Closer
+}
+
+var _ io.Closer = waitcloser{}
+
+func (wc waitcloser) Close() error {
+	time.Sleep(wc.d)
+	return wc.c.Close()
+}
 
 var respace = regexp.MustCompile(`\s+`)
 
 // goroutine count, for trying to detect goroutine leaks
 // TODO: test console.go too
 var gocount = atomic.Int32{}
-
-func init() {
-	gocount.Store(0)
-}
 
 func goinc() {
 	// log.Printf("<go> count: %d", gocount.Add(1))
@@ -23,8 +34,6 @@ func goinc() {
 func godec() {
 	// log.Printf("<go> count: %d", gocount.Add(-1))
 }
-
-type zero = struct{}
 
 func runmiddleware[T any](dest chan<- T, src <-chan T, done <-chan zero, f func(T)) {
 	for {

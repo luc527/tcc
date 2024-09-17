@@ -4,12 +4,14 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/csv"
 	"fmt"
 	"log"
 	"math/rand"
 	"net"
 	"os"
 	"strconv"
+	"sync/atomic"
 	"time"
 )
 
@@ -18,10 +20,25 @@ var (
 	wordpool      = []string{"hello", "goodbye", "ok", "yeah", "nah", "true", "false", "is", "it", "the", "do", "don't", "they", "you", "them", "your", "me", "I", "mine", "dog", "cat", "duck", "robot", "squid", "tiger", "lion", "snake", "truth", "lie"}
 )
 
+var (
+	l         logger
+	nextbotid atomic.Uint64
+)
+
 // TODO: log in csv format all messages sent and received, to stdout
 // other program output all to stderr
 
 func conmain(address string) {
+	path := fmt.Sprintf("./conlogs/log_%s.csv", time.Now().Format("20060102_1504"))
+	file, err := os.Create(path)
+	if err != nil {
+		log.Printf("failed to open %s", path)
+		return
+	}
+
+	l = makelogger(csv.NewWriter(file))
+	go l.main()
+
 	sc := bufio.NewScanner(os.Stdin)
 
 	armies := make(map[string]army)
@@ -47,42 +64,42 @@ func conmain(address string) {
 		}
 
 		if cmd == "quit" {
-			fmt.Println("< bye")
+			fmt.Fprintln(os.Stderr, "< bye")
 			break
 		}
 
 		if cmd == "sleep" {
 			sleeps, ok := nextarg()
 			if !ok {
-				fmt.Printf("! missing sleep duration\n")
+				fmt.Fprintf(os.Stderr, "! missing sleep duration\n")
 				continue
 			}
 			sleep, err := time.ParseDuration(sleeps)
 			if err != nil {
-				fmt.Printf("! invalid sleep duration: %v\n", err)
+				fmt.Fprintf(os.Stderr, "! invalid sleep duration: %v\n", err)
 				continue
 			}
 			time.Sleep(sleep)
 		} else if cmd == "spawn" {
 			armyname, ok := nextarg()
 			if !ok {
-				fmt.Printf("! missing army name\n")
+				fmt.Fprintf(os.Stderr, "! missing army name\n")
 				continue
 			}
 			sarmysize, ok := nextarg()
 			if !ok {
-				fmt.Printf("! missing army size\n")
+				fmt.Fprintf(os.Stderr, "! missing army size\n")
 				continue
 			}
 			uarmysize, err := strconv.ParseUint(sarmysize, 10, 32)
 			if err != nil {
-				fmt.Printf("! invalid army size: %v\n", err)
+				fmt.Fprintf(os.Stderr, "! invalid army size: %v\n", err)
 				continue
 			}
 			armysize := uint(uarmysize)
 			aspec := args
 			if !ok {
-				fmt.Printf("! missing spec\n")
+				fmt.Fprintf(os.Stderr, "! missing spec\n")
 				continue
 			}
 			var spec botspec
@@ -90,79 +107,81 @@ func conmain(address string) {
 			case 1:
 				spec, ok = namedbotspecs[aspec[0]]
 				if !ok {
-					fmt.Printf("! spec named %q not found\n", aspec[0])
+					fmt.Fprintf(os.Stderr, "! spec named %q not found\n", aspec[0])
 					continue
 				}
 			case 3:
 				spec, err = botparsea(aspec)
 				if err != nil {
-					fmt.Printf("! %v\n", err)
+					fmt.Fprintf(os.Stderr, "! %v\n", err)
 					continue
 				}
 			default:
-				fmt.Printf("! invalid spec length %d\n", len(aspec))
+				fmt.Fprintf(os.Stderr, "! invalid spec length %d\n", len(aspec))
 				continue
 			}
-			army, err := startarmy(spec, address, armysize)
+			ctx, cancel := context.WithCancel(context.Background())
+			army, err := startarmy(ctx, cancel, armysize, spec, armyname, address)
 			if err != nil {
-				fmt.Printf("! failed to start the bot army: %v\n", err)
+				fmt.Fprintf(os.Stderr, "! failed to start the bot army: %v\n", err)
 				continue
 			}
-			fmt.Printf("< army %q spawned\n", armyname)
+			fmt.Fprintf(os.Stderr, "< army %q spawned\n", armyname)
 			armies[armyname] = army
 		} else if cmd == "kill" {
 			armyname, ok := nextarg()
 			if !ok {
-				fmt.Printf("! missing army name\n")
+				fmt.Fprintf(os.Stderr, "! missing army name\n")
 				continue
 			}
 			army, ok := armies[armyname]
 			if !ok {
-				fmt.Printf("! army not found\n")
+				fmt.Fprintf(os.Stderr, "! army not found\n")
 				continue
 			}
 			army.cancel()
 			delete(armies, armyname)
+			fmt.Fprintf(os.Stderr, "< army %q killed\n", armyname)
 		} else if cmd == "join" || cmd == "exit" {
 			armyname, ok := nextarg()
 			if !ok {
-				fmt.Printf("! missing army name\n")
+				fmt.Fprintf(os.Stderr, "! missing army name\n")
 				continue
 			}
 			army, ok := armies[armyname]
 			if !ok {
-				fmt.Printf("! army not found\n")
+				fmt.Fprintf(os.Stderr, "! army not found\n")
 				continue
 			}
 			sroom, ok := nextarg()
 			if !ok {
-				fmt.Printf("! missing room\n")
+				fmt.Fprintf(os.Stderr, "! missing room\n")
 				continue
 			}
 			uroom, err := strconv.ParseUint(sroom, 10, 32)
 			if err != nil {
-				fmt.Printf("! invalid room: %v\n", err)
+				fmt.Fprintf(os.Stderr, "! invalid room: %v\n", err)
 				continue
 			}
 			room := uint32(uroom)
 			if cmd == "join" {
 				name, ok := nextarg()
 				if !ok {
-					fmt.Printf("! missing user name\n")
+					fmt.Fprintf(os.Stderr, "! missing user name\n")
 					continue
 				}
 				army.join(room, name)
-				fmt.Printf("< army %q joined room %d with names starting with %q\n", armyname, room, name)
+				fmt.Fprintf(os.Stderr, "< army %q joined room %d with names starting with %q\n", armyname, room, name)
 			} else {
 				army.exit(room)
-				fmt.Printf("< army %q exited room %d\n", armyname, room)
+				fmt.Fprintf(os.Stderr, "< army %q exited room %d\n", armyname, room)
 			}
 		}
 
 	}
 
 	if err := sc.Err(); err != nil {
-		fmt.Printf("! scanner: %v", err)
+		fmt.Fprintf(os.Stderr, "! scanner: %v", err)
 	}
 }
 
@@ -286,42 +305,47 @@ func botparsea(args []string) (bs botspec, rerr error) {
 }
 
 type army struct {
+	ctx    context.Context
 	cancel context.CancelFunc
 	bots   []bot
 }
 
-func startarmy(spec botspec, address string, size uint) (a army, e error) {
-	ctx, cancel := context.WithCancel(context.Background())
-
-	bots := make([]bot, size)
-	for i := range bots {
+func startarmy(ctx context.Context, cancel context.CancelFunc, size uint, spec botspec, name string, address string) (a army, e error) {
+	a = army{
+		ctx:    ctx,
+		cancel: cancel,
+		bots:   make([]bot, size),
+	}
+	for i := range a.bots {
 		rawconn, err := net.Dial("tcp", address)
 		if err != nil {
-			cancel()
+			a.cancel()
 			e = err
 			return
 		}
-
-		// TODO: fix make like other 'managed' goroutines (makearmy should take ctx, cancel)
-		// (then make a separate start func)
+		// close the bots gradually
+		wc := waitcloser{
+			c: rawconn,
+			d: time.Duration(i) * 96 * time.Millisecond,
+		}
+		connid := fmt.Sprintf("%s%d", name, nextbotid.Add(1))
 		cctx, ccancel := context.WithCancel(ctx)
-		pc := makeconn(cctx, ccancel)
-		go pc.producein(rawconn)
-		go pc.consumeout(rawconn)
-
+		pc := makeconn(cctx, ccancel).
+			start(rawconn, wc).
+			withmiddleware(
+				func(m protomes) { l.log(connid, m) },
+				func(m protomes) { l.log(connid, m) },
+			)
 		b := bot{
 			pc:   pc,
 			spec: spec,
 			join: make(chan joinspec),
 			exit: make(chan uint32),
 		}
-		bots[i] = b
-
+		a.bots[i] = b
 		go b.handlemessages()
 		go b.main()
 	}
-
-	a = army{cancel, bots}
 	return
 }
 
@@ -352,13 +376,14 @@ type bot struct {
 }
 
 func (b bot) handlemessages() {
+	goinc()
+	defer godec()
 	defer b.pc.cancel()
 	for {
 		select {
 		case <-b.pc.ctx.Done():
 			return
 		case m := <-b.pc.in:
-			log.Printf("bot handling %v", m)
 			if m.t == mping {
 				if !b.pc.send(protomes{t: mpong}) {
 					return
@@ -369,6 +394,8 @@ func (b bot) handlemessages() {
 }
 
 func (b bot) main() {
+	goinc()
+	defer godec()
 	defer b.pc.cancel()
 
 	rooms := make(map[uint32]context.CancelFunc)
@@ -378,6 +405,16 @@ func (b bot) main() {
 		select {
 		case <-b.pc.ctx.Done():
 			return
+		case room := <-b.exit:
+			if cancel, joined := rooms[room]; joined {
+				cancel()
+			}
+		case room := <-ended:
+			delete(rooms, room)
+			m := protomes{t: mexit, room: room}
+			if !b.pc.send(m) {
+				return
+			}
 		case join := <-b.join:
 			room := join.room
 			if _, joined := rooms[room]; joined {
@@ -402,16 +439,6 @@ func (b bot) main() {
 				out:    b.pc.out, // TODO: is this ok?
 			}
 			go rb.main(room)
-		case room := <-b.exit:
-			if cancel, joined := rooms[room]; joined {
-				cancel()
-			}
-		case room := <-ended:
-			delete(rooms, room)
-			m := protomes{t: mexit, room: room}
-			if !b.pc.send(m) {
-				return
-			}
 		}
 	}
 }
@@ -424,6 +451,8 @@ type roombot struct {
 }
 
 func (rb roombot) main(room uint32) {
+	goinc()
+	defer godec()
 	defer rb.cancel()
 
 	delay := time.Duration(rand.Uint64() % uint64(5*time.Second))

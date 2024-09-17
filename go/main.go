@@ -8,10 +8,11 @@ import (
 )
 
 func usage() {
-	fmt.Printf("\nusage:\n")
-	fmt.Printf("\t%s server\n", os.Args[0])
-	fmt.Printf("\t%s client <address>\n", os.Args[0])
-	fmt.Printf("\t%s console <address>\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "\nusage:\n")
+	fmt.Fprintf(os.Stderr, "\t%s server\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "\t%s client <address>\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "\t%s console <address>\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "\t%s check\n", os.Args[0])
 	os.Exit(1)
 }
 
@@ -36,6 +37,8 @@ func main() {
 		}
 		address := args[1]
 		conmain(address)
+	case "check":
+		checkmain()
 	}
 
 }

@@ -123,14 +123,13 @@ func (r room) main() {
 				ch.send(rm)
 			}
 		case name := <-exit:
-			// TODO: fix: client not receiving message of their own exit
 			if _, exists := clients[name]; exists {
-				for _, ch := range clients {
-					ch.exited(name)
-				}
 				delete(clients, name)
 				if len(clients) == 0 {
 					return
+				}
+				for _, ch := range clients {
+					ch.exited(name)
 				}
 			}
 		}
