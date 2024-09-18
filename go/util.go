@@ -72,3 +72,27 @@ func trysend[T any](dest chan<- T, v T, done <-chan zero) bool {
 		return false
 	}
 }
+
+// dumb implementation of a queue
+type queue[T any] []T
+
+func newqueue[T any]() *queue[T] {
+	var s []T
+	q := queue[T](s)
+	return &q
+}
+
+func (q *queue[T]) enqueue(x T) {
+	*q = append(*q, x)
+}
+
+func (q *queue[T]) dequeue() T {
+	defer func() {
+		*q = (*q)[1:]
+	}()
+	return (*q)[0]
+}
+
+func (q *queue[T]) empty() bool {
+	return len(*q) == 0
+}

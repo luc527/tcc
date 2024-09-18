@@ -39,6 +39,8 @@ func main() {
 		conmain(address)
 	case "check":
 		checkmain()
+	default:
+		usage()
 	}
 
 }

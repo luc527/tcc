@@ -328,13 +328,13 @@ func startarmy(ctx context.Context, cancel context.CancelFunc, size uint, spec b
 			c: rawconn,
 			d: time.Duration(i) * 96 * time.Millisecond,
 		}
-		connid := fmt.Sprintf("%s%d", name, nextbotid.Add(1))
+		connName := fmt.Sprintf("%s%d", name, nextbotid.Add(1))
 		cctx, ccancel := context.WithCancel(ctx)
 		pc := makeconn(cctx, ccancel).
 			start(rawconn, wc).
 			withmiddleware(
-				func(m protomes) { l.log(connid, m) },
-				func(m protomes) { l.log(connid, m) },
+				func(m protomes) { l.log(connName, m) },
+				func(m protomes) { l.log(connName, m) },
 			)
 		b := bot{
 			pc:   pc,

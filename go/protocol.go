@@ -88,6 +88,12 @@ func (t mtype) hastext() bool {
 	return t == mtalk || t == mhear
 }
 
+// is request? i.e. is a host asking another to do something,
+// instead of just sending a signal?
+func (t mtype) isreq() bool {
+	return t == mjoin || t == mexit || t == mtalk || t == mping
+}
+
 func (t mtype) String() string {
 	switch t {
 	case mjoin:

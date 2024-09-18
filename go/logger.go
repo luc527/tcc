@@ -21,9 +21,9 @@ func init() {
 }
 
 type logmes struct {
-	connid string
-	dur    time.Duration
-	m      protomes
+	connName string
+	dur      time.Duration
+	m        protomes
 }
 
 type logger struct {
@@ -41,7 +41,7 @@ func makelogger(w *csv.Writer) logger {
 
 func (lm logmes) torecord() []string {
 	return []string{
-		lm.connid,
+		lm.connName,
 		strconv.FormatInt(lm.dur.Nanoseconds(), 10),
 		lm.m.t.String(),
 		strconv.FormatUint(uint64(lm.m.room), 10),
@@ -55,7 +55,7 @@ func (lm *logmes) fromrecord(rec []string) error {
 		return fmt.Errorf("logmes: invalid record length %d", len(rec))
 	}
 
-	connid := rec[0]
+	connName := rec[0]
 	snsec := rec[1]
 	smtype := rec[2]
 	sroom := rec[3]
@@ -79,7 +79,7 @@ func (lm *logmes) fromrecord(rec []string) error {
 		return fmt.Errorf("logmes: %w", err)
 	}
 
-	lm.connid = connid
+	lm.connName = connName
 	lm.dur = dur
 	lm.m.room = room
 	lm.m.t = t
@@ -116,8 +116,8 @@ func (l logger) main() {
 	}
 }
 
-func (l logger) log(connid string, m protomes) {
-	lm := logmes{connid, time.Since(logepoch), m}
+func (l logger) log(connName string, m protomes) {
+	lm := logmes{connName, time.Since(logepoch), m}
 	if !trysend(l.lms, lm, l.ctx.Done()) {
 		log.Println("failed to log")
 	}
