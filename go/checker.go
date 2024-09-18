@@ -15,9 +15,6 @@ import (
 // id of a connection (user) in the simulation
 type connid = int
 
-// id of a message in the simulation
-type mesid = int
-
 // message along with an id of the connection from which it was sent OR which will receive it
 type connmes struct {
 	cid connid
@@ -57,34 +54,6 @@ func (this connmes) compare(that connmes) int64 {
 		}
 	}
 	return 0
-}
-
-// graph of messages
-type mesgraph struct {
-	data []connmes
-	adj  map[mesid][]mesid
-}
-
-func newMesgraph() *mesgraph {
-	return &mesgraph{
-		data: nil,
-		adj:  make(map[mesid][]mesid),
-	}
-}
-
-func (mg *mesgraph) register(m connmes) mesid {
-	id := len(mg.data)
-	mg.data = append(mg.data, m)
-	return id
-}
-
-const (
-	// to be used as the "from" part of the edge representing the first message of a connection
-	nilmes = mesid(-1)
-)
-
-func (mg *mesgraph) edge(from, to mesid) {
-	mg.adj[from] = append(mg.adj[from], to)
 }
 
 // the simulation doesn't build the actual messages,
