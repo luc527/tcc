@@ -1,2 +1,2 @@
 go/tccgo
-go/conlogs/*
+go/logs/*

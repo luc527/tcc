@@ -88,10 +88,16 @@ func (t mtype) hastext() bool {
 	return t == mtalk || t == mhear
 }
 
-// is request? i.e. is a host asking another to do something,
-// instead of just sending a signal?
-func (t mtype) isreq() bool {
+// a call prompts the other host to do something
+// a cast is what the other node sends in response, usually to hosts other than the original sender
+// e.g. call join -> each room member is cast a jned message
+
+func (t mtype) iscall() bool {
 	return t == mjoin || t == mexit || t == mtalk || t == mping
+}
+
+func (t mtype) iscast() bool {
+	return !t.iscall()
 }
 
 func (t mtype) String() string {

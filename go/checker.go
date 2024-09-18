@@ -149,68 +149,40 @@ func (sim simulation) talk(cid connid, rid uint32) (string, iter.Seq[connid], bo
 	return "", nil, false
 }
 
-// TODO: when checking, will have to deal with directed components separately
-
-func buildIdealGraph(reqs iter.Seq[connmes]) *mesgraph {
-	sim := makeSimulation()
-	mg := newMesgraph()
-
-	prevmes := make(map[connid]mesid)
-
-	for m := range reqs {
-		prev, ok := prevmes[m.cid]
-		curr := mg.register(m)
-		if !ok {
-			prev = nilmes
+func (sim simulation) handlecall(m connmes) ([]connmes, error) {
+	switch m.t {
+	case mping:
+		pong := protomes{t: mpong}
+		return []connmes{{m.cid, pong}}, nil
+	case mjoin:
+		receivers, ok := sim.join(m.cid, m.room, m.name)
+		if ok {
+			jned := protomes{t: mjned, room: m.room, name: m.name}
+			return addconnids(receivers, jned), nil
 		}
-		mg.edge(prev, curr)
-		prevmes[m.cid] = curr
-
-		if !m.t.isreq() {
-			log.Fatalf("not a req message: %v", m)
+	case mexit:
+		name, receivers, ok := sim.exit(m.cid, m.room)
+		if ok {
+			exed := protomes{t: mexed, room: m.room, name: name}
+			return addconnids(receivers, exed), nil
 		}
-
-		switch m.t {
-		case mping:
-			pong := protomes{t: mpong}
-			mg.edge(curr, mg.register(connmes{m.cid, pong}))
-		case mjoin:
-			receivers, ok := sim.join(m.cid, m.room, m.name)
-			if ok {
-				jned := protomes{t: mjned, room: m.room, name: m.name}
-				for recvid := range receivers {
-					mg.edge(curr, mg.register(connmes{recvid, jned}))
-				}
-			} else {
-				log.Println("inconsistency", m)
-			}
-		case mexit:
-			name, receivers, ok := sim.exit(m.cid, m.room)
-			if ok {
-				exed := protomes{t: mexed, room: m.room, name: name}
-				for recvid := range receivers {
-					mg.edge(curr, mg.register(connmes{recvid, exed}))
-				}
-			} else {
-				log.Println("inconsistency", m)
-			}
-		case mtalk:
-			name, receivers, ok := sim.talk(m.cid, m.room)
-			if ok {
-				hear := protomes{t: mhear, room: m.room, name: name, text: m.text}
-				for recvid := range receivers {
-					mg.edge(curr, mg.register(connmes{recvid, hear}))
-				}
-			} else {
-				log.Println("inconsistency", m)
-			}
-		default:
-			log.Fatalf("not a req message (but the switch{} though it was!): %v", m)
+	case mtalk:
+		name, receivers, ok := sim.talk(m.cid, m.room)
+		if ok {
+			hear := protomes{t: mhear, room: m.room, name: name, text: m.text}
+			return addconnids(receivers, hear), nil
 		}
-
 	}
+	return nil, fmt.Errorf("not a call message: %v", m.t)
+}
 
-	return mg
+func addconnids(cids iter.Seq[connid], m protomes) []connmes {
+	cms := make([]connmes, 0)
+	for cid := range cids {
+		cm := connmes{cid, m}
+		cms = append(cms, cm)
+	}
+	return cms
 }
 
 func checkmain() {
@@ -256,30 +228,23 @@ func checkmain() {
 		}
 	}
 
-	var reqs []connmes
+	var calls []connmes
 
 	for _, cm := range cms {
-		if cm.t.isreq() {
-			reqs = append(reqs, cm)
+		if cm.t.iscall() {
+			calls = append(calls, cm)
 		}
 	}
 
-	mg := buildIdealGraph(slices.Values(reqs))
-
-	// queue -> BFS
-	q := newqueue[mesid]()
-	q.enqueue(nilmes)
-	for !q.empty() {
-		x := q.dequeue()
-		ys := mg.adj[x]
-		if x != nilmes && len(ys) > 0 {
-			fmt.Printf("%v\n", mg.data[x])
+	sim := makeSimulation()
+	for _, call := range calls {
+		fmt.Printf("%v\n", call)
+		casts, err := sim.handlecall(call)
+		if err != nil {
+			log.Fatal(err)
 		}
-		for _, y := range ys {
-			if x != nilmes {
-				fmt.Printf("\t%v\n", mg.data[y])
-			}
-			q.enqueue(y)
+		for _, cast := range casts {
+			fmt.Printf("\t%v\n", cast)
 		}
 	}
 }

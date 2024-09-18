@@ -29,7 +29,7 @@ var (
 // other program output all to stderr
 
 func conmain(address string) {
-	path := fmt.Sprintf("./conlogs/log_%s.csv", time.Now().Format("20060102_1504"))
+	path := fmt.Sprintf("./logs/log_%s.csv", time.Now().Format("20060102_1504"))
 	file, err := os.Create(path)
 	if err != nil {
 		log.Printf("failed to open %s", path)
