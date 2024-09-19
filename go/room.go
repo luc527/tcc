@@ -75,6 +75,8 @@ func (r room) join(req joinroomreq) {
 // anyhow, with a large enough buffered channel and a decent client connection
 // it's very unlikely that we'd even get to the point of losing messages like that
 
+// TODO: implement those cpu messages
+
 func (r room) main() {
 	goinc()
 	defer godec()

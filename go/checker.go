@@ -9,7 +9,6 @@ import (
 	"maps"
 	"os"
 	"slices"
-	"strings"
 )
 
 // id of a connection (user) in the simulation
@@ -23,37 +22,6 @@ type connmes struct {
 
 func (cm connmes) String() string {
 	return fmt.Sprintf("{%d, %v}", cm.cid, cm.protomes)
-}
-
-func (this connmes) compare(that connmes) int64 {
-	var c int64
-	c = int64(this.cid) - int64(that.cid)
-	if c != 0 {
-		return c
-	}
-	c = int64(int8(this.t) - int8(that.t))
-	if c != 0 {
-		return c
-	}
-	if this.t.hasroom() {
-		c = int64(this.room) - int64(that.room)
-		if c != 0 {
-			return c
-		}
-	}
-	if this.t.hasname() {
-		c = int64(strings.Compare(this.name, that.name))
-		if c != 0 {
-			return c
-		}
-	}
-	if this.t.hastext() {
-		c = int64(strings.Compare(this.text, that.text))
-		if c != 0 {
-			return c
-		}
-	}
-	return 0
 }
 
 // the simulation doesn't build the actual messages,
@@ -141,8 +109,11 @@ func (sim simulation) handlecall(m connmes) ([]connmes, error) {
 			hear := protomes{t: mhear, room: m.room, name: name, text: m.text}
 			return addconnids(receivers, hear), nil
 		}
+	default:
+		return nil, fmt.Errorf("not a call message: %v", m.t)
 	}
-	return nil, fmt.Errorf("not a call message: %v", m.t)
+	// (inconsistency!)
+	return nil, nil
 }
 
 func addconnids(cids iter.Seq[connid], m protomes) []connmes {
@@ -152,6 +123,20 @@ func addconnids(cids iter.Seq[connid], m protomes) []connmes {
 		cms = append(cms, cm)
 	}
 	return cms
+}
+
+type mesindex struct {
+	idxs []int
+	ms   []protomes
+}
+
+func (mi mesindex) after(idx int) []protomes {
+	locidx, found := slices.BinarySearch(mi.idxs, idx)
+	from := locidx
+	if found {
+		from = locidx + 1
+	}
+	return mi.ms[from:]
 }
 
 func checkmain() {
@@ -183,7 +168,9 @@ func checkmain() {
 	nextcid := 1
 	connids := make(map[string]connid)
 
+	connmi := make(map[connid]mesindex)
 	cms := make([]connmes, len(lms))
+
 	for i, lm := range lms {
 		cid, ok := connids[lm.connName]
 		if !ok {
@@ -191,29 +178,45 @@ func checkmain() {
 			nextcid++
 			connids[lm.connName] = cid
 		}
-		cms[i] = connmes{
+		cm := connmes{
 			cid:      cid,
 			protomes: lm.m,
 		}
-	}
+		cms[i] = cm
 
-	var calls []connmes
-
-	for _, cm := range cms {
-		if cm.t.iscall() {
-			calls = append(calls, cm)
+		mi := connmi[cid] // zero value usable
+		connmi[cid] = mesindex{
+			idxs: append(mi.idxs, i),
+			ms:   append(mi.ms, cm.protomes),
 		}
 	}
 
 	sim := makeSimulation()
-	for _, call := range calls {
-		fmt.Printf("%v\n", call)
+	for i, cm := range cms {
+		if !cm.t.iscall() {
+			continue
+		}
+		call := cm
 		casts, err := sim.handlecall(call)
 		if err != nil {
 			log.Fatal(err)
 		}
+		anymissing := false
 		for _, cast := range casts {
-			fmt.Printf("\t%v\n", cast)
+			mi, ok := connmi[cast.cid]
+			if !ok {
+				log.Fatalf("mesindex not found for conn id %v", cast.cid)
+			}
+			if !slices.ContainsFunc(mi.after(i), cast.protomes.equal) {
+				if !anymissing {
+					anymissing = true
+					fmt.Printf("\nmissing after %v:\n", call)
+				}
+				fmt.Printf("\t%v\n", cast)
+			}
 		}
 	}
+
+	// TODO: also detect casts that should NOT have been sent
+
 }

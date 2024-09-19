@@ -32,11 +32,15 @@ func main() {
 		address := args[1]
 		clientmain(address)
 	case "console":
-		if len(args) == 1 {
+		if len(args) < 2 {
 			usage()
 		}
 		address := args[1]
-		conmain(address)
+		logname := ""
+		if len(args) == 3 {
+			logname = args[2]
+		}
+		conmain(address, logname)
 	case "check":
 		checkmain()
 	default:

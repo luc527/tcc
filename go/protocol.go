@@ -354,3 +354,34 @@ func (m *protomes) ReadFrom(r io.Reader) (n int64, err error) {
 
 	return n, nil
 }
+
+func (this protomes) compare(that protomes) int64 {
+	var c int64
+	c = int64(int8(this.t) - int8(that.t))
+	if c != 0 {
+		return c
+	}
+	if this.t.hasroom() {
+		c = int64(this.room) - int64(that.room)
+		if c != 0 {
+			return c
+		}
+	}
+	if this.t.hasname() {
+		c = int64(strings.Compare(this.name, that.name))
+		if c != 0 {
+			return c
+		}
+	}
+	if this.t.hastext() {
+		c = int64(strings.Compare(this.text, that.text))
+		if c != 0 {
+			return c
+		}
+	}
+	return 0
+}
+
+func (this protomes) equal(that protomes) bool {
+	return this.compare(that) == 0
+}
