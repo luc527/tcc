@@ -93,13 +93,11 @@ func (pc protoconn) producein(rawconn net.Conn) {
 				// ^ same side that closed the connection tried to read from it (?)
 				errors.Is(err, syscall.ECONNRESET)
 				// ^ seems to happen when the client side has lots of connections opens, is writing to them, and suddenly closes them
-				// TODO: check if disconnecting the bots in the console gradually helps to avoid this, although idk if it even really is a problem
 			if !ok {
 				log.Printf("unexpected read error: %v", err)
 			}
 			return
 		}
-
 	}
 }
 

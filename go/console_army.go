@@ -195,13 +195,6 @@ func startarmy(ctx context.Context, cancel context.CancelFunc, size uint, spec b
 	return
 }
 
-// TODO: it's probably the server who should throttle / rate limit
-// could even be one of the nonfunctional requirements
-// easy enough to do with a ticker? have to check how the ticker works in more details
-// e.g. send on ticker.c blocks until I receive it, then the receive resets the ticker's internal counter?
-// but also, one ticker sending every idk 100ms for *every* connection seems to much
-// there has to be a better way
-
 func (a army) join(room uint32, prefix string) {
 	// throttle - don't all join at once
 	ticker := time.NewTicker(128 * time.Millisecond)

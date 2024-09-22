@@ -18,9 +18,8 @@ func serve(listener net.Listener) {
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
-		pc := makeconn(ctx, cancel)
-		go pc.producein(rawconn)
-		go pc.consumeout(rawconn, rawconn)
+		pc := makeconn(ctx, cancel).
+			start(rawconn, rawconn)
 		go pingclient(pc)
 		go handlemessages(h, pc)
 	}
@@ -29,11 +28,10 @@ func serve(listener net.Listener) {
 func pingclient(pc protoconn) {
 	goinc()
 	defer godec()
-	ticker := time.NewTicker(pingInterval)
-	defer ticker.Stop()
+	tick := time.Tick(pingInterval)
 	for {
 		select {
-		case <-ticker.C:
+		case <-tick:
 			if !pc.send(protomes{t: mping}) {
 				return
 			}
@@ -48,6 +46,8 @@ func handlemessages(h hub, pc protoconn) {
 
 	rooms := make(map[uint32]roomhandle)
 	exited := make(chan uint32)
+
+	rl := ratelimiter(pc.ctx.Done(), time.Second/4, 16)
 
 	for {
 		select {
@@ -96,6 +96,11 @@ func handlemessages(h hub, pc protoconn) {
 					return
 				}
 			}
+		}
+		select {
+		case <-pc.ctx.Done():
+			return
+		case <-rl:
 		}
 	}
 }

@@ -52,6 +52,11 @@ func main() {
 	case "rtcheck":
 		rtcheckmain(address)
 		return
+	case "test":
+		if err := testRateLimiting(address); err != nil {
+			fmt.Println(err)
+		}
+		return
 	}
 
 	switch args[0] {
