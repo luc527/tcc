@@ -10,7 +10,17 @@ import (
 	"time"
 )
 
-var logepoch time.Time
+var (
+	logepoch  time.Time
+	logheader = []string{
+		"conn",
+		"nsec",
+		"type",
+		"room",
+		"name",
+		"text",
+	}
+)
 
 func init() {
 	var err error
@@ -26,17 +36,22 @@ type logmes struct {
 	m        protomes
 }
 
+func (lm logmes) String() string {
+	return fmt.Sprintf("{%v, %v, %v}", lm.connName, logepoch.Add(lm.dur).Format("01/06 15:04:05.000000"), lm.m)
+}
+
 type logger struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	w      *csv.Writer
-	lms    chan logmes
+	recs   chan []string
 }
 
 func makelogger(w *csv.Writer) logger {
 	ctx, cancel := context.WithCancel(context.Background())
-	lms := make(chan logmes, 16)
-	return logger{ctx, cancel, w, lms}
+	context.AfterFunc(ctx, w.Flush)
+	recs := make(chan []string, 16)
+	return logger{ctx, cancel, w, recs}
 }
 
 func (lm logmes) torecord() []string {
@@ -68,15 +83,18 @@ func (lm *logmes) fromrecord(rec []string) error {
 	}
 	dur := time.Duration(nsec * int64(time.Nanosecond))
 
-	uroom, err := strconv.ParseUint(sroom, 10, 32)
-	if err != nil {
-		return fmt.Errorf("logmes: %w", err)
-	}
-	room := uint32(uroom)
-
 	t, err := parseMtype(smtype)
 	if err != nil {
 		return fmt.Errorf("logmes: %w", err)
+	}
+
+	room := uint32(0)
+	if t.hasroom() {
+		uroom, err := strconv.ParseUint(sroom, 10, 32)
+		if err != nil {
+			return fmt.Errorf("logmes: %w", err)
+		}
+		room = uint32(uroom)
 	}
 
 	lm.connName = connName
@@ -90,16 +108,8 @@ func (lm *logmes) fromrecord(rec []string) error {
 
 func (l logger) main() {
 	defer l.cancel()
-	header := []string{
-		"conn",
-		"nsec",
-		"type",
-		"room",
-		"name",
-		"text",
-	}
-	if err := l.w.Write(header); err != nil {
-		log.Printf("failed to log header")
+	if err := l.w.Write(logheader); err != nil {
+		fmt.Fprintln(os.Stderr, "failed to log header")
 		return
 	}
 	for {
@@ -107,9 +117,9 @@ func (l logger) main() {
 		case <-l.ctx.Done():
 			fmt.Fprintln(os.Stderr, "! logger closed")
 			return
-		case lm := <-l.lms:
-			if err := l.w.Write(lm.torecord()); err != nil {
-				log.Println("failed to log in:", err)
+		case rec := <-l.recs:
+			if err := l.w.Write(rec); err != nil {
+				fmt.Fprintln(os.Stderr, "failed to log in:", err)
 				return
 			}
 		}
@@ -118,7 +128,28 @@ func (l logger) main() {
 
 func (l logger) log(connName string, m protomes) {
 	lm := logmes{connName, time.Since(logepoch), m}
-	if !trysend(l.lms, lm, l.ctx.Done()) {
-		log.Println("failed to log")
+	rec := lm.torecord()
+	if !trysend(l.recs, rec, l.ctx.Done()) {
+		fmt.Fprintln(os.Stderr, "failed to log")
+	}
+}
+
+func (l logger) enter(connName string) {
+	rec := make([]string, len(logheader))
+	rec[0] = connName
+	rec[1] = strconv.FormatInt(time.Since(logepoch).Nanoseconds(), 10)
+	rec[2] = "connstart"
+	if !trysend(l.recs, rec, l.ctx.Done()) {
+		fmt.Fprintln(os.Stderr, "failed to log connstart")
+	}
+}
+
+func (l logger) quit(connName string) {
+	rec := make([]string, len(logheader))
+	rec[0] = connName
+	rec[1] = strconv.FormatInt(time.Since(logepoch).Nanoseconds(), 10)
+	rec[2] = "connend"
+	if !trysend(l.recs, rec, l.ctx.Done()) {
+		fmt.Fprintln(os.Stderr, "failed to log connstart")
 	}
 }

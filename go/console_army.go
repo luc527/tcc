@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
-	"os"
 	"strconv"
 	"sync/atomic"
 	"time"
 )
+
+// TODO: after killing army, connend ends up unfulfilled for most bots
+// probably something to do with the other bots also being disconnected in the +- same moment
 
 var (
 	namedbotspecs = map[string]botspec{ /*TODO*/ }
@@ -32,6 +34,10 @@ func (bs botspec) messages(done <-chan zero) <-chan string {
 
 func (bs botspec) sendmessages(done <-chan zero, c chan<- string) {
 	defer close(c)
+	// ^ so it's very important for the receiver do to "text, ok := <- texts; if !ok { break }"
+	// otherwise, the channel will repeatedly yield the zero value "" (that's what receiving on a closed channel does)
+	// and the bot will repeatedly send a {talk, ""} message
+	// with absolutely NO delay between the messages. it'll really go at it.
 
 	if bs.nm == 0 {
 		return
@@ -143,7 +149,8 @@ type army struct {
 	bots   []bot
 }
 
-func startarmy(ctx context.Context, cancel context.CancelFunc, size uint, spec botspec, name string, address string) (a army, e error) {
+// too many args..
+func startarmy(ctx context.Context, cancel context.CancelFunc, size uint, spec botspec, name string, address string, f func(string) middleware, startf func(string), endf func(string)) (a army, e error) {
 	a = army{
 		ctx:    ctx,
 		cancel: cancel,
@@ -159,16 +166,22 @@ func startarmy(ctx context.Context, cancel context.CancelFunc, size uint, spec b
 		// close the bots gradually
 		wc := waitcloser{
 			c: rawconn,
-			d: time.Duration(i) * 96 * time.Millisecond,
+			d: time.Duration(128 * int64(i) * int64(time.Millisecond)),
 		}
 		connName := fmt.Sprintf("%s%d", name, nextbotid.Add(1))
 		cctx, ccancel := context.WithCancel(ctx)
+
+		logid := fmt.Sprintf("army/%s", connName)
+		if startf != nil {
+			startf(logid)
+		}
+		if endf != nil {
+			context.AfterFunc(cctx, func() { endf(logid) })
+		}
+
 		pc := makeconn(cctx, ccancel).
 			start(rawconn, wc).
-			withmiddleware(
-				func(m protomes) { l.log(fmt.Sprintf("army/%s", connName), m) },
-				func(m protomes) { l.log(fmt.Sprintf("army/%s", connName), m) },
-			)
+			withmiddleware(f(logid))
 		b := bot{
 			pc:   pc,
 			spec: spec,
@@ -191,24 +204,24 @@ func startarmy(ctx context.Context, cancel context.CancelFunc, size uint, spec b
 
 func (a army) join(room uint32, prefix string) {
 	// throttle - don't all join at once
-	ticker := time.NewTicker(32 * time.Millisecond)
+	ticker := time.NewTicker(128 * time.Millisecond)
 	defer ticker.Stop()
 	for i, b := range a.bots {
 		name := fmt.Sprintf("%s%d", prefix, i)
 		js := joinspec{room, name}
 		trysend(b.join, js, b.pc.ctx.Done())
-		fmt.Fprintf(os.Stderr, "< bot [%d] joined\n", i)
+		prf("< bot [%d] joined\n", i)
 		<-ticker.C
 	}
 }
 
 func (a army) exit(room uint32) {
 	// throttle - don't all exit at once
-	ticker := time.NewTicker(32 * time.Millisecond)
+	ticker := time.NewTicker(128 * time.Millisecond)
 	defer ticker.Stop()
 	for i, b := range a.bots {
 		trysend(b.exit, room, b.pc.ctx.Done())
-		fmt.Fprintf(os.Stderr, "< bot [%d] exited\n", i)
+		prf("< bot [%d] exited\n", i)
 		<-ticker.C
 	}
 }
@@ -310,7 +323,10 @@ func (rb roombot) main(room uint32) {
 		select {
 		case <-rb.ctx.Done():
 			return
-		case text := <-rb.texts:
+		case text, ok := <-rb.texts:
+			if !ok {
+				return
+			}
 			m := protomes{t: mtalk, room: room, text: text}
 			if !trysend(rb.out, m, rb.ctx.Done()) {
 				return

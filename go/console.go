@@ -5,16 +5,12 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"io"
-	"log"
 	"net"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 )
-
-var l logger
 
 type joinspec struct {
 	room uint32
@@ -27,6 +23,11 @@ type talkspec struct {
 }
 
 type arglist []string
+
+func newarglist(s string) *arglist {
+	a := respace.Split(s, -1)
+	return (*arglist)(&a)
+}
 
 func (a *arglist) next() (string, bool) {
 	if len(*a) == 0 {
@@ -42,53 +43,93 @@ func (a *arglist) rest() []string {
 	return (*a)[:]
 }
 
-type console struct {
-	armies  map[string]army
-	clients map[string]conclient
+type conclients map[string]conclient
+
+type conarmies map[string]army
+
+func prf(f string, a ...any) {
+	fmt.Fprintf(os.Stderr, f, a...)
 }
 
-func conmain(address string, logname string) {
-	var file io.Writer
+const logdateformat = "20060102_1504"
 
-	if len(logname) > 0 {
-		path := fmt.Sprintf("./logs/log_%s_%s.csv", logname, time.Now().Format("20060102_1504"))
+func conmain(address string, logname string, realtime bool) {
+	shouldlog := len(logname) > 0
+	var l logger
+	if shouldlog {
+		path := fmt.Sprintf("./logs/%s_%s.csv", logname, time.Now().Format(logdateformat))
 		var err error
-		file, err = os.Create(path)
+		file, err := os.Create(path)
 		if err != nil {
-			log.Printf("failed to open %s", path)
+			prf("failed to open %s", path)
 			return
 		}
-	} else {
-		file = io.Discard
+		l = makelogger(csv.NewWriter(file))
+		go l.main()
+		prf("< logging to %q\n", path)
 	}
 
-	con := console{
-		armies:  make(map[string]army),
-		clients: make(map[string]conclient),
+	var cms chan connmes
+	var cip *connidprovider
+	if realtime {
+		cip = newconnidprovider()
+		cms = make(chan connmes)
+		go checkrt(cms)
+		prf("< running real-time checking\n")
 	}
 
-	l = makelogger(csv.NewWriter(file))
-	go l.main()
+	makemw := func(s string) middleware {
+		return func(m protomes) {
+			if shouldlog {
+				l.log(s, m)
+			}
+			if realtime {
+				cid := cip.connidfor(s)
+				cm := makeconnmes(cid, m)
+				cms <- cm
+			}
+		}
+	}
+	startf := func(id string) {
+		if shouldlog {
+			l.enter(id)
+		}
+		if realtime {
+			cid := cip.connidfor(id)
+			cm := makeconnmes(cid, protomes{t: mconnstart})
+			cms <- cm
+		}
+	}
+	endf := func(id string) {
+		if shouldlog {
+			l.quit(id)
+		}
+		if realtime {
+			cid := cip.connidfor(id)
+			cm := makeconnmes(cid, protomes{t: mconnend})
+			cms <- cm
+		}
+	}
+
+	cc := make(conclients)
+	ca := make(conarmies)
 
 	sc := bufio.NewScanner(os.Stdin)
 
-	defer func() {
-		for _, army := range con.armies {
-			army.cancel()
-		}
-	}()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
 
 	for sc.Scan() {
 		toks := respace.Split(sc.Text(), -1)
 		if toks[0] == "quit" {
-			fmt.Fprintln(os.Stderr, "< bye")
+			prf("< bye\n")
 			break
 		}
 		if len(toks) < 2 {
-			fmt.Fprintln(os.Stderr, "! <domain> <command> [<args>]")
+			prf("! <domain> <command> [<args>]\n")
 			continue
 		}
-		domain, cmd, args := toks[0], toks[1], toks[2:]
+		domain, args := toks[0], toks[1:]
 		argl0 := arglist(args)
 		argl := &argl0
 
@@ -97,62 +138,71 @@ func conmain(address string, logname string) {
 		// just to avoid overloading the server
 		// maybe, idk
 
-		switch domain {
-		case "meta":
-			con.handlemeta(cmd, argl)
-		case "army":
-			con.handlearmy(address, cmd, argl)
-		case "cli":
-			con.handleclient(address, cmd, argl)
-		default:
-			fmt.Fprintf(os.Stderr, "! unknown domain %q\n", domain)
+		if domain == "sleep" {
+
+			handlesleep(argl)
+			continue
 		}
 
+		cmd, ok := argl.next()
+		if !ok {
+			prf("! missing command\a")
+			continue
+		}
+		switch domain {
+		case "army":
+			ca.handlearmy(address, cmd, argl, makemw, startf, endf)
+		case "cli":
+			cc.handleclient(address, cmd, argl, makemw, startf, endf)
+		default:
+			prf("! unknown domain %q\n", domain)
+		}
+
+		<-ticker.C
 	}
+
+	l.w.Flush()
 
 	if err := sc.Err(); err != nil {
-		fmt.Fprintf(os.Stderr, "! scanner: %v\n", err)
+		prf("! scanner: %v\n", err)
 	}
 }
 
-func (c console) handlemeta(cmd string, argl *arglist) {
-	if cmd == "sleep" {
-		sleeps, ok := argl.next()
-		if !ok {
-			fmt.Fprintf(os.Stderr, "! missing sleep duration\n")
-			return
-		}
-		sleep, err := time.ParseDuration(sleeps)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "! invalid sleep duration: %v\n", err)
-			return
-		}
-		time.Sleep(sleep)
+func handlesleep(argl *arglist) {
+	sleeps, ok := argl.next()
+	if !ok {
+		prf("! missing sleep duration\n")
+		return
 	}
-	fmt.Fprintf(os.Stderr, "unknown ctl command %q\n", cmd)
+	sleep, err := time.ParseDuration(sleeps)
+	if err != nil {
+		prf("! invalid sleep duration: %v\n", err)
+		return
+	}
+	time.Sleep(sleep)
 }
 
-func (c console) handlearmy(address string, cmd string, argl *arglist) {
+func (ca conarmies) handlearmy(address string, cmd string, argl *arglist, f func(string) middleware, startf func(string), endf func(string)) {
 	if cmd == "spawn" {
 		armyname, ok := argl.next()
 		if !ok {
-			fmt.Fprintf(os.Stderr, "! missing army name\n")
+			prf("! missing army name\n")
 			return
 		}
 		sarmysize, ok := argl.next()
 		if !ok {
-			fmt.Fprintf(os.Stderr, "! missing army size\n")
+			prf("! missing army size\n")
 			return
 		}
 		uarmysize, err := strconv.ParseUint(sarmysize, 10, 32)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "! invalid army size: %v\n", err)
+			prf("! invalid army size: %v\n", err)
 			return
 		}
 		armysize := uint(uarmysize)
 		aspec := argl.rest()
 		if !ok {
-			fmt.Fprintf(os.Stderr, "! missing spec\n")
+			prf("! missing spec\n")
 			return
 		}
 		var spec botspec
@@ -160,83 +210,84 @@ func (c console) handlearmy(address string, cmd string, argl *arglist) {
 		case 1:
 			spec, ok = namedbotspecs[aspec[0]]
 			if !ok {
-				fmt.Fprintf(os.Stderr, "! spec named %q not found\n", aspec[0])
+				prf("! spec named %q not found\n", aspec[0])
 				return
 			}
 		case 3:
 			spec, err = botparsea(aspec)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "! %v\n", err)
+				prf("! %v\n", err)
 				return
 			}
 		default:
-			fmt.Fprintf(os.Stderr, "! invalid spec length %d\n", len(aspec))
+			prf("! invalid spec length %d\n", len(aspec))
 			return
 		}
 		ctx, cancel := context.WithCancel(context.Background())
-		army, err := startarmy(ctx, cancel, armysize, spec, armyname, address)
+		army, err := startarmy(ctx, cancel, armysize, spec, armyname, address, f, startf, endf)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "! failed to start the bot army: %v\n", err)
+			prf("! failed to start the bot army: %v\n", err)
 			return
 		}
-		fmt.Fprintf(os.Stderr, "< army %q spawned\n", armyname)
-		c.armies[armyname] = army
+		prf("< army %q spawned\n", armyname)
+		ca[armyname] = army
 	} else if cmd == "kill" {
 		armyname, ok := argl.next()
 		if !ok {
-			fmt.Fprintf(os.Stderr, "! missing army name\n")
+			prf("! missing army name\n")
 			return
 		}
-		army, ok := c.armies[armyname]
+		army, ok := ca[armyname]
 		if !ok {
-			fmt.Fprintf(os.Stderr, "! army not found\n")
+			prf("! army not found\n")
 			return
 		}
 		army.cancel()
-		delete(c.armies, armyname)
-		fmt.Fprintf(os.Stderr, "< army %q killed\n", armyname)
+		delete(ca, armyname)
+		prf("< army %q killed\n", armyname)
 	} else if cmd == "join" || cmd == "exit" {
 		armyname, ok := argl.next()
 		if !ok {
-			fmt.Fprintf(os.Stderr, "! missing army name\n")
+			prf("! missing army name\n")
 			return
 		}
-		army, ok := c.armies[armyname]
+		army, ok := ca[armyname]
 		if !ok {
-			fmt.Fprintf(os.Stderr, "! army not found\n")
+			prf("! army not found\n")
 			return
 		}
 		sroom, ok := argl.next()
 		if !ok {
-			fmt.Fprintf(os.Stderr, "! missing room\n")
+			prf("! missing room\n")
 			return
 		}
 		uroom, err := strconv.ParseUint(sroom, 10, 32)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "! invalid room: %v\n", err)
+			prf("! invalid room: %v\n", err)
 			return
 		}
 		room := uint32(uroom)
 		if cmd == "join" {
 			name, ok := argl.next()
 			if !ok {
-				fmt.Fprintf(os.Stderr, "! missing user name\n")
+				prf("! missing user name\n")
 				return
 			}
 			army.join(room, name)
-			fmt.Fprintf(os.Stderr, "< army %q joined room %d with names starting with %q\n", armyname, room, name)
+			prf("< army %q joined room %d with names starting with %q\n", armyname, room, name)
 		} else {
 			army.exit(room)
-			fmt.Fprintf(os.Stderr, "< army %q exited room %d\n", armyname, room)
+			prf("< army %q exited room %d\n", armyname, room)
 		}
 	}
 }
 
-func (c console) handleclient(address string, cmd string, argl *arglist) {
+// those callbacks are a little ugly, but ok
+func (cc conclients) handleclient(address string, cmd string, argl *arglist, f func(string) middleware, startf func(string), endf func(string)) {
 	getid := func() (string, bool) {
 		id, ok := argl.next()
 		if !ok {
-			fmt.Fprintf(os.Stderr, "! missing id for client\n")
+			prf("! missing id for client\n")
 			return "", false
 		}
 		return id, true
@@ -247,9 +298,9 @@ func (c console) handleclient(address string, cmd string, argl *arglist) {
 		if !ok {
 			return conclient{}, false
 		}
-		cli, ok := c.clients[id]
+		cli, ok := cc[id]
 		if !ok {
-			fmt.Fprintf(os.Stderr, "! client %q not found\n", id)
+			prf("! client %q not found\n", id)
 			return conclient{}, false
 		}
 		return cli, true
@@ -258,12 +309,12 @@ func (c console) handleclient(address string, cmd string, argl *arglist) {
 	getroom := func() (uint32, bool) {
 		s, ok := argl.next()
 		if !ok {
-			fmt.Fprintf(os.Stderr, "! missing room\n")
+			prf("! missing room\n")
 			return 0, false
 		}
 		u, err := strconv.ParseUint(s, 10, 32)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "! invalid room %q: %v\n", s, err)
+			prf("! invalid room %q: %v\n", s, err)
 			return 0, false
 		}
 		return uint32(u), true
@@ -275,22 +326,33 @@ func (c console) handleclient(address string, cmd string, argl *arglist) {
 		if !ok {
 			return
 		}
-		if _, ok := c.clients[id]; ok {
-			fmt.Fprintf(os.Stderr, "! there's another client with that id\n")
+		if len(id) == 0 {
+			prf("! connection id cannot be empty\n")
+			return
+		}
+		if _, ok := cc[id]; ok {
+			prf("! there's another client with that id\n")
 			return
 		}
 		rawconn, err := net.Dial("tcp", address)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "! failed to connect: %v\n", err)
+			prf("! failed to connect: %v\n", err)
 			return
 		}
+
+		logid := fmt.Sprintf("client/%v", id)
+
 		ctx, cancel := context.WithCancel(context.Background())
+		if startf != nil {
+			startf(logid)
+		}
+		if endf != nil {
+			context.AfterFunc(ctx, func() { endf(logid) })
+		}
+
 		pc := makeconn(ctx, cancel).
 			start(rawconn, rawconn).
-			withmiddleware(
-				func(m protomes) { l.log(fmt.Sprintf("client/%v", id), m) },
-				func(m protomes) { l.log(fmt.Sprintf("client/%v", id), m) },
-			)
+			withmiddleware(f(logid))
 		cli := conclient{
 			id:   id,
 			pc:   pc,
@@ -298,16 +360,16 @@ func (c console) handleclient(address string, cmd string, argl *arglist) {
 			exit: make(chan uint32),
 			talk: make(chan talkspec),
 		}
-		c.clients[id] = cli
+		cc[id] = cli
 		go cli.handlemessages()
 		go cli.main()
-		fmt.Fprintf(os.Stderr, "< started client %q\n", id)
+		prf("< started client %q\n", id)
 	case "rm":
 		cli, ok := getcli()
 		if ok {
 			cli.pc.cancel()
-			delete(c.clients, cli.id)
-			fmt.Fprintf(os.Stderr, "< removed client %q\n", cli.id)
+			delete(cc, cli.id)
+			prf("< removed client %q\n", cli.id)
 		}
 	case "join":
 		cli, ok := getcli()
@@ -320,12 +382,12 @@ func (c console) handleclient(address string, cmd string, argl *arglist) {
 		}
 		name, ok := argl.next()
 		if !ok {
-			fmt.Fprintf(os.Stderr, "! missing name\n")
+			prf("! missing name\n")
 			return
 		}
 		js := joinspec{room, name}
 		if !trysend(cli.join, js, cli.pc.ctx.Done()) {
-			fmt.Fprintf(os.Stderr, "! client dead (?)\n")
+			prf("! client dead (?)\n")
 		}
 	case "exit":
 		cli, ok := getcli()
@@ -337,7 +399,7 @@ func (c console) handleclient(address string, cmd string, argl *arglist) {
 			return
 		}
 		if !trysend(cli.exit, room, cli.pc.ctx.Done()) {
-			fmt.Fprintf(os.Stderr, "! client dead (?)\n")
+			prf("! client dead (?)\n")
 		}
 	case "talk":
 		cli, ok := getcli()
@@ -351,13 +413,13 @@ func (c console) handleclient(address string, cmd string, argl *arglist) {
 		atext := argl.rest()
 		text := strings.Join(atext, " ")
 		if len(text) == 0 {
-			fmt.Fprintf(os.Stderr, "! missing text\n")
+			prf("! missing text\n")
 			return
 		}
 		if !trysend(cli.talk, talkspec{room, text}, cli.pc.ctx.Done()) {
-			fmt.Fprintf(os.Stderr, "! client dead (?)\n")
+			prf("! client dead (?)\n")
 		}
 	default:
-		fmt.Fprintf(os.Stderr, "! unknown command %q\n", cmd)
+		prf("! unknown command %q\n", cmd)
 	}
 }

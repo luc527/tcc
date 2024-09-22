@@ -1,10 +1,5 @@
 package main
 
-import (
-	"fmt"
-	"os"
-)
-
 type conclient struct {
 	id   string
 	pc   protoconn
@@ -42,7 +37,7 @@ func (c conclient) main() {
 			if m.t == mping {
 				c.pc.send(protomes{t: mpong})
 			} else {
-				fmt.Fprintf(os.Stderr, "< client %q: received %v\n", c.id, m)
+				prf("< client %q: received %v\n", c.id, m)
 			}
 		}
 	}

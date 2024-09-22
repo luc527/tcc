@@ -28,6 +28,8 @@ type protoconn struct {
 	out    chan protomes
 }
 
+type middleware func(protomes)
+
 func makeconn(ctx context.Context, cancel context.CancelFunc) protoconn {
 	in := make(chan protomes)
 	out := make(chan protomes)
@@ -124,11 +126,11 @@ func (pc protoconn) consumeout(w io.Writer, c io.Closer) {
 	}
 }
 
-func (pc protoconn) withmiddleware(inf func(protomes), outf func(protomes)) protoconn {
+func (pc protoconn) withmiddleware(f middleware) protoconn {
 	fpc := pc
 	fpc.in = make(chan protomes)
 	fpc.out = make(chan protomes)
-	go runmiddleware(fpc.in, pc.in, pc.ctx.Done(), inf)
-	go runmiddleware(pc.out, fpc.out, pc.ctx.Done(), outf)
+	go runmiddleware(fpc.in, pc.in, pc.ctx.Done(), f)
+	go runmiddleware(pc.out, fpc.out, pc.ctx.Done(), f)
 	return fpc
 }

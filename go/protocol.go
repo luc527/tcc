@@ -13,6 +13,7 @@ type mtype byte
 
 const (
 	// bit 0x10 means it's sent by the server, otherwise by the client
+	// ^ is the pin operator, as in Elixir
 	mping = mtype(0x00) // << ^mping:1 >>
 	mpong = mtype(0x10) // << ^mpong:1 >>
 	mtalk = mtype(0x01) // << ^mtalk:1, room:4, textlen:2, text:^textlen >>
@@ -22,7 +23,11 @@ const (
 	mexit = mtype(0x04) // << ^mexit:1, room:4 >>
 	mexed = mtype(0x14) // << ^mexed:1, room:4, namelen:2, name:^namelen >>
 	mprob = mtype(0x20) // << ^mprob:1, room:4 >> (as in "problem")
-	// ^ is the pin operator, as in Elixir
+	// connstart and connend are not "real" message types, meaning they're not really sent by either client or server
+	// they exists to signal when a connection has started or ended
+	// which is necessary in order to run the simulation (simulation.go) correctly
+	mconnstart = mtype(0xF0)
+	mconnend   = mtype(0xF1)
 )
 
 type protoerror struct {
@@ -74,10 +79,12 @@ func (t mtype) valid() bool {
 		t == mjoin || t == mjned ||
 		t == mexit || t == mexed ||
 		t == mprob
+	// mconnstart and mconnend are deliberately not included here because
+	// they shouldn't be sent by either client or server.
 }
 
 func (t mtype) hasroom() bool {
-	return t != mping && t != mpong
+	return t != mping && t != mpong && t != mconnstart && t != mconnend
 }
 
 func (t mtype) hasname() bool {
@@ -86,18 +93,6 @@ func (t mtype) hasname() bool {
 
 func (t mtype) hastext() bool {
 	return t == mtalk || t == mhear
-}
-
-// a call prompts the other host to do something
-// a cast is what the other node sends in response, usually to hosts other than the original sender
-// e.g. call join -> each room member is cast a jned message
-
-func (t mtype) iscall() bool {
-	return t == mjoin || t == mexit || t == mtalk || t == mping
-}
-
-func (t mtype) iscast() bool {
-	return !t.iscall()
 }
 
 func (t mtype) String() string {
@@ -120,8 +115,12 @@ func (t mtype) String() string {
 		return "exed"
 	case mprob:
 		return "prob"
+	case mconnstart:
+		return "connstart"
+	case mconnend:
+		return "connend"
 	default:
-		return "INVALIDMTYPE"
+		return ""
 	}
 }
 
@@ -145,6 +144,10 @@ func parseMtype(s string) (mtype, error) {
 		return mexed, nil
 	case "prob":
 		return mprob, nil
+	case "connstart":
+		return mconnstart, nil
+	case "connend":
+		return mconnend, nil
 	default:
 		return 0, fmt.Errorf("invalid mtype string %q", s)
 	}
@@ -157,51 +160,36 @@ func errormes(err protoerror) protomes {
 	}
 }
 
-func (m protomes) String() string {
+func protomes2string(t mtype, room uint32, name string, text string) string {
 	bb := new(bytes.Buffer)
 	bb.WriteString("{")
-	switch m.t {
-	case mping:
-		bb.WriteString("ping")
-	case mpong:
-		bb.WriteString("pong")
-	case mtalk:
-		bb.WriteString("talk")
-	case mhear:
-		bb.WriteString("hear")
-	case mjoin:
-		bb.WriteString("join")
-	case mexit:
-		bb.WriteString("exit")
-	case mjned:
-		bb.WriteString("jned")
-	case mexed:
-		bb.WriteString("exed")
-	case mprob:
-		bb.WriteString("prob")
+	bb.WriteString(t.String())
+
+	if t.hasroom() {
+		bb.WriteString(", ")
+		bb.WriteString(fmt.Sprintf("%d", room))
 	}
 
-	if m.t.hasroom() {
-		bb.WriteString(", ")
-		bb.WriteString(fmt.Sprintf("%d", m.room))
-	}
-
-	if m.t.hasname() {
+	if t.hasname() {
 		bb.WriteString(", ")
 		bb.WriteRune('"')
-		strings.NewReplacer(`"`, `\"`).WriteString(bb, m.name)
+		strings.NewReplacer(`"`, `\"`).WriteString(bb, name)
 		bb.WriteRune('"')
 	}
-	if m.t.hastext() {
+	if t.hastext() {
 		bb.WriteString(", ")
 		bb.WriteRune('"')
-		strings.NewReplacer(`"`, `\"`).WriteString(bb, m.text)
+		strings.NewReplacer(`"`, `\"`).WriteString(bb, text)
 		bb.WriteRune('"')
 	}
 
 	bb.WriteRune('}')
 
 	return bb.String()
+}
+
+func (m protomes) String() string {
+	return protomes2string(m.t, m.room, m.name, m.text)
 }
 
 // all numbers little endian

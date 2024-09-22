@@ -3,7 +3,6 @@ package main
 import (
 	"io"
 	"regexp"
-	"sync/atomic"
 	"time"
 )
 
@@ -24,8 +23,7 @@ func (wc waitcloser) Close() error {
 var respace = regexp.MustCompile(`\s+`)
 
 // goroutine count, for trying to detect goroutine leaks
-// TODO: test console.go too
-var gocount = atomic.Int32{}
+// var gocount = atomic.Int32{}
 
 func goinc() {
 	// log.Printf("<go> count: %d", gocount.Add(1))
