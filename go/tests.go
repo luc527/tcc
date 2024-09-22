@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"net"
 	"sync"
 	"time"
@@ -32,8 +33,7 @@ func testRateLimiting(address string) error {
 
 	const N = 100
 
-	sendtimes := make([]time.Time, N)
-	recvtimes := make([]time.Time, N)
+	durs := make([]int64, 0, N)
 
 	wg := new(sync.WaitGroup)
 
@@ -53,10 +53,16 @@ func testRateLimiting(address string) error {
 			}
 		}
 
-		for i := range N {
+		i := 0
+		for i < N {
+			if i%10 == 0 {
+				// allow tokens to refill
+				time.Sleep(800 * time.Millisecond)
+			}
+			s := time.Now()
 			select {
 			case <-pc.ctx.Done():
-				errc <- fmt.Errorf("unable to receive hear [%d]", i)
+				errc <- fmt.Errorf("unable to receive hear")
 			case m := <-pc.in:
 				if m.t == mping {
 					if !pc.send(protomes{t: mpong}) {
@@ -71,7 +77,8 @@ func testRateLimiting(address string) error {
 					if !ok {
 						errc <- fmt.Errorf("received unexpected message (1) %v", m)
 					} else {
-						recvtimes[i] = time.Now()
+						durs = append(durs, int64(time.Since(s)))
+						i++
 					}
 				}
 			}
@@ -81,11 +88,10 @@ func testRateLimiting(address string) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for i := range N {
-			if !pc.send(protomes{t: mtalk, room: joinm.room, text: text}) {
+		for range N {
+			m := protomes{t: mtalk, room: joinm.room, text: text}
+			if !pc.send(m) {
 				errc <- fmt.Errorf("unable to talk")
-			} else {
-				sendtimes[i] = time.Now()
 			}
 		}
 	}()
@@ -102,15 +108,26 @@ func testRateLimiting(address string) error {
 	case <-done:
 	}
 
-	durs := make([]time.Duration, N)
 	sum := int64(0)
-	for i := range N {
-		dur := recvtimes[i].Sub(sendtimes[i])
-		durs[i] = dur
-		sum += int64(dur)
+	for _, dur := range durs {
+		sum += dur
 	}
-	avg := time.Duration(sum / int64(len(durs)))
-	fmt.Println("avg:", avg)
+	avg := sum / int64(len(durs))
+
+	ss := int64(0)
+	for _, dur := range durs {
+		dev := dur - avg
+		ss += dev * dev
+	}
+	stdev := math.Sqrt(float64(ss) / N)
+
+	for _, dur := range durs {
+		fmt.Printf("%20v\n", time.Duration(dur))
+	}
+
+	fmt.Println()
+	fmt.Println("avg:   ", time.Duration(avg))
+	fmt.Println("stdev: ", time.Duration(stdev))
 
 	return nil
 }

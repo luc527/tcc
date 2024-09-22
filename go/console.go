@@ -116,8 +116,7 @@ func conmain(address string, logname string, realtime bool) {
 
 	sc := bufio.NewScanner(os.Stdin)
 
-	ticker := time.NewTicker(10 * time.Millisecond)
-	defer ticker.Stop()
+	tick := time.Tick(128 * time.Millisecond)
 
 	for sc.Scan() {
 		toks := respace.Split(sc.Text(), -1)
@@ -158,10 +157,12 @@ func conmain(address string, logname string, realtime bool) {
 			prf("! unknown domain %q\n", domain)
 		}
 
-		<-ticker.C
+		<-tick
 	}
 
-	l.w.Flush()
+	if shouldlog {
+		l.w.Flush()
+	}
 
 	if err := sc.Err(); err != nil {
 		prf("! scanner: %v\n", err)
