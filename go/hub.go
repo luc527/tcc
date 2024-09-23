@@ -5,29 +5,25 @@ import (
 )
 
 type hjoinroomreq struct {
-	rid uint32
-	req joinroomreq
+	room uint32
+	req  joinroomreq
+}
+
+type hubroomjoiner struct {
+	reqs chan hjoinroomreq
+	done <-chan zero
 }
 
 type hub struct {
-	ctx      context.Context
-	cancel   context.CancelFunc
-	joinreqs chan hjoinroomreq
+	ctx    context.Context
+	cancel context.CancelFunc
+	reqs   chan hjoinroomreq
 }
 
-func makehub() hub {
-	ctx, cancel := context.WithCancel(context.Background())
-	joinreqs := make(chan hjoinroomreq)
-	return hub{ctx, cancel, joinreqs}
-}
-
-func (h hub) join(rid uint32, req joinroomreq) bool {
-	hreq := hjoinroomreq{rid, req}
-	select {
-	case <-h.ctx.Done():
-		return false
-	case h.joinreqs <- hreq:
-		return true
+func (h hub) joiner() hubroomjoiner {
+	return hubroomjoiner{
+		reqs: h.reqs,
+		done: h.ctx.Done(),
 	}
 }
 
@@ -36,30 +32,50 @@ func (h hub) main() {
 	defer godec()
 	defer h.cancel()
 
-	rooms := make(map[uint32]room)
+	roomjoiners := make(map[uint32]roomjoiner)
 	emptied := make(chan uint32)
+
+	getrj := func(room uint32) roomjoiner {
+		var (
+			rj roomjoiner
+			ok bool
+		)
+		if rj, ok = roomjoiners[room]; !ok {
+			ctx, cancel := context.WithCancel(h.ctx)
+			done := h.ctx.Done()
+			context.AfterFunc(ctx, func() {
+				select {
+				case emptied <- room:
+				case <-done:
+				}
+			})
+			rj = startroom(ctx, cancel)
+			roomjoiners[room] = rj
+		}
+		return rj
+	}
 
 	for {
 		select {
 		case <-h.ctx.Done():
 			return
-		case rid := <-emptied:
-			delete(rooms, rid)
-		case hreq := <-h.joinreqs:
-			var r room
-			rid := hreq.rid
-			if r0, ok := rooms[rid]; ok {
-				r = r0
-			} else {
-				ctx, cancel := context.WithCancel(h.ctx)
-				context.AfterFunc(ctx, func() {
-					trysend(emptied, rid, h.ctx.Done())
-				})
-				r = makeroom(ctx, cancel)
-				go r.main()
-				rooms[rid] = r
+		case room := <-emptied:
+			delete(roomjoiners, room)
+		case hreq := <-h.reqs:
+			room, req := hreq.room, hreq.req
+			rj := getrj(room)
+			select {
+			case rj.reqs <- req:
+			case <-rj.done:
+				req.prob <- zero{}
 			}
-			r.join(hreq.req)
 		}
 	}
+}
+
+func starthub(ctx context.Context, cancel context.CancelFunc) hubroomjoiner {
+	reqs := make(chan hjoinroomreq)
+	h := hub{ctx, cancel, reqs}
+	go h.main()
+	return h.joiner()
 }
