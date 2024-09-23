@@ -112,11 +112,11 @@ func checkrt(cms <-chan connmes) {
 		select {
 		case cmi := <-fuldc:
 			if cm := cmlist[cmi]; cm.t != mping {
-				// prf("< fulfilled: [%d] %v\n", cmi, cm)
+				prf("< (rt) fulfilled: [%d] %v\n", cmi, cm)
 			}
 			delete(fws, cmi)
 		case cmi := <-unfuldc:
-			prf("! unfulfilled: [%d] %v\n", cmi, cmlist[cmi])
+			prf("! (rt) unfulfilled: [%d] %v\n", cmi, cmlist[cmi])
 			delete(fws, cmi)
 		case cm := <-cms:
 			i := len(cmlist)
@@ -159,7 +159,7 @@ func checkrt(cms <-chan connmes) {
 					}
 				}
 				if fuldcmi == -1 {
-					prf("! doesn't fulfill: %v\n", cm)
+					prf("! (rt) doesn't fulfill: %v\n", cm)
 				} else if fuldcm := cmlist[fuldcmi]; fuldcm.t != mping {
 					// prf("< cast %v fulfills %v\n", cm, fuldcm)
 				}

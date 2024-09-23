@@ -38,9 +38,7 @@ func handleserver(pc protoconn) {
 			switch m.t {
 			case mping:
 				log.Printf("< ping\n")
-				if !pc.send(protomes{t: mpong}) {
-					return
-				}
+				pc.send(protomes{t: mpong})
 			case mjned:
 				log.Printf("< (%d, %v) joined\n", m.room, m.name)
 			case mexed:
@@ -91,13 +89,17 @@ func handlescanner(sc *bufio.Scanner, pc protoconn) {
 			}
 			name := toks[2]
 			m := protomes{t: mjoin, room: room, name: name}
-			if !pc.send(m) {
-				return
+			select {
+			case <-pc.ctx.Done():
+				goto end
+			case pc.out <- m:
 			}
 		case "exit":
 			m := protomes{t: mexit, room: room}
-			if !pc.send(m) {
-				return
+			select {
+			case <-pc.ctx.Done():
+				goto end
+			case pc.out <- m:
 			}
 		case "talk":
 			if len(toks) == 2 {
@@ -106,8 +108,10 @@ func handlescanner(sc *bufio.Scanner, pc protoconn) {
 			}
 			text := toks[2]
 			m := protomes{t: mtalk, room: room, text: text}
-			if !pc.send(m) {
-				return
+			select {
+			case <-pc.ctx.Done():
+				goto end
+			case pc.out <- m:
 			}
 		default:
 			log.Printf("! unknown command %q\n! available commands are: %q, %q, %q and %q\n", cmd, "quit", "join", "exit", "talk")
@@ -117,7 +121,7 @@ func handlescanner(sc *bufio.Scanner, pc protoconn) {
 			return
 		}
 	}
-
+end:
 	if err := sc.Err(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}

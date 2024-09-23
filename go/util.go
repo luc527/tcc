@@ -25,6 +25,8 @@ var respace = regexp.MustCompile(`\s+`)
 // goroutine count, for trying to detect goroutine leaks
 // var gocount = atomic.Int32{}
 
+// TODO: check for goroutine leaks again
+
 func goinc() {
 	// log.Printf("<go> count: %d", gocount.Add(1))
 }

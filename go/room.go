@@ -12,7 +12,7 @@ type roommes struct {
 type roomhandle struct {
 	ctx    context.Context
 	cancel context.CancelFunc
-	texts  chan<- string
+	rms    chan<- roommes
 }
 
 type clienthandle struct {
@@ -22,7 +22,7 @@ type clienthandle struct {
 	exed chan<- string
 }
 
-func (ch clienthandle) send(rm roommes) {
+func (ch clienthandle) talk(rm roommes) {
 	trysend(ch.rms, rm, ch.ctx.Done())
 }
 
@@ -48,12 +48,23 @@ type room struct {
 	cancel context.CancelFunc
 	reqs   chan joinroomreq
 	rms    chan roommes
+	exs    chan string
+	clis   map[string]clienthandle
 }
 
 func makeroom(ctx context.Context, cancel context.CancelFunc) room {
-	reqs := make(chan joinroomreq)
-	rms := make(chan roommes)
-	return room{ctx, cancel, reqs, rms}
+	reqs := make(chan joinroomreq, 16)
+	exs := make(chan string, 16)
+	rms := make(chan roommes, roomCapacity/2)
+	clis := make(map[string]clienthandle)
+	return room{
+		ctx:    ctx,
+		cancel: cancel,
+		reqs:   reqs,
+		rms:    rms,
+		exs:    exs,
+		clis:   clis,
+	}
 }
 
 func (r room) join(req joinroomreq) {
@@ -64,97 +75,78 @@ func (r room) join(req joinroomreq) {
 	}
 }
 
-// TODO: when sending to the client, the room maybe shouldn't only check
-// whether the client closed. maybe it should also give up on sending a message
-// if some time passes. otherwise one slow client could block the room
-// (the room sends to the clients one by one)
-// ofc using buffered channels for mesc/jned/exed would help a lot, but may not be enough?
-// then, what's the timeout? 1 millisecond? idk really, what's the amount that would actually help?
-// but also, is it ok to create a timer for each and every message to the client?
-// ! that's not necessary, could just reuse the same timer, it could even be one timer per room (maybe?)
-// anyhow, with a large enough buffered channel and a decent client connection
-// it's very unlikely that we'd even get to the point of losing messages like that
-
-// TODO: implement those cpu messages
-
 func (r room) main() {
 	goinc()
 	defer godec()
 	defer r.cancel()
-
-	clients := make(map[string]clienthandle)
-
-	exit := make(chan string)
-	rms := make(chan roommes)
 
 	for {
 		select {
 		case <-r.ctx.Done():
 			return
 		case req := <-r.reqs:
-			if _, exists := clients[req.name]; exists {
-				req.prob <- zero{}
-				continue
-			}
-
-			name := req.name
-			ctx, cancel := context.WithCancel(r.ctx)
-			context.AfterFunc(ctx, func() {
-				trysend(exit, name, r.ctx.Done())
-			})
-			texts := make(chan string)
-			go handleroomclient(ctx, cancel, name, rms, texts)
-
-			ch := clienthandle{
-				ctx:  ctx,
-				rms:  req.rms,
-				jned: req.jned,
-				exed: req.exed,
-			}
-			clients[req.name] = ch
-			req.resp <- roomhandle{
-				ctx:    ctx,
-				cancel: cancel,
-				texts:  texts,
-			}
-			for _, ch := range clients {
-				ch.joined(req.name)
-			}
-		case rm := <-rms:
-			for _, ch := range clients {
-				ch.send(rm)
-			}
-		case name := <-exit:
-			if _, exists := clients[name]; exists {
-				delete(clients, name)
-				if len(clients) == 0 {
-					return
-				}
-				for _, ch := range clients {
-					ch.exited(name)
-				}
-			}
+			r.handlejoin(req)
+		case rm := <-r.rms:
+			r.handletalk(rm)
+		case name := <-r.exs:
+			r.handleexit(name)
 		}
 	}
 }
 
-func handleroomclient(
-	ctx context.Context,
-	cancel context.CancelFunc,
-	name string,
-	rms chan<- roommes,
-	texts <-chan string,
-) {
-	defer cancel()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case text := <-texts:
-			rm := roommes{name: name, text: text}
-			if !trysend(rms, rm, ctx.Done()) {
-				return
-			}
-		}
+// TODO: implement cpu messages
+// ! they should not block the room main loop,
+// instead do the computation in a goroutine that sends back the result in a channel,
+// and receive from the channel in the main loop
+
+func (r room) handlejoin(req joinroomreq) {
+	if len(r.clis) >= roomCapacity {
+		req.prob <- zero{}
+		return
+	}
+	if _, exists := r.clis[req.name]; exists {
+		req.prob <- zero{}
+		return
+	}
+
+	name := req.name
+	ctx, cancel := context.WithCancel(r.ctx)
+	context.AfterFunc(ctx, func() {
+		trysend(r.exs, name, r.ctx.Done())
+	})
+
+	ch := clienthandle{
+		ctx:  ctx,
+		rms:  req.rms,
+		jned: req.jned,
+		exed: req.exed,
+	}
+	r.clis[req.name] = ch
+	req.resp <- roomhandle{
+		ctx:    ctx,
+		cancel: cancel,
+		rms:    r.rms,
+	}
+	for _, ch := range r.clis {
+		ch.joined(name)
+	}
+}
+
+func (r room) handleexit(name string) {
+	if _, exists := r.clis[name]; !exists {
+		return
+	}
+	delete(r.clis, name)
+	if len(r.clis) == 0 {
+		return
+	}
+	for _, ch := range r.clis {
+		ch.exited(name)
+	}
+}
+
+func (r room) handletalk(rm roommes) {
+	for _, ch := range r.clis {
+		ch.talk(rm)
 	}
 }

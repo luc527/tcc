@@ -35,6 +35,8 @@ type protoerror struct {
 	code uint8
 }
 
+// TODO: return to client when operation fails (talk, join, exit) because a timeout occured
+
 var _ error = protoerror{}
 
 var (
@@ -67,11 +69,6 @@ type protomes struct {
 var _ io.WriterTo = &protomes{}
 var _ io.ReaderFrom = &protomes{}
 var _ fmt.Stringer = protomes{}
-
-const (
-	maxMessageLength = 2048
-	maxNameLength    = 24
-)
 
 func (t mtype) valid() bool {
 	return t == mping || t == mpong ||

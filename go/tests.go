@@ -25,13 +25,15 @@ func testRateLimiting(address string) error {
 	joinm := protomes{t: mjoin, room: 1234, name: "test"}
 	text := "hello"
 
-	if !pc.send(joinm) {
+	select {
+	case <-pc.ctx.Done():
 		return fmt.Errorf("unable to join")
+	case pc.out <- joinm:
 	}
 
 	errc := make(chan error)
 
-	const N = 100
+	const N = 200
 
 	durs := make([]int64, 0, N)
 
@@ -55,9 +57,12 @@ func testRateLimiting(address string) error {
 
 		i := 0
 		for i < N {
-			if i%10 == 0 {
+			if i%20 == 0 {
 				// allow tokens to refill
 				time.Sleep(800 * time.Millisecond)
+			}
+			if i%35 == 0 {
+				time.Sleep(1600 * time.Millisecond)
 			}
 			s := time.Now()
 			select {
@@ -65,8 +70,10 @@ func testRateLimiting(address string) error {
 				errc <- fmt.Errorf("unable to receive hear")
 			case m := <-pc.in:
 				if m.t == mping {
-					if !pc.send(protomes{t: mpong}) {
+					select {
+					case <-pc.ctx.Done():
 						errc <- fmt.Errorf("failed to pong back")
+					case pc.out <- protomes{t: mpong}:
 					}
 				} else {
 					ok := true &&
@@ -77,7 +84,9 @@ func testRateLimiting(address string) error {
 					if !ok {
 						errc <- fmt.Errorf("received unexpected message (1) %v", m)
 					} else {
-						durs = append(durs, int64(time.Since(s)))
+						dur := time.Since(s)
+						fmt.Printf("%4d %20v\n", i, dur)
+						durs = append(durs, int64(dur))
 						i++
 					}
 				}
@@ -90,8 +99,10 @@ func testRateLimiting(address string) error {
 		defer wg.Done()
 		for range N {
 			m := protomes{t: mtalk, room: joinm.room, text: text}
-			if !pc.send(m) {
+			select {
+			case <-pc.ctx.Done():
 				errc <- fmt.Errorf("unable to talk")
+			case pc.out <- m:
 			}
 		}
 	}()
@@ -121,11 +132,6 @@ func testRateLimiting(address string) error {
 	}
 	stdev := math.Sqrt(float64(ss) / N)
 
-	for _, dur := range durs {
-		fmt.Printf("%20v\n", time.Duration(dur))
-	}
-
-	fmt.Println()
 	fmt.Println("avg:   ", time.Duration(avg))
 	fmt.Println("stdev: ", time.Duration(stdev))
 

@@ -71,9 +71,10 @@ func main() {
 				} else {
 					prusage()
 				}
-			}
-			if bef == "rt" {
+			} else if bef == "rt" {
 				realtime = true
+			} else {
+				fmt.Println(bef, "unknown arg")
 			}
 		}
 		conmain(address, logname, realtime)

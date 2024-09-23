@@ -10,17 +10,6 @@ import (
 	"time"
 )
 
-const (
-	timeout      = 30 * time.Second
-	pingInterval = 20 * time.Second
-)
-
-func init() {
-	if pingInterval >= timeout {
-		panic("must have pingInterval < timeout")
-	}
-}
-
 type protoconn struct {
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -42,13 +31,19 @@ func makeconn(ctx context.Context, cancel context.CancelFunc) protoconn {
 }
 
 func (pc protoconn) start(rawconn net.Conn, closer io.Closer) protoconn {
+	if closer == nil {
+		closer = rawconn
+	}
 	go pc.producein(rawconn)
 	go pc.consumeout(rawconn, closer)
 	return pc
 }
 
-func (pc protoconn) send(m protomes) bool {
-	return trysend(pc.out, m, pc.ctx.Done())
+func (pc protoconn) send(m protomes) {
+	select {
+	case <-pc.ctx.Done():
+	case pc.out <- m:
+	}
 }
 
 func (pc protoconn) isdone() bool {
@@ -64,9 +59,9 @@ func (pc protoconn) producein(rawconn net.Conn) {
 	goinc()
 	defer godec()
 	defer pc.cancel()
-	defer close(pc.in)
+
 	for {
-		deadline := time.Now().Add(timeout)
+		deadline := time.Now().Add(connReadTimeout)
 		if err := rawconn.SetReadDeadline(deadline); err != nil {
 			return
 		}

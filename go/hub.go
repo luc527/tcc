@@ -21,12 +21,13 @@ func makehub() hub {
 	return hub{ctx, cancel, joinreqs}
 }
 
-func (h hub) join(rid uint32, req joinroomreq) {
+func (h hub) join(rid uint32, req joinroomreq) bool {
 	hreq := hjoinroomreq{rid, req}
 	select {
 	case <-h.ctx.Done():
-		req.prob <- zero{}
+		return false
 	case h.joinreqs <- hreq:
+		return true
 	}
 }
 
