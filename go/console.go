@@ -96,7 +96,7 @@ func conmain(address string, logname string, realtime bool) {
 		}
 		if realtime {
 			cid := cip.connidfor(id)
-			cm := makeconnmes(cid, protomes{t: mconnstart})
+			cm := makeconnmes(cid, protomes{t: mbegc})
 			cms <- cm
 		}
 	}
@@ -106,7 +106,7 @@ func conmain(address string, logname string, realtime bool) {
 		}
 		if realtime {
 			cid := cip.connidfor(id)
-			cm := makeconnmes(cid, protomes{t: mconnend})
+			cm := makeconnmes(cid, protomes{t: mendc})
 			cms <- cm
 		}
 	}

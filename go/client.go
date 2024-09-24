@@ -18,8 +18,7 @@ func clientmain(address string) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	pc := makeconn(ctx, cancel).
-		start(rawconn, rawconn)
+	pc := makeconn(ctx, cancel).start(rawconn, rawconn)
 
 	go handleserver(pc)
 	handlescanner(bufio.NewScanner(os.Stdin), pc)
@@ -45,13 +44,10 @@ func handleserver(pc protoconn) {
 				log.Printf("< (%d, %v) exited\n", m.room, m.name)
 			case mhear:
 				log.Printf("< (%d, %v) %v\n", m.room, m.name, m.text)
+			case mrols:
+				log.Printf("< room list\n%v\n", m.text)
 			case mprob:
-				perr, ok := protoerrcode(uint8(m.room))
-				s := "invalid code"
-				if ok {
-					s = perr.Error()
-				}
-				log.Printf("< (error) %v\n", s)
+				log.Printf("< (error) %v\n", ecode(m.room))
 			}
 		}
 	}
@@ -113,14 +109,32 @@ func handlescanner(sc *bufio.Scanner, pc protoconn) {
 				goto end
 			case pc.out <- m:
 			}
+		case "ls":
+			m := protomes{t: mlsro}
+			select {
+			case <-pc.ctx.Done():
+				goto end
+			case pc.out <- m:
+			}
 		default:
-			log.Printf("! unknown command %q\n! available commands are: %q, %q, %q and %q\n", cmd, "quit", "join", "exit", "talk")
+			log.Printf(
+				"! unknown command %q\n! available commands are: %q, %q, %q %q and %q\n",
+				cmd,
+				"quit",
+				"join",
+				"exit",
+				"talk",
+				"ls",
+			)
 		}
 
-		if pc.isdone() {
+		select {
+		case <-pc.ctx.Done():
 			return
+		default:
 		}
 	}
+
 end:
 	if err := sc.Err(); err != nil {
 		fmt.Fprintln(os.Stderr, err)

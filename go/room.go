@@ -47,6 +47,12 @@ func (r room) main() {
 	defer godec()
 	defer r.cancel()
 
+	// TODO: test
+	rl := ratelimiter(r.ctx.Done(), roomRateLimit, roomBurstLimit)
+
+	// prf("\n\nro! room started\n")
+	// defer prf("\n\nro! room ended\n")
+
 	for {
 		select {
 		case <-r.ctx.Done():
@@ -57,7 +63,17 @@ func (r room) main() {
 			r.handletalk(rm)
 		case name := <-r.exits:
 			r.handleexit(name)
+			if len(r.clis) == 0 {
+				// prf("ro! no more clients\n")
+				return
+			}
 		}
+		select {
+		case <-r.ctx.Done():
+			return
+		case <-rl:
+		}
+
 	}
 }
 
@@ -70,14 +86,18 @@ func (r room) handlejoin(req joinroomreq) {
 	if len(r.clis) >= roomCapacity {
 		select {
 		case req.prob <- zero{}:
+			// prf("ro! handlejoin prob 1\n")
 		case <-req.done:
+			// prf("ro! handlejoin done 1\n")
 		}
 		return
 	}
 	if _, exists := r.clis[req.name]; exists {
 		select {
 		case req.prob <- zero{}:
+			// prf("ro! handlejoin prob 2\n")
 		case <-req.done:
+			// prf("ro! handlejoin done 2\n")
 		}
 		return
 	}
@@ -92,7 +112,9 @@ func (r room) handlejoin(req joinroomreq) {
 	}
 	select {
 	case req.resp <- rh:
+		// prf("ro! handlejoin resp\n")
 	case <-req.done:
+		// prf("ro! handlejoin done 3\n")
 		cancel()
 		return
 	}
@@ -103,13 +125,14 @@ func (r room) handlejoin(req joinroomreq) {
 		context.AfterFunc(ctx, func() {
 			select {
 			case exits <- name:
+				// prf("ro! cli %v exited\n", req.name)
 			case <-done:
+				// prf("ro! cli %v failed to exit\n", req.name)
 			}
 		})
 	}
 
 	ch := clienthandle{
-		done: ctx.Done(),
 		rms:  req.rms,
 		jned: req.jned,
 		exed: req.exed,
@@ -119,23 +142,25 @@ func (r room) handlejoin(req joinroomreq) {
 	for _, ch := range r.clis {
 		select {
 		case ch.jned <- name:
-		case <-ch.done:
+			// prf("ro! sent %v jned to %v\n", name, x)
+		default:
+			// prf("ro! failed to send %v jned to %v\n", name, x)
 		}
 	}
 }
 
 func (r room) handleexit(name string) {
 	if _, exists := r.clis[name]; !exists {
+		// prf("ro! handleexit(%v) return 1\n", name)
 		return
 	}
 	delete(r.clis, name)
-	if len(r.clis) == 0 {
-		return
-	}
 	for _, ch := range r.clis {
 		select {
 		case ch.exed <- name:
-		case <-ch.done:
+			// prf("ro! sent %v exed to %v\n", name, x)
+		default:
+			// prf("ro! failed to send %v exed to %v\n", name, x)
 		}
 	}
 }
@@ -144,22 +169,29 @@ func (r room) handletalk(rm roommes) {
 	for _, ch := range r.clis {
 		select {
 		case ch.rms <- rm:
-		case <-ch.done:
+			// prf("ro! sent rm %v to %v\n", rm, x)
+		default:
+			// prf("ro! failed to send rm %v to %v\n", rm, x)
 		}
 	}
 }
 
+// the room does NON-BLOCKING sends to clients
+// TODO: is it the room who should create these channels? I'm starting to think so,
+// considering the fact that they have to be buffered because of the non-blocking sends and so on,
+// these are all concerns of the room.
 type clienthandle struct {
-	done <-chan zero
 	rms  chan<- roommes
 	jned chan<- string
 	exed chan<- string
 }
 
 func startroom(ctx context.Context, cancel context.CancelFunc) roomjoiner {
-	rms := make(chan roommes, roomCapacity/2)
-	reqs := make(chan joinroomreq, roomCapacity/4)
-	exits := make(chan string, roomCapacity/4)
+	// TODO: might be better for the room to actually have SMALLER buffers than the clients
+	// e.g. if rms had size 100 and rate limit was 1second, then it would take 100 seconds to cast all "backlogged" messages to the clients
+	rms := make(chan roommes, roomBufferSize)
+	reqs := make(chan joinroomreq, roomBufferSize/2)
+	exits := make(chan string, roomBufferSize/2)
 	clis := make(map[string]clienthandle)
 	r := room{
 		ctx:    ctx,

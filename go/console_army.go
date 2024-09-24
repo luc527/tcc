@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// TODO: after killing army, connend ends up unfulfilled for most bots
+// TODO: after killing army, endc ends up unfulfilled for most bots
 // probably something to do with the other bots also being disconnected in the +- same moment
 
 var (

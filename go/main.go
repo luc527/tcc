@@ -25,6 +25,16 @@ func prusage() {
 	os.Exit(1)
 }
 
+type _test struct {
+	s string
+	f func(string) error
+}
+
+var _tests = []_test{
+	{"functional", testFunctional},
+	//{"rate limiting", testRateLimiting}, //doesn't really test, just shows the intervals between messages and you have to look at them to check if the rate limiting is working
+}
+
 func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
@@ -53,8 +63,15 @@ func main() {
 		rtcheckmain(address)
 		return
 	case "test":
-		if err := testRateLimiting(address); err != nil {
-			fmt.Println(err)
+		// TODO: add verbose as arg
+		for _, t := range _tests {
+			fmt.Printf("\n-- %-30s ", t.s)
+			err := t.f(address)
+			if err == nil {
+				fmt.Printf("OK\n")
+			} else {
+				fmt.Printf("ERR: %v\n", err)
+			}
 		}
 		return
 	}

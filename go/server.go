@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"log"
 	"net"
+	"strconv"
 	"time"
 )
 
@@ -19,7 +21,7 @@ func serve(listener net.Listener) {
 		}
 
 		ctx, cancel := context.WithCancel(hctx)
-		pc := makeconn(ctx, cancel).start(rawconn, rawconn)
+		pc := makeconn(ctx, cancel).start(rawconn, nil)
 		go pingclient(pc)
 
 		cc := makeclientconn(pc, hj)
@@ -44,6 +46,7 @@ func pingclient(pc protoconn) {
 type roomclienthandle struct {
 	ctx    context.Context
 	cancel context.CancelFunc
+	name   string
 	talk   chan<- string
 }
 
@@ -67,7 +70,7 @@ func (cc clientconn) main() {
 	pc := cc.pc
 	defer pc.cancel()
 
-	rl := ratelimiter(pc.ctx.Done(), incomingRateLimit, incomingBurstLimit)
+	rl := ratelimiter(pc.ctx.Done(), clientRateLimit, clientBurstLimit)
 	for {
 		select {
 		case <-pc.ctx.Done():
@@ -77,6 +80,7 @@ func (cc clientconn) main() {
 		case m := <-pc.in:
 			cc.handle(m)
 		}
+
 		select {
 		case <-pc.ctx.Done():
 			return
@@ -95,23 +99,32 @@ func (cc clientconn) handle(m protomes) {
 		cc.handleexit(m.room)
 	case mtalk:
 		cc.handletalk(m.room, m.text)
+	case mlsro:
+		cc.handlelsro()
 	case mpong:
 	default:
-		pc.send(errormes(errInvalidMessageType))
+		pc.send(errormes(ebadtype))
 	}
 }
 
 func (cc clientconn) handlejoin(room uint32, name string) {
+	pc := cc.pc
 	if _, ok := cc.rooms[room]; ok {
+		pc.send(errormes(ejoined))
 		return
 	}
-	hj, pc := cc.hj, cc.pc
+	if len(cc.rooms) >= clientMaxRooms {
+		pc.send(errormes(eroomfull))
+		return
+	}
+	hj := cc.hj
 
 	// the room does NON-BLOCKING SENDS to these channels
 	// so they need some buffer
 	// (although the room also throttles itself as to not overwhelm its clients)
 	// TODO: ^actually implement that
 
+	// TODO: review chan sizes
 	rms := make(chan roommes, roomCapacity/2)
 	jned := make(chan string, roomCapacity/4)
 	exed := make(chan string, roomCapacity/4)
@@ -123,7 +136,6 @@ func (cc clientconn) handlejoin(room uint32, name string) {
 
 	ctx, cancel := context.WithCancel(pc.ctx)
 	defer func() {
-		prf("r! joined %v? %v\n", room, joined)
 		if !joined {
 			cancel()
 		}
@@ -155,9 +167,8 @@ func (cc clientconn) handlejoin(room uint32, name string) {
 	case hj.reqs <- hreq:
 		select {
 		case <-time.After(roomTimeout):
-			// TODO: out <- room unavailable (could turn "errJoinFailed" into this more general room unavailable error)
-		case <-prob:
-			pc.send(errormes(errJoinFailed))
+		case <-prob: // TODO: prob should return some problem id instead of just zero{}
+			pc.send(errormes(etransient(mjoin)))
 		case rh := <-resp:
 			texts := make(chan string)
 			rc := roomclient{
@@ -177,6 +188,7 @@ func (cc clientconn) handlejoin(room uint32, name string) {
 			rt := roomclienthandle{
 				ctx:    ctx,
 				cancel: cancel,
+				name:   name,
 				talk:   texts,
 			}
 			cc.rooms[room] = rt
@@ -187,23 +199,38 @@ func (cc clientconn) handlejoin(room uint32, name string) {
 func (cc clientconn) handleexit(room uint32) {
 	rch, ok := cc.rooms[room]
 	if !ok {
+		cc.pc.send(errormes(ebadroom))
 		return
 	}
 	rch.cancel()
 }
 
 func (cc clientconn) handletalk(room uint32, text string) {
+	pc := cc.pc
 	rch, ok := cc.rooms[room]
 	if !ok {
-		prf("c! not in room\n")
+		pc.send(errormes(ebadroom))
 		return
 	}
 	select {
 	case <-rch.ctx.Done():
-		prf("c! room unavailable\n")
-		// TODO: room unavailable?
+		pc.send(errormes(etransient(mtalk)))
 	case rch.talk <- text:
 	}
+}
+
+func (cc clientconn) handlelsro() {
+	bb := new(bytes.Buffer)
+	bb.WriteString("room,name\n")
+	for room, rch := range cc.rooms {
+		bb.WriteString(strconv.FormatUint(uint64(room), 10))
+		bb.WriteRune(',')
+		bb.WriteString(rch.name)
+		bb.WriteRune('\n')
+		// the name might contain commas, but since we have only 2 columns, we
+		// can assume everything after the first comma is the second column
+	}
+	cc.pc.send(protomes{t: mrols, text: bb.String()})
 }
 
 type roomclient struct {
@@ -222,7 +249,6 @@ type roomclient struct {
 func (rc roomclient) connsend(m protomes) {
 	select {
 	case <-rc.ctx.Done():
-		prf("r! conn done\n")
 	case rc.out <- m:
 	}
 }
@@ -231,11 +257,9 @@ func (rc roomclient) roomsend(rm roommes) {
 	rh := rc.rh
 	select {
 	case <-rh.ctx.Done():
-		prf("r! room done\n")
-		//TODO: out<-room unavailable
+		rc.connsend(errormes(etransient(mtalk)))
 	case <-time.After(roomTimeout):
-		prf("r! room timeout\n")
-		//TODO out<-room unavailable
+		rc.connsend(errormes(etransient(mtalk)))
 	case rh.rms <- rm:
 	}
 }
@@ -249,26 +273,20 @@ func (rc roomclient) main() {
 	for {
 		select {
 		case <-rc.ctx.Done():
-			prf("r! room conn done\n")
 			return
 		case <-rh.ctx.Done():
-			prf("r! room handle done\n")
 			return
 		case text := <-rc.texts:
 			rm := roommes{name: rc.name, text: text}
-			prf("r! receiving roommes %v\n", rm)
 			rc.roomsend(rm)
 		case rm := <-rc.rms:
 			m := protomes{t: mhear, room: rc.room, name: rm.name, text: rm.text}
-			prf("r! sending hear %v\n", m)
 			rc.connsend(m)
 		case name := <-rc.jned:
 			m := protomes{t: mjned, room: rc.room, name: name}
-			prf("r! sending jned %v\n", m)
 			rc.connsend(m)
 		case name := <-rc.exed:
 			m := protomes{t: mexed, room: rc.room, name: name}
-			prf("r! sending exed %v\n", m)
 			rc.connsend(m)
 		}
 	}

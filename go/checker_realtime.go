@@ -49,11 +49,11 @@ func rtcheckmain(address string) {
 	}
 	startf := func(s string) {
 		cid := getcid(s)
-		cms <- makeconnmes(cid, protomes{t: mconnstart})
+		cms <- makeconnmes(cid, protomes{t: mbegc})
 	}
 	endf := func(s string) {
 		cid := getcid(s)
-		cms <- makeconnmes(cid, protomes{t: mconnend})
+		cms <- makeconnmes(cid, protomes{t: mendc})
 	}
 
 	sc := bufio.NewScanner(os.Stdin)
@@ -124,7 +124,7 @@ func checkrt(cms <-chan connmes) {
 
 			casts, needsful := sim.handle(cm)
 
-			if cm.t == mconnstart {
+			if cm.t == mbegc {
 				// doesn't need fulfillment but also doesn't fulfill
 				continue
 			} else if needsful {

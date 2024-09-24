@@ -195,12 +195,12 @@ func (sim simulation) endconn(cid connid) (iter.Seq[uint32], bool) {
 func (sim simulation) handle(m connmes) ([]connmes, bool) {
 	// TODO: if ok {} else {/* inconsistency! */}
 	switch m.t {
-	case mconnstart:
+	case mbegc:
 		ok := sim.startconn(m.cid)
 		if ok {
 			return nil, false
 		}
-	case mconnend:
+	case mendc:
 		var result []connmes
 		rids, ok := sim.endconn(m.cid)
 		if ok {

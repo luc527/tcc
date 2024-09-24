@@ -30,9 +30,10 @@ func makeconn(ctx context.Context, cancel context.CancelFunc) protoconn {
 	}
 }
 
-func (pc protoconn) start(rawconn net.Conn, closer io.Closer) protoconn {
-	if closer == nil {
-		closer = rawconn
+func (pc protoconn) start(rawconn net.Conn, customcloser io.Closer) protoconn {
+	var closer io.Closer = rawconn
+	if customcloser != nil {
+		closer = customcloser
 	}
 	go pc.producein(rawconn)
 	go pc.consumeout(rawconn, closer)
@@ -43,15 +44,6 @@ func (pc protoconn) send(m protomes) {
 	select {
 	case <-pc.ctx.Done():
 	case pc.out <- m:
-	}
-}
-
-func (pc protoconn) isdone() bool {
-	select {
-	case <-pc.ctx.Done():
-		return true
-	default:
-		return false
 	}
 }
 
@@ -73,11 +65,11 @@ func (pc protoconn) producein(rawconn net.Conn) {
 				return
 			case pc.in <- m:
 			}
-		} else if perr, ok := err.(protoerror); ok {
+		} else if e, ok := err.(ecode); ok {
 			select {
 			case <-pc.ctx.Done():
 				return
-			case pc.out <- errormes(perr):
+			case pc.out <- errormes(e):
 			}
 		} else if err == io.EOF {
 			return

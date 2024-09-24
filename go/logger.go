@@ -138,9 +138,9 @@ func (l logger) enter(connName string) {
 	rec := make([]string, len(logheader))
 	rec[0] = connName
 	rec[1] = strconv.FormatInt(time.Since(logepoch).Nanoseconds(), 10)
-	rec[2] = "connstart"
+	rec[2] = "begc"
 	if !trysend(l.recs, rec, l.ctx.Done()) {
-		fmt.Fprintln(os.Stderr, "failed to log connstart")
+		fmt.Fprintln(os.Stderr, "failed to log begc")
 	}
 }
 
@@ -148,8 +148,8 @@ func (l logger) quit(connName string) {
 	rec := make([]string, len(logheader))
 	rec[0] = connName
 	rec[1] = strconv.FormatInt(time.Since(logepoch).Nanoseconds(), 10)
-	rec[2] = "connend"
+	rec[2] = "endc"
 	if !trysend(l.recs, rec, l.ctx.Done()) {
-		fmt.Fprintln(os.Stderr, "failed to log connstart")
+		fmt.Fprintln(os.Stderr, "failed to log begc")
 	}
 }
