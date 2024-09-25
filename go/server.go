@@ -70,7 +70,7 @@ func (cc clientconn) main() {
 	pc := cc.pc
 	defer pc.cancel()
 
-	rl := ratelimiter(pc.ctx.Done(), clientRateLimit, clientBurstLimit)
+	rl := ratelimiter(pc.ctx.Done(), connIncomingRateLimit, connIncomingBurstLimit)
 	for {
 		select {
 		case <-pc.ctx.Done():
@@ -119,16 +119,6 @@ func (cc clientconn) handlejoin(room uint32, name string) {
 	}
 	hj := cc.hj
 
-	// the room does NON-BLOCKING SENDS to these channels
-	// so they need some buffer
-	// (although the room also throttles itself as to not overwhelm its clients)
-	// TODO: ^actually implement that
-
-	// TODO: review chan sizes
-	rms := make(chan roommes, roomCapacity/2)
-	jned := make(chan string, roomCapacity/4)
-	exed := make(chan string, roomCapacity/4)
-
 	resp := make(chan roomhandle)
 	prob := make(chan zero)
 
@@ -153,9 +143,6 @@ func (cc clientconn) handlejoin(room uint32, name string) {
 
 	req := joinroomreq{
 		name: name,
-		rms:  rms,
-		jned: jned,
-		exed: exed,
 		done: ctx.Done(),
 		resp: resp,
 		prob: prob,
@@ -166,22 +153,23 @@ func (cc clientconn) handlejoin(room uint32, name string) {
 	case <-hj.done:
 	case hj.reqs <- hreq:
 		select {
-		case <-time.After(roomTimeout):
+		case <-time.After(clientRoomTimeout):
 		case <-prob: // TODO: prob should return some problem id instead of just zero{}
 			pc.send(errormes(etransient(mjoin)))
 		case rh := <-resp:
 			texts := make(chan string)
-			rc := roomclient{
+			ch := connhandle{
 				ctx:    ctx,
 				cancel: cancel,
 				out:    pc.out,
-				rh:     rh,
-				name:   name,
-				room:   room,
-				texts:  texts,
-				rms:    rms,
-				jned:   jned,
-				exed:   exed,
+				in:     texts,
+			}
+			rc := roomclient{
+				name: name,
+				room: room,
+				rh:   rh,
+				ch:   ch,
+				t:    time.NewTimer(0),
 			}
 			go rc.main()
 			joined = true
@@ -205,6 +193,12 @@ func (cc clientconn) handleexit(room uint32) {
 	rch.cancel()
 }
 
+var (
+	etalkdonecc  = etransientprefixed(mtalk, 0x01)
+	etalkdonerc  = etransientprefixed(mtalk, 0x02)
+	etalktimeout = etransientprefixed(mtalk, 0x03)
+)
+
 func (cc clientconn) handletalk(room uint32, text string) {
 	pc := cc.pc
 	rch, ok := cc.rooms[room]
@@ -214,7 +208,7 @@ func (cc clientconn) handletalk(room uint32, text string) {
 	}
 	select {
 	case <-rch.ctx.Done():
-		pc.send(errormes(etransient(mtalk)))
+		pc.send(errormes(etalkdonecc))
 	case rch.talk <- text:
 	}
 }
@@ -233,61 +227,71 @@ func (cc clientconn) handlelsro() {
 	cc.pc.send(protomes{t: mrols, text: bb.String()})
 }
 
-type roomclient struct {
+type connhandle struct {
 	ctx    context.Context
 	cancel context.CancelFunc
+	in     <-chan string
 	out    chan<- protomes
-	rh     roomhandle
-	name   string
-	room   uint32
-	texts  <-chan string
-	rms    <-chan roommes
-	jned   <-chan string
-	exed   <-chan string
 }
 
-func (rc roomclient) connsend(m protomes) {
+func (ch connhandle) send(m protomes) {
 	select {
-	case <-rc.ctx.Done():
-	case rc.out <- m:
+	case <-ch.ctx.Done():
+	case ch.out <- m:
 	}
 }
 
-func (rc roomclient) roomsend(rm roommes) {
+type roomclient struct {
+	rh   roomhandle
+	ch   connhandle
+	name string
+	room uint32
+	t    *time.Timer
+}
+
+func (rc roomclient) send(rm roommes) {
 	rh := rc.rh
+	ch := rc.ch
+
+	t := rc.t
+	t.Reset(clientRoomTimeout)
+
 	select {
 	case <-rh.ctx.Done():
-		rc.connsend(errormes(etransient(mtalk)))
-	case <-time.After(roomTimeout):
-		rc.connsend(errormes(etransient(mtalk)))
-	case rh.rms <- rm:
+		ch.send(errormes(etalkdonerc))
+	case <-t.C:
+		ch.send(errormes(etalktimeout))
+	case rh.out <- rm:
 	}
 }
 
 func (rc roomclient) main() {
+	ch := rc.ch
 	rh := rc.rh
 
-	defer rc.cancel()
+	defer ch.cancel()
 	defer rh.cancel()
 
 	for {
 		select {
-		case <-rc.ctx.Done():
+		// from conn to room:
+		case <-ch.ctx.Done():
 			return
+		case text := <-ch.in:
+			rm := roommes{name: rc.name, text: text}
+			rc.send(rm)
+		// from room to conn:
 		case <-rh.ctx.Done():
 			return
-		case text := <-rc.texts:
-			rm := roommes{name: rc.name, text: text}
-			rc.roomsend(rm)
-		case rm := <-rc.rms:
+		case rm := <-rh.in:
 			m := protomes{t: mhear, room: rc.room, name: rm.name, text: rm.text}
-			rc.connsend(m)
-		case name := <-rc.jned:
+			ch.send(m)
+		case name := <-rh.jned:
 			m := protomes{t: mjned, room: rc.room, name: name}
-			rc.connsend(m)
-		case name := <-rc.exed:
+			ch.send(m)
+		case name := <-rh.exed:
 			m := protomes{t: mexed, room: rc.room, name: name}
-			rc.connsend(m)
+			ch.send(m)
 		}
 	}
 }

@@ -21,7 +21,7 @@ type middleware func(protomes)
 
 func makeconn(ctx context.Context, cancel context.CancelFunc) protoconn {
 	in := make(chan protomes)
-	out := make(chan protomes)
+	out := make(chan protomes, connOutgoingBufferSize)
 	return protoconn{
 		ctx:    ctx,
 		cancel: cancel,
@@ -55,6 +55,7 @@ func (pc protoconn) producein(rawconn net.Conn) {
 	for {
 		deadline := time.Now().Add(connReadTimeout)
 		if err := rawconn.SetReadDeadline(deadline); err != nil {
+			prf("co! failed to set read deadline: %v\n", err)
 			return
 		}
 
@@ -88,7 +89,7 @@ func (pc protoconn) producein(rawconn net.Conn) {
 	}
 }
 
-func (pc protoconn) consumeout(w io.Writer, c io.Closer) {
+func (pc protoconn) consumeout(rawconn net.Conn, c io.Closer) {
 	goinc()
 	defer godec()
 
@@ -104,7 +105,12 @@ func (pc protoconn) consumeout(w io.Writer, c io.Closer) {
 		case <-pc.ctx.Done():
 			return
 		case m := <-pc.out:
-			if _, err := m.WriteTo(w); err != nil {
+			if err := rawconn.SetWriteDeadline(time.Now().Add(connWriteTimeout)); err != nil {
+				prf("co! failed to set write deadline: %v\n", err)
+				return
+			}
+			if _, err := m.WriteTo(rawconn); err != nil {
+				prf("co! failed to write: %v\n", err)
 				return
 			}
 		}

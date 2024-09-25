@@ -63,7 +63,6 @@ func main() {
 		rtcheckmain(address)
 		return
 	case "test":
-		// TODO: add verbose as arg
 		for _, t := range _tests {
 			fmt.Printf("\n-- %-30s ", t.s)
 			err := t.f(address)

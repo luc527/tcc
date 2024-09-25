@@ -132,13 +132,7 @@ func conmain(address string, logname string, realtime bool) {
 		argl0 := arglist(args)
 		argl := &argl0
 
-		// TODO: since this may take stdin from a file
-		// maybe every loop should have a little bit of sleep, like 10ms
-		// just to avoid overloading the server
-		// maybe, idk
-
 		if domain == "sleep" {
-
 			handlesleep(argl)
 			continue
 		}

@@ -193,7 +193,7 @@ func (sim simulation) endconn(cid connid) (iter.Seq[uint32], bool) {
 }
 
 func (sim simulation) handle(m connmes) ([]connmes, bool) {
-	// TODO: if ok {} else {/* inconsistency! */}
+	// TODO: simulation needs to be updated after recent adjustments
 	switch m.t {
 	case mbegc:
 		ok := sim.startconn(m.cid)

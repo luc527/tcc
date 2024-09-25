@@ -173,7 +173,7 @@ func (fw fulwaiter) main(fuldc chan<- int, unfuldc chan<- int) {
 	fuld := make([]bool, len(fw.casts))
 	context.AfterFunc(fw.ctx, func() {
 		if slices.Contains(fuld, false) {
-			unfuldc <- fw.cmi
+			unfuldc <- fw.cmi // TODO: return which casts are missing
 		} else {
 			fuldc <- fw.cmi
 		}

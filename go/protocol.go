@@ -11,19 +11,19 @@ import (
 type mtype uint8
 
 const (
-	// bit 0x10 means it's sent by the server, otherwise by the client
+	// bit 0x80 (0b1000_0000) means it's sent by the server, otherwise by the client
 	// ^ is the pin operator, as in Elixir
-	mping = mtype(0x00) // ^mping:1
-	mpong = mtype(0x10) // ^mpong:1
+	mpong = mtype(0x00) // ^mpong:1
+	mping = mtype(0x80) // ^mping:1
 	mtalk = mtype(0x01) // ^mtalk:1, room:4, textlen:2, text:^textlen
-	mhear = mtype(0x11) // ^mhear:1, room:4, namelen:1, textlen:2, name:^namelen, text:^textlen
+	mhear = mtype(0x81) // ^mhear:1, room:4, namelen:1, textlen:2, name:^namelen, text:^textlen
 	mjoin = mtype(0x02) // ^mjoin:1, room:4, namelen:1, name:^namelen
-	mjned = mtype(0x12) // ^mjned:1, room:4, namelen:1, name:^namelen
+	mjned = mtype(0x82) // ^mjned:1, room:4, namelen:1, name:^namelen
 	mexit = mtype(0x04) // ^mexit:1, room:4
-	mexed = mtype(0x14) // ^mexed:1, room:4, namelen:2, name:^namelen
+	mexed = mtype(0x84) // ^mexed:1, room:4, namelen:2, name:^namelen
 	mlsro = mtype(0x08) // ^mlsro:1 (list rooms)
-	mrols = mtype(0x18) // ^mrols:1, textlen:2, text:^textlen (room list)
-	mprob = mtype(0xA0) // ^mprob:1, room:4
+	mrols = mtype(0x88) // ^mrols:1, textlen:2, text:^textlen (room list)
+	mprob = mtype(0x90) // ^mprob:1, room:4
 )
 
 const (
@@ -37,33 +37,46 @@ const (
 // error code -- will be sent as room in mprob message, only uses 2 out of 4 bytes though
 type ecode uint32
 
+// TODO: IF ANY OF THIS IS CHANGED, UPDATE THE requirements.md DOC
+
 const (
-	ebadtype = ecode(mprob) << 8 // invalid message type
+	ebadtype = (ecode(^mprob)) << 8 // invalid message type
 
 	// tried to join a room but...
-	ejoined    = (ecode(mjoin) << 8) | 0x00 // you're already a member
-	ebadname   = (ecode(mjoin) << 8) | 0x01 // name is empty or too long
-	enameinuse = (ecode(mjoin) << 8) | 0x02 // someone is already using that name
-	eroomlimit = (ecode(mjoin) << 8) | 0x03 // you've reached your limit and can't join any more rooms
-	eroomfull  = (ecode(mjoin) << 8) | 0x04 // it's full
+	ejoined    = (ecode(mjoin) << 8) | 0x01 // you're already a member
+	ebadname   = (ecode(mjoin) << 8) | 0x02 // name is empty or too long
+	enameinuse = (ecode(mjoin) << 8) | 0x03 // someone is already using that name
+	eroomlimit = (ecode(mjoin) << 8) | 0x04 // you've reached your limit and can't join any more rooms
+	eroomfull  = (ecode(mjoin) << 8) | 0x05 // it's full
 
-	// tried to send a message to a room but...
-	ebadmes = (ecode(mtalk) << 8) | 0x00 // message is empty or too long
+	// tried to talk to a room but...
+	ebadmes = (ecode(mtalk) << 8) | 0x01 // message is empty or too long
 
-	// tried to either send a message to a room or exit a room but...
-	ebadroom = (ecode(mtalk|mexit) << 8) | 0x00 // you haven't joined that room
+	// tried to talk to a room or exit from a roomS but...
+	ebadroom = (ecode(mtalk|mexit) << 8) | 0x01 // you haven't joined that room
 
-	// a lot of errors are transient, due to timeouts, more specifically some "benign" data race
-	// e.g. conn A sends "join room 10"
-	// -> server sees that room exists, will send join request
-	// -> but before that the only remaining user leaves, so the room gets removed from memory
-	// -> the join request will timeout
-	// I'm not sure this counts as a data race, but I'm saying it's "benign" because it doesn't really cause any problems (or I hope so)
 	etransientsuffix = ecode(0xFF)
 )
 
 func etransient(t mtype) ecode {
 	return (ecode(t) << 8) | etransientsuffix
+}
+
+func etransientprefixed(t mtype, pre uint8) ecode {
+	return (ecode(pre) << 16) | etransient(t)
+}
+
+func (e ecode) transient() bool {
+	return e&0xFF == etransientsuffix
+}
+
+func (e ecode) mtype() mtype {
+	// not necessatily a valid mtype, e.g. ebadroom
+	return mtype(e>>8) & 0xFF
+}
+
+func (e ecode) prefix() uint8 {
+	return uint8(e>>16) & 0xFF
 }
 
 var edescmap = map[ecode]string{
@@ -82,8 +95,8 @@ func (e ecode) String() string {
 	if ok {
 		return s
 	}
-	if (e & 0xFF) == etransientsuffix {
-		return fmt.Sprintf("transient error for %s, try again", mtype(e>>8)&0xFF)
+	if e.transient() {
+		return fmt.Sprintf("%v: transient error (%02d), try again", e.mtype(), e.prefix())
 	}
 	return fmt.Sprintf("0x%02x undefined error", uint32(e))
 }

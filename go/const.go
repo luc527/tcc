@@ -3,8 +3,9 @@ package main
 import "time"
 
 const (
-	connReadTimeout = 30 * time.Second
-	pingInterval    = 20 * time.Second
+	pingInterval     = 20 * time.Second
+	connReadTimeout  = 30 * time.Second
+	connWriteTimeout = 10 * time.Second
 )
 
 const (
@@ -13,23 +14,25 @@ const (
 )
 
 const (
-	clientRateLimit  = time.Second / 4
-	clientBurstLimit = 16
-	clientMaxRooms   = 256
+	connOutgoingBufferSize = 128
+	connIncomingRateLimit  = time.Second / 2
+	connIncomingBurstLimit = 8
 )
 
 const (
-	roomRateLimit  = time.Second
-	roomBurstLimit = 64
+	clientMaxRooms    = 256
+	clientRoomTimeout = 5 * time.Second
 )
 
 const (
-	roomCapacity         = 256
-	roomTimeout          = 5 * time.Second
-	roomBufferSize       = 16
-	roomClientBufferSize = 128 // TODO: the roomclient buffer size doesn't need to be so large if the connection itself has a nice buffer size (i.e. make pc.out buffered)
-	// roomClientBufferSize = 16
-	// connBufferSize = 512 // mind that these will be protomes values, 21 bytes I think? -> 24 bytes aligned... around 10kb total... too much? actually very much fine? idk
+	roomOutgoingBufferSize = 64
+)
+
+const (
+	roomCapacity           = 256
+	roomIncomingBufferSize = 16
+	roomRateLimit          = time.Second / 6
+	roomBurstLimit         = 64
 )
 
 func init() {

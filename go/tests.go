@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// TODO: include malicious users in tests scenarios!!
+// TODO: include malicious users in (performance) test scenarios!!
 // e.g. responds fast to ping, but takes just long enough to receive other messages that it blocks some server goroutine but not enough to disconnect it
 
 func t_recvchan(id int, wg *sync.WaitGroup, pc protoconn, ms <-chan protomes, pong chan<- zero, errc chan<- error) {
@@ -97,12 +97,6 @@ func testFunctional(address string) error {
 
 	wg := new(sync.WaitGroup)
 
-	// TODO: if you run this test once, it goes fine
-	// but if you try it again shortly after, it fails
-	// and if you try it many times in a row, you get a transient error
-	// check what's going on the server
-	// maybe part of the problem is that not all the mprob messages are being sent back correctly?
-
 	send1, recv1 := t_start(1, wg, address, errc)
 	send2, recv2 := t_start(2, wg, address, errc)
 	send3, recv3 := t_start(3, wg, address, errc)
@@ -132,6 +126,8 @@ func testFunctional(address string) error {
 		recv2 <- protomes{t: mhear, room: room, name: name2, text: text}
 		recv1 <- protomes{t: mhear, room: room, name: name2, text: text}
 		<-tick
+
+		// TODO: test joining another room and talking there too
 
 		name3 := "abcd"
 		send3 <- protomes{t: mjoin, room: room, name: name3}

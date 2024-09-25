@@ -14,6 +14,10 @@ import (
 // TODO: after killing army, endc ends up unfulfilled for most bots
 // probably something to do with the other bots also being disconnected in the +- same moment
 
+// TODO: fix logging doesn't seem to be working here
+
+// TODO: some kind of random behaviour
+
 var (
 	namedbotspecs = map[string]botspec{ /*TODO*/ }
 	wordpool      = []string{"hello", "goodbye", "ok", "yeah", "nah", "true", "false", "is", "it", "the", "do", "don't", "they", "you", "them", "your", "me", "I", "mine", "dog", "cat", "duck", "robot", "squid", "tiger", "lion", "snake", "truth", "lie"}
@@ -293,7 +297,7 @@ func (b bot) main() {
 				ctx:    ctx,
 				cancel: cancel,
 				texts:  texts,
-				out:    b.pc.out, // TODO: is this ok?
+				out:    b.pc.out,
 			}
 			go rb.main(room)
 		}
