@@ -42,9 +42,6 @@ defmodule Tccex.Client do
     end
   end
 
-  # TODO: timeout on 30seconds without activity
-  # really just append a timeout of 30_000 to the replies
-
   defp exit_reason(:closed), do: :normal
   defp exit_reason(reason), do: reason
 
@@ -53,24 +50,11 @@ defmodule Tccex.Client do
     handle_incoming(message, state)
   end
 
-  defp handle_incoming(message, state) do
-    Logger.info("received message #{inspect(message)}")
-
-    case message do
-      :pong ->
-        {:reply, :ok, state}
-
-      message ->
-        opp =
-          case message do
-            {:join, room, name} -> {:jned, room, name}
-            {:exit, room} -> {:exed, room, "?"}
-            {:talk, room, text} -> {:hear, room, "?", text}
-          end
-
-        send_or_stop(opp, state)
-    end
+  defp handle_incoming(:pong, state), do: {:reply, :ok, state}
+  defp handle_incoming(msg, state) do
+    {:reply, msg, state}
   end
+  # TODO: rest of them
 
   defp send_or_stop(message, %{sock: sock} = state) do
     packet = Message.encode(message)
@@ -82,8 +66,6 @@ defmodule Tccex.Client do
         {:stop, exit_reason(reason), state}
     end
   end
-
-  # TODO: rest of them
 
   def recv(pid, message) do
     GenServer.call(pid, {:recv, message})

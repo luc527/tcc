@@ -1,24 +1,38 @@
 defmodule Tccex.Tcp.Receiver do
   use Task
+  alias Tccex.Client
   require Logger
 
   def start_link({sock, client_pid}) do
-    Task.start_link(fn -> loop(sock, client_pid) end)
+    Task.start_link(fn -> run(sock, client_pid) end)
+  end
+
+  defp run(sock, client_pid) do
+    try do
+      :ok = loop(sock, client_pid)
+    after
+      :gen_tcp.close(sock)
+    end
   end
 
   defp loop(sock, client_pid) do
     loop(sock, client_pid, <<>>)
   end
 
-  defp loop(sock, client_pid, prev_rest) do
-    case :gen_tcp.recv(sock, 0) do
-      {:error, :closed} ->
-        Logger.info("closed")
-        :ok
+  @recvTimeout 30_000
 
-      {:ok, packet} ->
-        rest = handle_packet(sock, client_pid, prev_rest <> packet)
-        loop(sock, client_pid, rest)
+  defp loop(sock, client_pid, prev_rest) do
+    with {:ok, packet} <- :gen_tcp.recv(sock, 0, @recvTimeout) do
+      rest = handle_packet(sock, client_pid, prev_rest <> packet)
+      loop(sock, client_pid, rest)
+    else
+      {:error, :timeout} ->
+        Logger.info "timed out"
+        :gen_tcp.shutdown(sock, :write)
+        loop(sock, client_pid, prev_rest)
+      {:error, :closed} ->
+        Logger.info "closed"
+        :ok
     end
   end
 
@@ -32,7 +46,7 @@ defmodule Tccex.Tcp.Receiver do
   end
 
   defp recv_message(client_pid, message) do
-    Tccex.Client.recv(client_pid, message)
+    Client.recv(client_pid, message)
   end
 
   defp send_error(sock, error) do

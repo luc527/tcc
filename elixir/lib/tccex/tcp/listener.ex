@@ -3,7 +3,6 @@ defmodule Tccex.Tcp.Listener do
   require Logger
 
   def start_link({ip, port}) do
-    Logger.info "starting listener, ip: #{ip}, port: #{port}"
     Task.start_link(fn -> listen(ip, port) end)
   end
 
@@ -15,6 +14,8 @@ defmodule Tccex.Tcp.Listener do
       nodelay: true,
     ]
     {:ok, lsock} = :gen_tcp.listen(port, opts)
+    {:ok, port} = :inet.port(lsock)
+    Logger.info "listening at port #{port}"
     try do
       accept_loop(lsock)
     after
@@ -23,9 +24,8 @@ defmodule Tccex.Tcp.Listener do
   end
 
   defp accept_loop(lsock) do
-    Logger.info "waiting for connections..."
     {:ok, sock} = :gen_tcp.accept(lsock)
-    Logger.info "accepted, sock: #{inspect sock}"
+    Logger.info "accepted sock: #{inspect sock}"
     {:ok, client_pid} = start_client(sock)
     {:ok, receiver_pid} = start_receiver(sock, client_pid)
     :ok = :gen_tcp.controlling_process(sock, receiver_pid)

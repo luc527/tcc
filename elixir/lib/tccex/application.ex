@@ -5,7 +5,7 @@ defmodule Tccex.Application do
 
   # TODO: put this in a config
   @ip :loopback
-  @port 17302
+  @port 0
 
   @impl true
   def start(_type, _args) do

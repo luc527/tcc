@@ -119,32 +119,36 @@ func test1(address string) error {
 			case <-pc.ctx.Done():
 			case m := <-pc.in:
 				log.Println("received", m)
-				if m.t == mping {
-					log.Println("sending pong back")
-					pc.send(protomes{t: mpong})
-				}
+				// if m.t == mping {
+				// 	log.Println("sending pong back")
+				// 	pc.send(protomes{t: mpong})
+				// }
 			}
 		}
 	}()
 
-	for range tick {
-		for range 2 {
-			mtype := mtypes[mtypei]
-			room := rooms[roomi]
-			name := names[namei]
-			text := texts[texti]
+	for range 5 {
+		mtype := mtypes[mtypei]
+		room := rooms[roomi]
+		name := names[namei]
+		text := texts[texti]
 
-			m := protomes{t: mtype, room: room, name: name, text: text}
-			log.Println("sending", m)
-			pc.send(m)
+		m := protomes{t: mtype, room: room, name: name, text: text}
+		log.Println("sending", m)
+		pc.send(m)
 
-			namei = (namei + 1) % len(names)
-			roomi = (roomi + 1) % len(rooms)
-			mtypei = (mtypei + 1) % len(mtypes)
-			texti = (texti + 1) % len(texts)
-		}
+		namei = (namei + 1) % len(names)
+		roomi = (roomi + 1) % len(rooms)
+		mtypei = (mtypei + 1) % len(mtypes)
+		texti = (texti + 1) % len(texts)
+		<-tick
 	}
-	return nil
+	select {
+	case <-pc.ctx.Done():
+		return nil
+	case <-time.After(31 * time.Second):
+		return fmt.Errorf("didn't timeout")
+	}
 }
 
 func testFunctional(address string) error {
