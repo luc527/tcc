@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"math"
 	"net"
 	"sync"
@@ -89,6 +90,61 @@ func t_start(id int, wg *sync.WaitGroup, address string, errc chan<- error) (sen
 	go t_recvchan(id, wg, pc, recv, pong, errc)
 
 	return
+}
+
+func test1(address string) error {
+	conn, err := net.Dial("tcp", address)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	pc := makeconn(ctx, cancel).start(conn, nil)
+	tick := time.Tick(3 * time.Second)
+
+	mtypes := []mtype{mjoin, mtalk, mtalk, mjoin, mtalk, mexit}
+	mtypei := 0
+
+	rooms := []uint32{123, 123, 234, 456, 456, 123}
+	roomi := 0
+
+	names := []string{"tes", "teste", "te"}
+	namei := 0
+
+	texts := []string{"hello", "Hello again", "Change da world. My final message.", "goodb ye"}
+	texti := 0
+
+	go func() {
+		for {
+			select {
+			case <-pc.ctx.Done():
+			case m := <-pc.in:
+				log.Println("received", m)
+				if m.t == mping {
+					log.Println("sending pong back")
+					pc.send(protomes{t: mpong})
+				}
+			}
+		}
+	}()
+
+	for range tick {
+		for range 2 {
+			mtype := mtypes[mtypei]
+			room := rooms[roomi]
+			name := names[namei]
+			text := texts[texti]
+
+			m := protomes{t: mtype, room: room, name: name, text: text}
+			log.Println("sending", m)
+			pc.send(m)
+
+			namei = (namei + 1) % len(names)
+			roomi = (roomi + 1) % len(rooms)
+			mtypei = (mtypei + 1) % len(mtypes)
+			texti = (texti + 1) % len(texts)
+		}
+	}
+	return nil
 }
 
 func testFunctional(address string) error {

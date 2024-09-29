@@ -29,10 +29,9 @@ const (
 )
 
 const (
-	roomCapacity           = 256
-	roomIncomingBufferSize = 16
-	roomRateLimit          = time.Second / 6
-	roomBurstLimit         = 64
+	roomCapacity   = 256
+	roomRateLimit  = time.Second / 6
+	roomBurstLimit = 64
 )
 
 func init() {

@@ -185,16 +185,10 @@ func (r room) handletalk(rm roommes) {
 	}
 }
 
-func init() {
-	if roomIncomingBufferSize < 4 {
-		panic("roomIncomingBufferSize must be >= 4, otherwise reqs and exits chans will not be buffered")
-	}
-}
-
 func startroom(ctx context.Context, cancel context.CancelFunc) roomjoiner {
-	rms := make(chan roommes, roomIncomingBufferSize)
-	reqs := make(chan joinroomreq, roomIncomingBufferSize/4)
-	exits := make(chan string, roomIncomingBufferSize/4)
+	rms := make(chan roommes)
+	reqs := make(chan joinroomreq)
+	exits := make(chan string)
 	clis := make(map[string]clienthandle)
 	r := room{
 		ctx:    ctx,

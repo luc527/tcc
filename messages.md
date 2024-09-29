@@ -22,7 +22,7 @@ The possible errors returned with a `prob` message are the following:
 | `ebadname`   | `join`           | The display name is empty or too long.
 | `enameinuse` | `join`           | The given display name is already in use.
 | `eroomlimit` | `join`           | The user has reached the limit of how many rooms they can join.
-| `eroomfull`  | `join`           | The room has reached the limit of how many members they can have.
+| `eroomfull`  | `join`           | The room has reached the limit of how many members it can have.
 | `ebadmes`    | `talk`           | The message is empty or too long.
 | `ebadroom`   | `talk` or `exit` | The user is not a member of the given room.
 | `etransient` | Any message type | The operation failed because of a transient error, so it will probably succeed if the user just tries again.
@@ -80,6 +80,7 @@ Note that the second byte is usually the code of the message type that originate
 | `ebadmes`    | `01 01 00 00` |
 | `ebadroom`   | `01 05 00 00` |
 | `etransient` | `FF xx yy 00`[^3] |
+| `ebadtype`   | `60 00 00 00` |
 
 [^2]: There are two exceptions.
 The first is `ebadtype`, where the second byte is the code for `prob` negated bitwise.

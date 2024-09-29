@@ -10,20 +10,15 @@
 
 ## Non-functional requirements
 
-`TODO`: I guess the non-functional requirements are actually "server must disconnect inactive clients" and "server must continuously check for client availability with a heartbeat";
-the fact that we use `ping` and `pong` messages and the specific times are business rules, as they relate to the protocol which is our "business".
-Well, maybe the specific times are actually non-functional requirements, it's just the message types that are business rules.
-
-`TODO`: rate limiting, timeouts -- const.go except buffer sizes which are specific to the Go impl.
-maybe even "the server CAN avoid sending a message to a room member if they're not available at the moment".
-but it's more like "the server MAY rate limit" since the OS itself has send and receive buffers and so on, it's not something we can fully test for (I think?).
-or rather the server MUST NOT process messages at a rate higher than X althoug allowing bursts of Y messages, something like that.
-
 | Code  | Description |
 | ----  | ----------- |
 | NFR01 | The server periodically sends a `ping` message to each user, with an interval of 20 seconds. |
 | NFR02 | Upon receiving a `ping`, the client host should immediatly send a `pong` back to the server. |
 | NFR03 | If nothing is read from a client host for 30 seconds, the server has to close the connection. |
+| NFR04 | The server will close the connection if a write takes 10 seconds or more. |
+| NFR05 | The server must rate limit clients at 2 messages per second, while allowing bursts of at most 8 messages. |
+| NFR06 | A room must process messages with a rate of at most 6 messages per second, while allowing bursts of at most 64 messages. |
+| NFR07 | Interactions with rooms (joining, sending messages, exiting) have a timeout of 5 seconds. |
 
 ## Business rules
 
@@ -49,7 +44,7 @@ First, some important definitions:
 | BR14 | Users can request a list of the rooms they are members of, along with the respective display names, with a `lsro` message. |
 | BR15 | The server responds a `lsro` request with a `rols` message containing the list in CSV format. The first line is `room,name`, and each subsequent line has the form `<room>,<name>`, where `<room>` is the room number and `<name>` the display name the user chose for the room. |
 | BR16 | When the server can't perform an action requested by the user, the server responds with a `prob` message. This includes both responses to invalid messages (e.g. name too loong, talking to a room the user hasn't joined, etc.) and internal server errors (i.e. transient errors).|
-| BR17 | The system must send messages from a given room to clients in the order they were processed. |
+| BR17 | Messages from the same room must be send from the server to the client in the same order they were processed. |
 
 [^1]: This is because the server returns the room list in CSV format.
 
