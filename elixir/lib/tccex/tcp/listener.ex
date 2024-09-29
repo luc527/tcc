@@ -11,11 +11,13 @@ defmodule Tccex.Tcp.Listener do
       ip: ip,
       active: false,
       mode: :binary,
-      nodelay: true,
+      nodelay: true
     ]
+
     {:ok, lsock} = :gen_tcp.listen(port, opts)
     {:ok, port} = :inet.port(lsock)
-    Logger.info "listening at port #{port}"
+    Logger.info("listening at port #{port}")
+
     try do
       accept_loop(lsock)
     after
@@ -25,7 +27,7 @@ defmodule Tccex.Tcp.Listener do
 
   defp accept_loop(lsock) do
     {:ok, sock} = :gen_tcp.accept(lsock)
-    Logger.info "accepted sock: #{inspect sock}"
+    Logger.info("accepted sock: #{inspect(sock)}")
     {:ok, client_pid} = start_client(sock)
     {:ok, receiver_pid} = start_receiver(sock, client_pid)
     :ok = :gen_tcp.controlling_process(sock, receiver_pid)
@@ -37,6 +39,9 @@ defmodule Tccex.Tcp.Listener do
   end
 
   defp start_receiver(sock, client_pid) do
-    DynamicSupervisor.start_child(Tccex.Tcp.Receiver.Supervisor, {Tccex.Tcp.Receiver, {sock, client_pid}})
+    DynamicSupervisor.start_child(
+      Tccex.Tcp.Receiver.Supervisor,
+      {Tccex.Tcp.Receiver, {sock, client_pid}}
+    )
   end
 end

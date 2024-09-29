@@ -1,7 +1,9 @@
 defmodule Tccex.Tcp.Receiver do
   use Task
-  alias Tccex.Client
+  alias Tccex.{Client, Message}
   require Logger
+
+  @recvTimeout 30_000
 
   def start_link({sock, client_pid}) do
     Task.start_link(fn -> run(sock, client_pid) end)
@@ -19,19 +21,16 @@ defmodule Tccex.Tcp.Receiver do
     loop(sock, client_pid, <<>>)
   end
 
-  @recvTimeout 30_000
-
   defp loop(sock, client_pid, prev_rest) do
     with {:ok, packet} <- :gen_tcp.recv(sock, 0, @recvTimeout) do
       rest = handle_packet(sock, client_pid, prev_rest <> packet)
       loop(sock, client_pid, rest)
     else
       {:error, :timeout} ->
-        Logger.info "timed out"
         :gen_tcp.shutdown(sock, :write)
         loop(sock, client_pid, prev_rest)
+
       {:error, :closed} ->
-        Logger.info "closed"
         :ok
     end
   end
@@ -39,7 +38,7 @@ defmodule Tccex.Tcp.Receiver do
   defp error_to_prob(:invalid_message_type), do: {:prob, :bad_type}
 
   defp handle_packet(sock, client_pid, packet) do
-    {messages, errors, rest} = Tccex.Message.decode_all(packet)
+    {messages, errors, rest} = Message.decode_all(packet)
     Enum.each(messages, &recv_message(client_pid, &1))
     Enum.each(errors, &send_error(sock, &1))
     rest
@@ -50,7 +49,7 @@ defmodule Tccex.Tcp.Receiver do
   end
 
   defp send_error(sock, error) do
-    packet = error |> error_to_prob |> Tccex.Message.encode
+    packet = error |> error_to_prob |> Message.encode()
     :gen_tcp.send(sock, packet)
   end
 end

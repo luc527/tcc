@@ -151,7 +151,25 @@ func test1(address string) error {
 	}
 }
 
-func testFunctional(address string) error {
+func testTimeout(address string) error {
+	conn, err := net.Dial("tcp", address)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	pc := makeconn(ctx, cancel).start(conn, nil)
+
+	// TODO: not working!
+
+	select {
+	case <-time.After(45 * time.Second):
+		return fmt.Errorf("didn't timeout")
+	case <-pc.ctx.Done():
+		return nil
+	}
+}
+
+func testSingleRoom(address string) error {
 	done := make(chan zero)
 	errc := make(chan error)
 

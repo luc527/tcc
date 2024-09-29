@@ -32,6 +32,14 @@ defmodule Tccex.Message do
           | {:talk, room :: integer, text :: binary}
           | :lsro
 
+  @type outgoing ::
+          :ping
+          | {:jned, room :: integer, name :: binary}
+          | {:hear, room :: integer, name :: binary, text :: binary}
+          | {:exed, room :: integer, name :: binary}
+          | {:rols, room_list_csv :: binary}
+          | {:mprob, error_code :: integer}
+
   @type decode_error :: :invalid_message_type
 
   defp decode_step(_)
@@ -83,6 +91,8 @@ defmodule Tccex.Message do
         {Enum.reverse(messages), Enum.reverse(errors), rest}
     end
   end
+
+  @spec encode(outgoing) :: binary
 
   def encode(:ping), do: <<@mping>>
 

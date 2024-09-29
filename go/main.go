@@ -31,8 +31,9 @@ type _test struct {
 }
 
 var _tests = []_test{
-    {"1", test1},
-	//{"functional", testFunctional},
+	{"timeout", testTimeout},
+	{"1", test1},
+	//{"singleRoom", testSingleRoom},
 	//{"rate limiting", testRateLimiting}, //doesn't really test, just shows the intervals between messages and you have to look at them to check if the rate limiting is working
 }
 
