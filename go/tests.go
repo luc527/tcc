@@ -99,7 +99,7 @@ func test1(address string) error {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	pc := makeconn(ctx, cancel).start(conn, nil)
-	tick := time.Tick(3 * time.Second)
+	tick := time.Tick(1 * time.Second)
 
 	mtypes := []mtype{mjoin, mtalk, mtalk, mjoin, mtalk, mexit}
 	mtypei := 0
@@ -127,7 +127,7 @@ func test1(address string) error {
 		}
 	}()
 
-	for range 5 {
+	for range 20 {
 		mtype := mtypes[mtypei]
 		room := rooms[roomi]
 		name := names[namei]
@@ -143,12 +143,7 @@ func test1(address string) error {
 		texti = (texti + 1) % len(texts)
 		<-tick
 	}
-	select {
-	case <-pc.ctx.Done():
-		return nil
-	case <-time.After(31 * time.Second):
-		return fmt.Errorf("didn't timeout")
-	}
+	return nil
 }
 
 func testTimeout(address string) error {

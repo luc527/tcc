@@ -1,27 +1,36 @@
 defmodule Tccex.Client do
   use GenServer
-  alias Tccex.Message
+  alias Tccex.{Message, Client}
   require Logger
 
-  defstruct sock: nil, rooms: %{}
+  defstruct sock: nil,
+            rooms: %{},
+            id: 0
 
-  @type t :: %__MODULE__{sock: port, rooms: %{integer => String.t()}}
+  @type t :: %__MODULE__{
+          sock: port,
+          rooms: %{integer => String.t()},
+          id: integer
+        }
 
   @pingInterval 20_000
 
   def new, do: new([])
   def new(fields), do: struct!(__MODULE__, fields)
 
-  def start_link(sock) do
-    with {:ok, pid} = r <- GenServer.start_link(__MODULE__, sock) do
-      Process.send_after(pid, :send_ping, @pingInterval)
-      r
-    end
+  def start_link({sock, id}) do
+    GenServer.start_link(__MODULE__, {sock, id}, name: via(id))
+  end
+
+  defp via(id) do
+    {:via, Registry, {Client.Registry, id}}
   end
 
   @impl true
-  def init(sock) when is_port(sock) do
-    {:ok, new(sock: sock)}
+  def init({sock, id}) when is_port(sock) and is_integer(id) do
+    Process.send_after(self(), :send_ping, @pingInterval)
+    Registry.register(Client.Registry, id, nil)
+    {:ok, new(sock: sock, id: id)}
   end
 
   @impl true
@@ -63,7 +72,7 @@ defmodule Tccex.Client do
   defp exit_reason(:closed), do: :normal
   defp exit_reason(reason), do: reason
 
-  def recv(pid, message) do
-    GenServer.call(pid, {:recv, message})
+  def recv(id, message) do
+    GenServer.call(via(id), {:recv, message})
   end
 end
