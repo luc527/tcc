@@ -108,38 +108,59 @@ defmodule Tccex.Message do
         byte_size(text)::little-integer-16, name::binary, text::binary>>
 
   def encode({:prob, {:transient, type}}) when is_atom(type),
-    do: encode({:prob, transient_code(type_code(type))})
+    do: encode({:prob, transient_code(type_code!(type))})
 
   def encode({:prob, code}) when is_atom(code),
-    do: encode({:prob, prob_code(code)})
+    do: encode({:prob, prob_code!(code)})
 
   def encode({:prob, code}) when is_integer(code),
     do: <<@mprob, code::little-integer-32>>
 
   def encode({:rols, rooms}) do
-    lines =
-      rooms
-      |> Enum.map(fn {room, name} -> "#{room},#{name}\n" end)
-      |> Enum.join()
-
-    csv = "room,name\n" <> lines
+    lines = Enum.map(rooms, fn {room, name} -> "#{room},#{name}\n" end)
+    lines = ["room,name\n" | lines]
+    csv = Enum.join(lines)
     <<@mrols, byte_size(csv)::little-integer-16, csv::binary>>
   end
 
-  defp prob_code(:bad_type), do: @ebadtype
-  defp prob_code(:bad_name), do: @ebadname
-  defp prob_code(:joined), do: @ejoined
-  defp prob_code(:name_in_use), do: @enameinuse
-  defp prob_code(:room_limit), do: @eroomlimit
-  defp prob_code(:room_full), do: @eroomfull
-  defp prob_code(:bad_message), do: @ebadmes
-  defp prob_code(:bad_room), do: @ebadroom
+  def is_error_for(error, given_type) do
+    with {:ok, prob_code} <- prob_code(error),
+         {:ok, given_type_code} <- type_code(given_type) do
+      prob_type_code = prob_code |> Bitwise.bsr(8) |> Bitwise.band(0xFF)
+      Bitwise.band(given_type_code, prob_type_code) > 0
+    else
+      _ -> false
+    end
+  end
 
-  defp type_code(:pong), do: @mpong
-  defp type_code(:join), do: @mjoin
-  defp type_code(:exit), do: @mexit
-  defp type_code(:talk), do: @mtalk
-  defp type_code(:lsro), do: @mlsro
+  defp prob_code(:bad_type), do: {:ok, @ebadtype}
+  defp prob_code(:bad_name), do: {:ok, @ebadname}
+  defp prob_code(:joined), do: {:ok, @ejoined}
+  defp prob_code(:name_in_use), do: {:ok, @enameinuse}
+  defp prob_code(:room_limit), do: {:ok, @eroomlimit}
+  defp prob_code(:room_full), do: {:ok, @eroomfull}
+  defp prob_code(:bad_message), do: {:ok, @ebadmes}
+  defp prob_code(:bad_room), do: {:ok, @ebadroom}
+  defp prob_code(_), do: :error
 
-  defp transient_code(code), do: code |> Bitwise.bsl(8) |> Bitwise.bor(@etransientsuffix)
+  defp prob_code!(error) do
+    {:ok, code} = prob_code(error)
+    code
+  end
+
+  defp type_code(:pong), do: {:ok, @mpong}
+  defp type_code(:join), do: {:ok, @mjoin}
+  defp type_code(:exit), do: {:ok, @mexit}
+  defp type_code(:talk), do: {:ok, @mtalk}
+  defp type_code(:lsro), do: {:ok, @mlsro}
+  defp type_code(_), do: :error
+
+  defp type_code!(type) do
+    {:ok, code} = type_code(type)
+    code
+  end
+
+  defp transient_code(code) do
+    code |> Bitwise.bsl(8) |> Bitwise.bor(@etransientsuffix)
+  end
 end

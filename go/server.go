@@ -10,7 +10,7 @@ import (
 )
 
 func serve(listener net.Listener) {
-    // TODO: one hub per core
+	// TODO: one hub per core
 	hctx, hcancel := context.WithCancel(context.Background())
 	hj := starthub(hctx, hcancel)
 

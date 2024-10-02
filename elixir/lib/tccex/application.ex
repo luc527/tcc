@@ -7,8 +7,6 @@ defmodule Tccex.Application do
     ip = Application.fetch_env!(:tccex, :ip)
     port = Application.fetch_env!(:tccex, :port)
 
-    # TODO: look into :listeners Registry option, could use for the jned and exed messages
-
     children = [
       {Registry, name: Tccex.Client.Registry, keys: :unique},
       {DynamicSupervisor, name: Tccex.Client.Supervisor, strategy: :one_for_one},
@@ -16,6 +14,6 @@ defmodule Tccex.Application do
       {Tccex.Tcp.Listener, {ip, port}}
     ]
 
-    Supervisor.start_link(children, name: Tccex.Supervisor, strategy: :one_for_one)
+    Supervisor.start_link(children, name: Tccex.Supervisor, strategy: :rest_for_one)
   end
 end

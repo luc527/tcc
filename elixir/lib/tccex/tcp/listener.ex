@@ -36,8 +36,6 @@ defmodule Tccex.Tcp.Listener do
   end
 
   defp start_client(sock) do
-    # TODO: doesn't feel right for this to be in the tcp listener
-    # maybe should be in an actual Client.Supervisor module, in a .start_child(sock) function?
     id = :erlang.unique_integer([:monotonic, :positive])
 
     with {:ok, _} <- DynamicSupervisor.start_child(Client.Supervisor, {Client, {sock, id}}) do
