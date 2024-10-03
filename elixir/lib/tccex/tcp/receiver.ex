@@ -3,7 +3,7 @@ defmodule Tccex.Tcp.Receiver do
   alias Tccex.{Client, Message}
   require Logger
 
-  @recvTimeout 30_000
+  @recv_timeout 30_000
 
   def start_link({sock, client_id}) do
     Task.start_link(fn -> run(sock, client_id) end)
@@ -23,7 +23,7 @@ defmodule Tccex.Tcp.Receiver do
   end
 
   defp loop(sock, client_id, prev_rest) do
-    with {:ok, packet} <- :gen_tcp.recv(sock, 0, @recvTimeout) do
+    with {:ok, packet} <- :gen_tcp.recv(sock, 0, @recv_timeout) do
       rest = handle_packet(sock, client_id, prev_rest <> packet)
       loop(sock, client_id, rest)
     else

@@ -1,10 +1,11 @@
 defmodule Tccex.Client do
   use GenServer
+  require Logger
   require Tccex.Message
   alias Tccex.{Message, Client}
-  require Logger
+  import Tccex.Utils
 
-  @maxRooms 256
+  @max_rooms 256
 
   defstruct sock: nil,
             rooms: %{},
@@ -16,7 +17,7 @@ defmodule Tccex.Client do
           id: integer
         }
 
-  @pingInterval 20_000
+  @ping_interval 20_000
 
   def new, do: new([])
   def new(fields), do: struct!(__MODULE__, fields)
@@ -31,7 +32,7 @@ defmodule Tccex.Client do
 
   @impl true
   def init({sock, id}) when is_port(sock) and is_integer(id) do
-    Process.send_after(self(), :send_ping, @pingInterval)
+    Process.send_after(self(), :send_ping, @ping_interval)
     Registry.register(Client.Registry, id, nil)
     {:ok, new(sock: sock, id: id)}
   end
@@ -41,7 +42,7 @@ defmodule Tccex.Client do
     packet = Message.encode(:ping)
 
     with :ok <- :gen_tcp.send(sock, packet) do
-      Process.send_after(self(), :send_ping, @pingInterval)
+      Process.send_after(self(), :send_ping, @ping_interval)
       {:noreply, state}
     else
       {:error, reason} ->
@@ -55,66 +56,44 @@ defmodule Tccex.Client do
   end
 
   # mock
-  defp join_room(room, name) do
-    Logger.info("joining room #{room} with name #{name}")
-    cond do
-      name == "admin" ->
-        {:error, :name_in_use}
+  defp join_room(id, room, name) do
+    Logger.info("client #{id} joining room #{room} with name #{name}")
+    Room.Hub.join_room(id, room, name)
+ end
 
-      rem(room, 10) == 0 ->
-        {:error, :room_full}
-
-      rem(room, 11) == 0 ->
-        {:error, :name_in_use}
-
-      true ->
-        :ok
-    end
+  # mock
+  defp exit_room(id, room) do
+    Logger.info("client #{id} exiting room #{room}")
+    Room.Hub.exit_room(id, room)
   end
 
   # mock
-  defp exit_room(room) do
-    Logger.info("exiting room #{room}")
-    cond do
-      rem(room, 10) == 0 ->
-        {:error, :bad_room}
-
-      true ->
-        :ok
-    end
-  end
-
-  # mock
-  defp talk_in_room(room, text) do
-    Logger.info("talking in room #{room}: \"#{text}\"")
-    :ok
-  end
-
-  defp ok_else_error(b, e) do
-    if b, do: :ok, else: {:error, e}
+  defp talk_in_room(id, room, text) do
+    Logger.info("#{id} talking in room #{room}: \"#{text}\"")
+    Room.Hub.talk_in_room(id, room, text)
   end
 
   defp check_not_in_room(rooms, room) do
-    not Map.has_key?(rooms, room) |> ok_else_error(:joined)
+    check(not Map.has_key?(rooms, room) , :joined)
   end
 
   defp check_in_room(rooms, room) do
-    Map.has_key?(rooms, room) |> ok_else_error(:bad_room)
+    check(Map.has_key?(rooms, room) , :bad_room)
   end
 
   defp check_name_is_valid(name) do
     n = byte_size(name)
     ok = n > 0 and n <= 24 and not String.contains?(name, "\n")
-    ok |> ok_else_error(:bad_name)
+    check(ok , :bad_name)
   end
 
   defp check_below_room_limit(rooms) do
-    (map_size(rooms) < @maxRooms) |> ok_else_error(:room_limit)
+    check(map_size(rooms) < @max_rooms, :room_limit)
   end
 
   defp check_message_text(text) do
     n = byte_size(text)
-    (n > 0 and n <= 2048) |> ok_else_error(:bad_message)
+    check(n > 0 and n <= 2048, :bad_message)
   end
 
   defp send_error_or_stop({:error, e} = error, mtype, state) do
@@ -129,11 +108,11 @@ defmodule Tccex.Client do
     {:reply, :ok, state}
   end
 
-  defp handle_incoming({:join, room, name}, %{rooms: rooms} = state) do
+  defp handle_incoming({:join, room, name}, %{rooms: rooms, id: id} = state) do
     with :ok <- check_not_in_room(rooms, room),
          :ok <- check_below_room_limit(rooms),
          :ok <- check_name_is_valid(name),
-         :ok <- join_room(room, name) do
+         :ok <- join_room(id, room, name) do
       state = put_in(state.rooms[room], name)
       {:reply, :ok, state}
     else
@@ -142,9 +121,9 @@ defmodule Tccex.Client do
     end
   end
 
-  defp handle_incoming({:exit, room}, %{rooms: rooms} = state) do
+  defp handle_incoming({:exit, room}, %{rooms: rooms, id: id} = state) do
     with :ok <- check_in_room(rooms, room),
-         :ok <- exit_room(room) do
+         :ok <- exit_room(id, room) do
       state = update_in(state.rooms, &Map.delete(&1, room))
       {:reply, :ok, state}
     else
@@ -153,16 +132,17 @@ defmodule Tccex.Client do
     end
   end
 
-  defp handle_incoming({:talk, room, text}, %{rooms: rooms} = state) do
+  defp handle_incoming({:talk, room, text}, %{rooms: rooms, id: id} = state) do
     with :ok <- check_in_room(rooms, room),
          :ok <- check_message_text(text),
-         :ok <- talk_in_room(room, text) do
+         :ok <- talk_in_room(id, room, text) do
       {:reply, :ok, state}
     else
       error -> send_error_or_stop(error, :talk, state)
     end
   end
 
+  # TODO: test
   defp handle_incoming(:lsro, %{rooms: rooms} = state) do
     send_or_stop({:rols, rooms}, state)
   end
