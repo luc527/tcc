@@ -1,4 +1,4 @@
-defmodule Tccex.Utils do
+defmodule Tcc.Utils do
   defmacro check(b, e) do
     quote do
       if(unquote(b), do: :ok, else: {:error, unquote(e)})

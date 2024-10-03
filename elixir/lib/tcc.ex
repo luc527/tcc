@@ -1,6 +1,6 @@
-defmodule Tccex do
+defmodule Tcc do
   @moduledoc """
-  Documentation for `Tccex`.
+  Documentation for `Tcc`.
   """
 
   @doc """
@@ -8,7 +8,7 @@ defmodule Tccex do
 
   ## Examples
 
-      iex> Tccex.hello()
+      iex> Tcc.hello()
       :world
 
   """
