@@ -16,10 +16,10 @@ defmodule Tcc.Rooms.Partition do
   end
 
   defp do_join(room, name, client, tables) do
-    with :ok <- check(not has_name?(room, name, tables), :name_in_use),
+    with :ok <- check(valid_name?(name), :bad_name),
          :ok <- check(not has_client?(room, client, tables), :joined),
-         :ok <- check(valid_name?(name), :bad_name),
-         :ok <- check(client_count(room, tables) < @max_clients, :room_full) do
+         :ok <- check(client_count(room, tables) < @max_clients, :room_full),
+         :ok <- check(not has_name?(room, name, tables), :name_in_use) do
       insert(room, name, client, tables)
       {:ok, {:jned, room, name}}
     end
@@ -53,27 +53,31 @@ defmodule Tcc.Rooms.Partition do
 
   @impl true
   def handle_call({:join, room, name, client}, _from, tables) do
-    do_join(room, name, client, tables) |> handle_result(room, tables)
+    do_join(room, name, client, tables)
+    |> handle_result(room, tables)
   end
 
   @impl true
   def handle_call({:exit, room, name, client}, _from, tables) do
-    do_exit(room, name, client, tables) |> handle_result(room, tables)
+    do_exit(room, name, client, tables)
+    |> handle_result(room, tables)
   end
 
   @impl true
   def handle_call({:talk, room, name, text}, _from, tables) do
-    do_talk(room, name, text, tables) |> handle_result(room, tables)
+    do_talk(room, name, text, tables)
+    |> handle_result(room, tables)
   end
 
   @impl true
   def handle_cast({:exit, room, name, client}, tables) do
-    _ = do_exit(room, name, client, tables)
-    {:noreply, tables}
+    do_exit(room, name, client, tables)
+    |> handle_result_async(room, tables)
   end
 
   @impl true
   def handle_continue({:broadcast, room, msg}, tables) do
+    Logger.info("broadcasting room #{room} msg #{inspect(msg)}")
     broadcast(room, msg, tables)
     {:noreply, tables}
   end
@@ -84,6 +88,16 @@ defmodule Tcc.Rooms.Partition do
 
   defp handle_result(error, _room, tables) do
     {:reply, error, tables}
+  end
+
+  defp handle_result_async({:ok, msg}, room, tables) do
+    Logger.info("handle result async room #{room} msg #{inspect(msg)}")
+    {:noreply, tables, {:continue, {:broadcast, room, msg}}}
+  end
+
+  defp handle_result_async(error, _room, tables) do
+    Logger.info("async result #{inspect(error)}")
+    {:noreply, tables}
   end
 
   defp has_name?(room, name, %{room_name: table}) do
@@ -126,7 +140,8 @@ defmodule Tcc.Rooms.Partition do
   end
 
   defp broadcast(room, message, tables) do
-    Tcc.Clients.send_batch(clients(room, tables), message)
+    clients = clients(room, tables)
+    Tcc.Clients.send_batch(clients, message)
   end
 
   def join(id, room, name, client) do
@@ -138,6 +153,7 @@ defmodule Tcc.Rooms.Partition do
   end
 
   def exit_async(id, room, name, client) do
+    Logger.info("exit async #{id}, #{room}, #{name}, #{client}")
     GenServer.cast(via(id), {:exit, room, name, client})
   end
 

@@ -24,8 +24,7 @@ type talkspec struct {
 
 type arglist []string
 
-func newarglist(s string) *arglist {
-	a := respace.Split(s, -1)
+func newarglist(a []string) *arglist {
 	return (*arglist)(&a)
 }
 
@@ -54,6 +53,11 @@ func prf(f string, a ...any) {
 const logdateformat = "20060102_1504"
 
 func conmain(address string, logname string, realtime bool) {
+
+	// TODO: should use a sync.WaitGroup
+	// add for every army/bot/client/goroutine created
+	// wait for it at the end, defer wg.Wait() (?)
+
 	shouldlog := len(logname) > 0
 	var l logger
 	if shouldlog {
@@ -70,11 +74,13 @@ func conmain(address string, logname string, realtime bool) {
 	}
 
 	var cms chan connmes
+	var rtdone chan zero
 	var cip *connidprovider
 	if realtime {
 		cip = newconnidprovider()
 		cms = make(chan connmes)
-		go checkrt(cms)
+		rtdone = make(chan zero)
+		go checkrt(cms, rtdone)
 		prf("< running real-time checking\n")
 	}
 
@@ -116,10 +122,11 @@ func conmain(address string, logname string, realtime bool) {
 
 	sc := bufio.NewScanner(os.Stdin)
 
-	tick := time.Tick(128 * time.Millisecond)
+	tick := time.Tick(32 * time.Millisecond)
 
 	for sc.Scan() {
-		toks := respace.Split(sc.Text(), -1)
+		text := sc.Text()
+		toks := respace.Split(text, -1)
 		if toks[0] == "quit" {
 			prf("< bye\n")
 			break
@@ -129,33 +136,92 @@ func conmain(address string, logname string, realtime bool) {
 			continue
 		}
 		domain, args := toks[0], toks[1:]
-		argl0 := arglist(args)
-		argl := &argl0
+		argl := newarglist(args)
 
-		if domain == "sleep" {
-			handlesleep(argl)
+		// comment
+		if domain == "#" {
 			continue
 		}
 
-		cmd, ok := argl.next()
-		if !ok {
-			prf("! missing command\a")
-			continue
-		}
-		switch domain {
-		case "army":
-			ca.handlearmy(address, cmd, argl, makemw, startf, endf)
-		case "cli":
-			cc.handleclient(address, cmd, argl, makemw, startf, endf)
-		default:
-			prf("! unknown domain %q\n", domain)
+		f := func(domain string, argl *arglist) {
+			if domain == "sleep" {
+				handlesleep(argl)
+				return
+			}
+			cmd, ok := argl.next()
+			if !ok {
+				prf("! missing command\a")
+				return
+			}
+			switch domain {
+			case "army":
+				ca.handlearmy(address, cmd, argl, makemw, startf, endf)
+			case "cli":
+				cc.handleclient(address, cmd, argl, makemw, startf, endf)
+			default:
+				prf("! unknown domain %q\n", domain)
+			}
+			<-tick
 		}
 
-		<-tick
+		if domain == "for" {
+			variable, ok := argl.next()
+			if !ok {
+				prf("! missing variable name")
+				continue
+			}
+			sfrom, ok := argl.next()
+			if !ok {
+				prf("! missing from")
+				continue
+			}
+			sto, ok := argl.next()
+			if !ok {
+				prf("! missing to")
+				continue
+			}
+			from, err := strconv.Atoi(sfrom)
+			if err != nil {
+				prf("! invalid 'from': %v\n", err)
+				continue
+			}
+			to, err := strconv.Atoi(sto)
+			if err != nil {
+				prf("! invalid 'to': %v\n", err)
+				continue
+			}
+			if from > to {
+				prf("! must have 'from' <= 'to'\n")
+				continue
+			}
+			args := make([]string, len(*argl))
+			if len(args) == 0 {
+				prf("! missing command\n")
+				continue
+			}
+			for k := from; k <= to; k++ {
+				copy(args, *argl)
+				for i := range args {
+					if args[i] == variable {
+						args[i] = strconv.Itoa(k)
+					}
+				}
+				argl := newarglist(args)
+				domain, _ := argl.next()
+				f(domain, argl)
+			}
+		} else {
+			f(domain, argl)
+		}
 	}
 
 	if shouldlog {
 		l.w.Flush()
+	}
+
+	if realtime {
+		close(cms)
+		<-rtdone
 	}
 
 	if err := sc.Err(); err != nil {
@@ -349,6 +415,7 @@ func (cc conclients) handleclient(address string, cmd string, argl *arglist, f f
 			start(rawconn, rawconn).
 			withmiddleware(f(logid))
 		cli := conclient{
+			mu:   make(chan zero, 1),
 			id:   id,
 			pc:   pc,
 			join: make(chan joinspec),

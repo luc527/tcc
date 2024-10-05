@@ -61,9 +61,6 @@ func main() {
 	case "client":
 		clientmain(address)
 		return
-	case "rtcheck":
-		rtcheckmain(address)
-		return
 	case "test":
 		for _, t := range _tests {
 			fmt.Printf("\n-- %-30s ", t.s)

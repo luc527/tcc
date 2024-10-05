@@ -1,0 +1,20 @@
+cli new a
+cli join a 10 a
+cli talk a 10 testeste
+cli join a 10 b
+# ^deve retornar ejoined
+cli new b
+cli join b 10 a
+# ^deve retornar enameinuse
+cli join b 10 b
+cli talk b 10 ue
+cli exit a 10 a
+cli join b 10 a
+# ^deve retornar ejoined
+cli join b 10 ababababbaebebaebebabebabebabbbebebebebebbbbebabbebeabea
+# ^deve retornar ebadname
+cli exit b 10
+cli join b 10 a
+# ^deve funcionar
+cli rm a
+cli rm b

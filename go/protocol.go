@@ -228,7 +228,11 @@ func protomes2string(t mtype, room uint32, name string, text string) string {
 
 	if t.hasroom() {
 		bb.WriteString(", ")
-		bb.WriteString(fmt.Sprintf("room: %d", room))
+		if t == mprob {
+			bb.WriteString(fmt.Sprintf("error: %q", ecode(room)))
+		} else {
+			bb.WriteString(fmt.Sprintf("room: %d", room))
+		}
 	}
 
 	if t.hasname() {
@@ -281,13 +285,6 @@ func (m protomes) WriteTo(w io.Writer) (n int64, err error) {
 
 	if m.t.hasname() {
 		ln := len(m.name)
-		if ln == 0 || ln > maxNameLength {
-			return n, ebadname
-		}
-		if strings.Contains(m.name, "\n") {
-			return n, ebadname
-		}
-
 		if nn, err := w.Write([]byte{byte(ln)}); err != nil {
 			return n, err
 		} else {
@@ -297,10 +294,6 @@ func (m protomes) WriteTo(w io.Writer) (n int64, err error) {
 
 	if m.t.hastext() {
 		ln := len(m.text)
-		if ln == 0 || ln > maxMessageLength {
-			return n, ebadmes
-		}
-
 		lnbuf := []byte{
 			byte(ln),
 			byte(ln >> 8),
@@ -434,4 +427,20 @@ func (this protomes) compare(that protomes) int64 {
 
 func (this protomes) equal(that protomes) bool {
 	return this.compare(that) == 0
+}
+
+func isnamevalid(s string) bool {
+	n := len(s)
+	if n == 0 || n > maxNameLength || strings.Contains(s, "\n") {
+		return false
+	}
+	return true
+}
+
+func ismesvalid(s string) bool {
+	n := len(s)
+	if n == 0 || n > maxMessageLength {
+		return false
+	}
+	return true
 }

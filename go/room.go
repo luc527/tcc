@@ -34,12 +34,14 @@ type roomhandle struct {
 	exed   <-chan string
 }
 
+type joinprob byte
+
 // request to join a room
 type joinroomreq struct {
 	name string
 	done <-chan zero       // done channel for the request
 	resp chan<- roomhandle // if the request succeeds, the room sends a room handle to this channel
-	prob chan<- zero       // if the request fails, zero{} is sent to this channel
+	prob chan<- joinprob   // if the request fails, the reason is sent to this channel
 }
 
 type clienthandle struct {
@@ -47,6 +49,12 @@ type clienthandle struct {
 	jned chan<- string
 	exed chan<- string
 }
+
+const (
+	jfull = joinprob(iota)
+	jname
+	jtransient
+)
 
 func (r room) main() {
 	goinc()
@@ -98,14 +106,14 @@ func init() {
 func (r room) handlejoin(req joinroomreq) {
 	if len(r.clis) >= roomCapacity {
 		select {
-		case req.prob <- zero{}:
+		case req.prob <- jfull:
 		case <-req.done:
 		}
 		return
 	}
 	if _, exists := r.clis[req.name]; exists {
 		select {
-		case req.prob <- zero{}:
+		case req.prob <- jname:
 		case <-req.done:
 		}
 		return

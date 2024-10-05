@@ -1,11 +1,8 @@
 package main
 
 import (
-	"bufio"
 	"context"
-	"os"
 	"slices"
-	"strings"
 	"time"
 )
 
@@ -22,78 +19,8 @@ type fulquestion struct {
 	fuld chan bool
 }
 
-func rtcheckmain(address string) {
-	cc := make(conclients)
-	ca := make(conarmies)
-
-	cids := make(map[string]connid)
-	nextcid := 1
-	getcid := func(s string) connid {
-		cid, ok := cids[s]
-		if !ok {
-			cid = nextcid
-			cids[s] = cid
-			nextcid++
-		}
-		return cid
-	}
-
-	cms := make(chan connmes)
-	go checkrt(cms)
-
-	makemw := func(s string) middleware {
-		cid := getcid(s)
-		return func(m protomes) {
-			cms <- makeconnmes(cid, m)
-		}
-	}
-	startf := func(s string) {
-		cid := getcid(s)
-		cms <- makeconnmes(cid, protomes{t: mbegc})
-	}
-	endf := func(s string) {
-		cid := getcid(s)
-		cms <- makeconnmes(cid, protomes{t: mendc})
-	}
-
-	sc := bufio.NewScanner(os.Stdin)
-	for sc.Scan() {
-		s := sc.Text()
-		if len(s)-2 == strings.Index(s, "\\c") {
-			prf("< command cancelled\n")
-			continue
-		}
-		if s == "quit" {
-			prf("< bye\n")
-			break
-		}
-		argl := newarglist(sc.Text())
-		domain, ok := argl.next()
-		if !ok {
-			prf("! missing domain\n")
-		}
-		if domain == "sleep" {
-			handlesleep(argl)
-			continue
-		}
-		cmd, ok := argl.next()
-		if !ok {
-			prf("! missing command\n")
-			continue
-		}
-		switch domain {
-		case "army":
-			ca.handlearmy(address, cmd, argl, makemw, startf, endf)
-		case "cli":
-			cc.handleclient(address, cmd, argl, makemw, startf, endf)
-		default:
-			prf("! unknown domain %q\n", domain)
-		}
-
-	}
-}
-
-func checkrt(cms <-chan connmes) {
+func checkrt(cms <-chan connmes, done chan<- zero) {
+	defer close(done)
 	const fulfillTimeout = 5 * time.Second
 
 	sim := makeSimulation()
@@ -108,26 +35,31 @@ func checkrt(cms <-chan connmes) {
 	fuldc := make(chan int)
 	unfuldc := make(chan int)
 
+	unfuls := ([]int)(nil)
+	nofuls := ([]int)(nil)
+
+loop:
 	for {
 		select {
 		case cmi := <-fuldc:
 			if cm := cmlist[cmi]; cm.t != mping {
-				prf("< (rt) fulfilled: [%d] %v\n", cmi, cm)
+				// prf("< (rt) fulfilled: [%d] %v\n", cmi, cm)
 			}
 			delete(fws, cmi)
 		case cmi := <-unfuldc:
-			prf("! (rt) unfulfilled: [%d] %v\n", cmi, cmlist[cmi])
+			// prf("! (rt) unfulfilled: [%d] %v\n", cmi, cmlist[cmi])
+			unfuls = append(unfuls, cmi)
 			delete(fws, cmi)
-		case cm := <-cms:
+		case cm, ok := <-cms:
+			if !ok {
+				break loop
+			}
 			i := len(cmlist)
 			cmlist = append(cmlist, cm)
 
 			casts, needsful := sim.handle(cm)
 
-			if cm.t == mbegc {
-				// doesn't need fulfillment but also doesn't fulfill
-				continue
-			} else if needsful {
+			if needsful {
 				if len(casts) == 0 {
 					continue
 				}
@@ -144,6 +76,11 @@ func checkrt(cms <-chan connmes) {
 				go fw.main(fuldc, unfuldc)
 			} else {
 				// if it doesn't need fulfillment, then it fulfills some previous message
+				if cm.t == mbegc {
+					// except this one
+					// it doesn't need fulfillment but also doesn't fulfill
+					continue
+				}
 				fuldcmi := -1
 				fq := fulquestion{cm, make(chan bool)}
 				for _, fw := range fws {
@@ -159,13 +96,38 @@ func checkrt(cms <-chan connmes) {
 					}
 				}
 				if fuldcmi == -1 {
-					prf("! (rt) doesn't fulfill: %v\n", cm)
-				} else if fuldcm := cmlist[fuldcmi]; fuldcm.t != mping {
-					// prf("< cast %v fulfills %v\n", cm, fuldcm)
+					// prf("! (rt) doesn't fulfill: %v\n", cm)
+					nofuls = append(nofuls, i)
+				} else {
+					fuldcm := cmlist[fuldcmi]
+					if fuldcm.t != mping {
+						// prf("< (rt) cast %v\n", cm)
+						// prf("       fulfills [%d] %v\n", fuldcmi, fuldcm)
+					}
 				}
 			}
 
 		}
+	}
+
+	if len(unfuls) > 0 {
+		prf("\n")
+		prf("(rt) %03d message(s) didn't get fulfilled:\n", len(unfuls))
+		for _, i := range unfuls {
+			prf("     %v\n", cmlist[i])
+		}
+	} else {
+		prf("\n(rt) all messages got fulfilled!\n")
+	}
+
+	if len(nofuls) > 0 {
+		prf("\n")
+		prf("(rt) %03d message(s) didn't fulfill any previous message:\n", len(nofuls))
+		for _, i := range nofuls {
+			prf("     %v\n", cmlist[i])
+		}
+	} else {
+		prf("\n(rt) all messages did fulfill!\n")
 	}
 }
 

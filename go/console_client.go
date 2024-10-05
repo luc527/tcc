@@ -1,11 +1,17 @@
 package main
 
 type conclient struct {
+	mu   chan zero // only send after receiving a previous message
 	id   string
 	pc   protoconn
 	join chan joinspec
 	exit chan uint32
 	talk chan talkspec
+}
+
+func (c conclient) send(m protomes) {
+	c.pc.send(m)
+	prf("< client %q: sent %v\n", c.id, m)
 }
 
 func (c conclient) handlemessages() {
@@ -16,13 +22,15 @@ func (c conclient) handlemessages() {
 			return
 		case js := <-c.join:
 			m := protomes{t: mjoin, room: js.room, name: js.name}
-			c.pc.send(m)
+			c.mu <- zero{}
+			c.send(m)
 		case room := <-c.exit:
 			m := protomes{t: mexit, room: room}
-			c.pc.send(m)
-		case talk := <-c.talk:
-			m := protomes{t: mtalk, room: talk.room, text: talk.text}
-			c.pc.send(m)
+			c.send(m)
+		case ts := <-c.talk:
+			m := protomes{t: mtalk, room: ts.room, text: ts.text}
+			c.mu <- zero{}
+			c.send(m)
 		}
 	}
 }
@@ -37,6 +45,11 @@ func (c conclient) main() {
 			if m.t == mping {
 				c.pc.send(protomes{t: mpong})
 			} else {
+				select {
+				case <-c.mu:
+				default:
+				}
+
 				prf("< client %q: received %v\n", c.id, m)
 			}
 		}

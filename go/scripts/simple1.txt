@@ -13,5 +13,6 @@ cli talk c 10 i am c i am not b
 cli talk a 10 b is the guy that just exited
 cli talk c 10 whatever
 cli rm c
+sleep 1s
 cli rm b
 cli rm a

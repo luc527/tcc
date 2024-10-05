@@ -252,6 +252,8 @@ func testSingleRoom(address string) error {
 	}
 }
 
+// TODO: automate rate limiting test
+
 func testRateLimiting(address string) error {
 	rawconn, err := net.Dial("tcp", address)
 	if err != nil {

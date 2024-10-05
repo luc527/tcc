@@ -54,16 +54,28 @@ type roomclienthandle struct {
 type clientconn struct {
 	pc     protoconn
 	hj     hubroomjoiner
+	rl     <-chan zero
 	rooms  map[uint32]roomclienthandle
 	exited chan uint32
 }
 
 func makeclientconn(pc protoconn, hj hubroomjoiner) clientconn {
+	rl := ratelimiter(pc.ctx.Done(), connIncomingRateLimit, connIncomingBurstLimit)
 	return clientconn{
 		pc:     pc,
 		hj:     hj,
+		rl:     rl,
 		rooms:  make(map[uint32]roomclienthandle),
 		exited: make(chan uint32),
+	}
+}
+
+func (cc clientconn) wait() bool {
+	select {
+	case <-cc.pc.ctx.Done():
+		return false
+	case <-cc.rl:
+		return true
 	}
 }
 
@@ -71,7 +83,6 @@ func (cc clientconn) main() {
 	pc := cc.pc
 	defer pc.cancel()
 
-	rl := ratelimiter(pc.ctx.Done(), connIncomingRateLimit, connIncomingBurstLimit)
 	for {
 		select {
 		case <-pc.ctx.Done():
@@ -81,17 +92,32 @@ func (cc clientconn) main() {
 		case m := <-pc.in:
 			cc.handle(m)
 		}
-
-		select {
-		case <-pc.ctx.Done():
-			return
-		case <-rl:
-		}
 	}
 }
 
 func (cc clientconn) handle(m protomes) {
 	pc := cc.pc
+
+	if m.t.hasname() && !isnamevalid(m.name) {
+		pc.send(errormes(ebadname))
+		return
+	}
+	if m.t.hastext() && !ismesvalid(m.text) {
+		pc.send(errormes(ebadmes))
+	}
+
+	if m.t == mpong {
+		return
+	}
+
+	if !m.t.valid() {
+		pc.send(errormes(ebadtype))
+		return
+	}
+
+	if !cc.wait() {
+		return
+	}
 
 	switch m.t {
 	case mjoin:
@@ -102,9 +128,6 @@ func (cc clientconn) handle(m protomes) {
 		cc.handletalk(m.room, m.text)
 	case mlsro:
 		cc.handlelsro()
-	case mpong:
-	default:
-		pc.send(errormes(ebadtype))
 	}
 }
 
@@ -115,13 +138,13 @@ func (cc clientconn) handlejoin(room uint32, name string) {
 		return
 	}
 	if len(cc.rooms) >= clientMaxRooms {
-		pc.send(errormes(eroomfull))
+		pc.send(errormes(eroomlimit))
 		return
 	}
 	hj := cc.hj
 
 	resp := make(chan roomhandle)
-	prob := make(chan zero)
+	prob := make(chan joinprob)
 
 	joined := false
 
@@ -155,8 +178,17 @@ func (cc clientconn) handlejoin(room uint32, name string) {
 	case hj.reqs <- hreq:
 		select {
 		case <-time.After(clientRoomTimeout):
-		case <-prob: // TODO: prob should return some problem id instead of just zero{}
-			pc.send(errormes(etransient(mjoin)))
+		case jp := <-prob: // TODO: prob should return some problem id instead of just zero{}
+			switch jp {
+			case jfull:
+				pc.send(errormes(eroomfull))
+			case jname:
+				pc.send(errormes(enameinuse))
+			case jtransient:
+				pc.send(errormes(etransient(mjoin)))
+			default:
+				log.Printf("unknown join prob: %d", jp)
+			}
 		case rh := <-resp:
 			texts := make(chan string)
 			ch := connhandle{

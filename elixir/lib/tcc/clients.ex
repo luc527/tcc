@@ -14,7 +14,6 @@ defmodule Tcc.Clients do
 
   @impl true
   def handle_call({:register, cid}, {pid, _tag}, _) do
-    Logger.info("clients: registering #{inspect(pid)} with #{cid}")
     {:reply, check_register(cid, pid), nil}
   end
 
@@ -33,6 +32,7 @@ defmodule Tcc.Clients do
   def handle_call({:exit, room, cid}, _from, _) do
     with {:ok, name} <- Tables.name_in_room(room, cid),
          :ok <- Tcc.Rooms.exit(room, name, cid) do
+      Tables.exit_room(room, cid)
       {:reply, :ok, nil}
     else
       :not_found ->
@@ -62,7 +62,7 @@ defmodule Tcc.Clients do
   @impl true
   def handle_call({:send_batch, clients, message}, _from, _) do
     Tables.clients_pids(clients)
-    |> Enum.each(&send(&1, {:message, message}))
+    |> Enum.each(&send(&1, {:room_msg, message}))
 
     {:reply, :ok, nil}
   end
@@ -71,11 +71,14 @@ defmodule Tcc.Clients do
   def handle_info({:DOWN, _ref, :process, pid, _reason}, _) do
     case Tables.pid_client(pid) do
       :not_found ->
-        Logger.warning("clients: received #{inspect(pid)} down but it's not registered")
+        Logger.warning(
+          "clients: received #{:erlang.pid_to_list(pid)} down but it's not registered"
+        )
+
         {:noreply, nil}
 
       {:ok, cid} ->
-        Logger.info("clients: unregistering #{inspect(pid)} from #{cid}")
+        Logger.info("clients: unregistering #{:erlang.pid_to_list(pid)} from #{cid}")
         true = Tables.unregister_client(cid)
 
         rooms_names = Tables.client_rooms(cid)
@@ -128,8 +131,8 @@ defmodule Tcc.Clients do
     end
   end
 
-  def register(id) do
-    GenServer.call(__MODULE__, {:register, id})
+  def register(cid) do
+    GenServer.call(__MODULE__, {:register, cid})
   end
 
   def send_batch(clients, message) do
@@ -147,7 +150,4 @@ defmodule Tcc.Clients do
   def talk(room, text, cid) do
     GenServer.call(__MODULE__, {:talk, room, text, cid})
   end
-
-  # TODO: FIX: qdo entra uma segunda vez na mesma sala com o mesmo nome, sendo o mesmo usuário,
-  # deveria retornar :joined em vez de :name_in_use
 end

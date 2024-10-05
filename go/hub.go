@@ -67,7 +67,7 @@ func (h hub) main() {
 			select {
 			case rj.reqs <- req:
 			case <-rj.done:
-				req.prob <- zero{}
+				req.prob <- jtransient
 			}
 		}
 	}

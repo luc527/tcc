@@ -8,6 +8,10 @@ import (
 	"unique"
 )
 
+var (
+	errNotOnline = fmt.Errorf("no connection with this id has begun")
+)
+
 // id of a connection (user) in the simulation
 type connid = int
 
@@ -106,8 +110,6 @@ func makeSimulation() simulation {
 	}
 }
 
-// connection start
-// returns false if there was already a connection with the given id
 func (sim simulation) startconn(cid connid) bool {
 	if _, ok := sim.online[cid]; ok {
 		return false
@@ -116,11 +118,16 @@ func (sim simulation) startconn(cid connid) bool {
 	return true
 }
 
-// returns simconnids of users who should receive the jned message
-// also returns false if the user was already in the room, or the name is already in use; true otherwise
-func (sim simulation) join(cid connid, rid uint32, name string) (iter.Seq[connid], bool) {
+func (sim simulation) join(cid connid, rid uint32, name string) (iter.Seq[connid], error) {
 	if _, ok := sim.online[cid]; !ok {
-		return nil, false
+		return nil, errNotOnline
+	}
+	if !isnamevalid(name) {
+		return nil, ebadname
+	}
+	nrooms := len(sim.clirooms(cid))
+	if nrooms >= clientMaxRooms {
+		return nil, eroomlimit
 	}
 	room, ok := sim.rooms[rid]
 	if !ok {
@@ -128,86 +135,84 @@ func (sim simulation) join(cid connid, rid uint32, name string) (iter.Seq[connid
 		sim.rooms[rid] = room
 	}
 	if _, ok := room[cid]; ok {
-		return nil, false
+		return nil, ejoined
+	}
+	if len(room) >= roomCapacity {
+		return nil, eroomfull
 	}
 	for _, othername := range room {
 		if othername == name {
-			return nil, false
+			return nil, enameinuse
 		}
 	}
 	room[cid] = name
-	return maps.Keys(room), true
+	return maps.Keys(room), nil
 }
 
-// returns name of the user was using in the room
-// and ids of users who should receive the exed message
-// and false if the user wasn't actually in the room, or the room didn't even exist
-func (sim simulation) exit(cid connid, rid uint32) (string, iter.Seq[connid], bool) {
+func (sim simulation) exit(cid connid, rid uint32) (string, iter.Seq[connid], error) {
 	room, ok := sim.rooms[rid]
 	if !ok {
-		return "", nil, false
+		return "", nil, ebadroom
 	}
 	if name, ok := room[cid]; ok {
 		delete(room, cid)
-		return name, maps.Keys(room), true
+		return name, maps.Keys(room), nil
 	} else {
-		return "", nil, false
+		return "", nil, ebadroom
 	}
 }
 
-// returns name of the user has in the room
-// and ids of users who should receive the hear message
-// and false if the user isn't even in the room, or the room doesn't even exist
-func (sim simulation) talk(cid connid, rid uint32) (string, iter.Seq[connid], bool) {
+func (sim simulation) talk(cid connid, text string, rid uint32) (string, iter.Seq[connid], error) {
 	if _, ok := sim.online[cid]; !ok {
-		return "", nil, false
+		return "", nil, errNotOnline
+	}
+	if !ismesvalid(text) {
+		return "", nil, ebadmes
 	}
 	room, ok := sim.rooms[rid]
 	if !ok {
-		return "", nil, false
+		return "", nil, ebadroom
 	}
 	if name, ok := room[cid]; ok {
-		return name, maps.Keys(room), true
+		return name, maps.Keys(room), nil
 	}
-	return "", nil, false
+	return "", nil, ebadroom
 }
 
-// connection ended
-// returns rooms the connection had joined and under which name
-// and false if there wasn't a connection with the given id in the first place
-func (sim simulation) endconn(cid connid) (iter.Seq[uint32], bool) {
+func (sim simulation) endconn(cid connid) (iter.Seq[uint32], error) {
 	if _, ok := sim.online[cid]; !ok {
-		return nil, false
+		return nil, errNotOnline
 	}
 	delete(sim.online, cid)
-	it := func(yield func(uint32) bool) {
-		for rid, room := range sim.rooms {
-			if _, ok := room[cid]; ok {
-				if !yield(rid) {
-					break
-				}
-			}
+	return maps.Keys(sim.clirooms(cid)), nil
+}
+
+func (sim simulation) clirooms(cid connid) map[uint32]string {
+	m := make(map[uint32]string)
+	for rid, room := range sim.rooms {
+		if name, ok := room[cid]; ok {
+			m[rid] = name
 		}
 	}
-	return it, true
+	return m
 }
 
 func (sim simulation) handle(m connmes) ([]connmes, bool) {
-	// TODO: simulation needs to be updated after recent adjustments
+	// TODO: simulation needs to be updated after recent adjustments (lsro, rols)
 	switch m.t {
 	case mbegc:
 		ok := sim.startconn(m.cid)
-		if ok {
+		if !ok {
 			return nil, false
 		}
 	case mendc:
 		var result []connmes
-		rids, ok := sim.endconn(m.cid)
-		if ok {
+		rids, err := sim.endconn(m.cid)
+		if err == nil {
 			for rid := range rids {
-				name, receivers, ok := sim.exit(m.cid, rid)
+				name, receivers, err := sim.exit(m.cid, rid)
 				exed := protomes{t: mexed, room: rid, name: name}
-				if ok {
+				if err == nil {
 					result = addconnids(result, receivers, exed)
 				}
 			}
@@ -217,28 +222,38 @@ func (sim simulation) handle(m connmes) ([]connmes, bool) {
 		pong := protomes{t: mpong}
 		return []connmes{makeconnmes(m.cid, pong)}, true
 	case mjoin:
-		receivers, ok := sim.join(m.cid, m.room, m.name.Value())
-		if ok {
+		receivers, err := sim.join(m.cid, m.room, m.name.Value())
+		if err == nil {
 			jned := protomes{t: mjned, room: m.room, name: m.name.Value()}
 			return addconnids(nil, receivers, jned), true
+		} else if e, ok := err.(ecode); ok {
+			return []connmes{makeconnmes(m.cid, errormes(e))}, true
 		}
 	case mexit:
-		name, receivers, ok := sim.exit(m.cid, m.room)
-		if ok {
+		name, receivers, err := sim.exit(m.cid, m.room)
+		if err == nil {
 			exed := protomes{t: mexed, room: m.room, name: name}
 			return addconnids(nil, receivers, exed), true
+		} else if e, ok := err.(ecode); ok {
+			return []connmes{makeconnmes(m.cid, errormes(e))}, true
 		}
 	case mtalk:
-		name, receivers, ok := sim.talk(m.cid, m.room)
-		if ok {
-			hear := protomes{t: mhear, room: m.room, name: name, text: m.text.Value()}
+		text := m.text.Value()
+		name, receivers, err := sim.talk(m.cid, text, m.room)
+		if err == nil {
+			hear := protomes{t: mhear, room: m.room, name: name, text: text}
 			return addconnids(nil, receivers, hear), true
+		} else if e, ok := err.(ecode); ok {
+			return []connmes{makeconnmes(m.cid, errormes(e))}, true
 		}
 	}
 	return nil, false
 }
 
 func addconnids(cms []connmes, cids iter.Seq[connid], m protomes) []connmes {
+	if cids == nil {
+		return nil
+	}
 	for cid := range cids {
 		cm := makeconnmes(cid, m)
 		cms = append(cms, cm)
