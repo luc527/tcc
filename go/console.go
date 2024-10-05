@@ -200,11 +200,10 @@ func conmain(address string, logname string, realtime bool) {
 				continue
 			}
 			for k := from; k <= to; k++ {
+				ks := strconv.Itoa(k)
 				copy(args, *argl)
 				for i := range args {
-					if args[i] == variable {
-						args[i] = strconv.Itoa(k)
-					}
+					args[i] = strings.ReplaceAll(args[i], variable, ks)
 				}
 				argl := newarglist(args)
 				domain, _ := argl.next()
@@ -479,6 +478,14 @@ func (cc conclients) handleclient(address string, cmd string, argl *arglist, f f
 			return
 		}
 		if !trysend(cli.talk, talkspec{room, text}, cli.pc.ctx.Done()) {
+			prf("! client dead (?)\n")
+		}
+	case "lsro":
+		cli, ok := getcli()
+		if !ok {
+			return
+		}
+		if !trysend(cli.lsro, zero{}, cli.pc.ctx.Done()) {
 			prf("! client dead (?)\n")
 		}
 	default:

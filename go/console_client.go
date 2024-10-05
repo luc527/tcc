@@ -7,6 +7,7 @@ type conclient struct {
 	join chan joinspec
 	exit chan uint32
 	talk chan talkspec
+	lsro chan zero
 }
 
 func (c conclient) send(m protomes) {
@@ -30,6 +31,9 @@ func (c conclient) handlemessages() {
 		case ts := <-c.talk:
 			m := protomes{t: mtalk, room: ts.room, text: ts.text}
 			c.mu <- zero{}
+			c.send(m)
+		case <-c.lsro:
+			m := protomes{t: mlsro}
 			c.send(m)
 		}
 	}
