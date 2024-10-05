@@ -1,5 +1,4 @@
 defmodule Tcc.Rooms.Partition do
-  require Logger
   use GenServer
   import Tcc.Utils
 
@@ -77,7 +76,6 @@ defmodule Tcc.Rooms.Partition do
 
   @impl true
   def handle_continue({:broadcast, room, msg}, tables) do
-    Logger.info("broadcasting room #{room} msg #{inspect(msg)}")
     broadcast(room, msg, tables)
     {:noreply, tables}
   end
@@ -91,12 +89,10 @@ defmodule Tcc.Rooms.Partition do
   end
 
   defp handle_result_async({:ok, msg}, room, tables) do
-    Logger.info("handle result async room #{room} msg #{inspect(msg)}")
     {:noreply, tables, {:continue, {:broadcast, room, msg}}}
   end
 
-  defp handle_result_async(error, _room, tables) do
-    Logger.info("async result #{inspect(error)}")
+  defp handle_result_async(_error, _room, tables) do
     {:noreply, tables}
   end
 
@@ -128,7 +124,6 @@ defmodule Tcc.Rooms.Partition do
     true = :ets.delete(rn, {room, name})
   end
 
-  # TODO: test client_count?
   defp client_count(room, %{room_client: table}) do
     match = {{room, :_}}
     :ets.select_count(table, [{match, [], [true]}])
@@ -153,7 +148,6 @@ defmodule Tcc.Rooms.Partition do
   end
 
   def exit_async(id, room, name, client) do
-    Logger.info("exit async #{id}, #{room}, #{name}, #{client}")
     GenServer.cast(via(id), {:exit, room, name, client})
   end
 

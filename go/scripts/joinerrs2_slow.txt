@@ -1,0 +1,6 @@
+for $i 1 256 cli new c$i
+for $i 1 256 cli join c$i 555 x$i
+# ^ should all succeed
+cli new anon
+cli join anon 555 argh
+# ^ tests eroomfull

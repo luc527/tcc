@@ -1,11 +1,11 @@
 cli new a
-for room 1 256 cli join a room bovski
+for $room 1 256 cli join a $room bovski
 # ^should all succeed
 sleep 500ms
 cli join a 25 sbeve
-# ^ejoined
+# ^ tests ejoined
 cli join a 900 sbob
-# ^room limit
+# ^ tests eroomlimit
 cli new b
-cli join b 25 abago
+cli join b 25 obabo
 # ^fine

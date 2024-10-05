@@ -5,6 +5,7 @@ defmodule Tcc.Application do
   @ip :loopback
   @port 0
 
+  # Tcc.Clients relies on the fact that the number of partitions doesn't change after system startup
   @rooms_partitions System.schedulers_online()
 
   @impl true
@@ -19,7 +20,6 @@ defmodule Tcc.Application do
       {Tcc.Tcp.Listener, {@ip, @port}}
     ]
 
-    opts = [name: Tcc.Supervisor, strategy: :rest_for_one]
-    Supervisor.start_link(children, opts)
+    Supervisor.start_link(children, name: Tcc.Supervisor, strategy: :rest_for_one)
   end
 end

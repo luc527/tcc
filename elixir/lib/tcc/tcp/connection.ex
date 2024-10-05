@@ -10,7 +10,6 @@ defmodule Tcc.Tcp.Connection do
 
   defp start_inner(sock) do
     conn_pid = self()
-    Logger.info("started connection, pid #{inspect(conn_pid)}, socket #{inspect(sock)}")
 
     state = %{
       sock: sock,
@@ -32,8 +31,7 @@ defmodule Tcc.Tcp.Connection do
       {:cont, state} ->
         loop(state)
 
-      {:stop, reason} ->
-        Logger.info("connection stopped with reason #{inspect(reason)}")
+      {:stop, _reason} ->
         :ok
     end
   end
@@ -41,11 +39,9 @@ defmodule Tcc.Tcp.Connection do
   defp step(%{receiver_ref: receiver_ref} = state) do
     receive do
       :send_ping ->
-        Logger.info("connection #{inspect(self())}: sending ping")
         send_to_socket_then(:ping, state, &dispatch_ping/0)
 
       {:server_msg, msg} ->
-        Logger.info("connection #{inspect(self())}: sending message #{inspect(msg)} to connection")
         send_to_socket(msg, state)
 
       {:start_receiver, client_id} ->
@@ -55,12 +51,10 @@ defmodule Tcc.Tcp.Connection do
         {:cont, state}
 
       {^receiver_ref, reply} ->
-        Logger.info("connection #{inspect(self())}: receiver closed, stopping (#{inspect(reply)})")
         demonitor(receiver_ref)
         {:stop, {:receiver_closed, reply}}
 
       {:DOWN, ^receiver_ref, _, _, reason} ->
-        Logger.info("connection #{inspect(self())}: receiver down, stopping (#{inspect(reason)})")
         {:stop, {:receiver_exited, reason}}
 
       msg ->

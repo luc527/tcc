@@ -21,7 +21,7 @@ defmodule Tcc.Tcp.Listener do
 
     {:ok, lsock} = :gen_tcp.listen(port, opts)
     {:ok, port} = :inet.port(lsock)
-    Logger.info("listening at 127.0.0.1:#{port}")
+    Logger.info("listening at port #{port}")
 
     try do
       accept_loop(lsock)

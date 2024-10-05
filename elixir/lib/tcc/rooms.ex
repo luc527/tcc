@@ -1,27 +1,27 @@
 defmodule Tcc.Rooms do
   require Logger
+  alias Tcc.Rooms
   use GenServer
 
-  def start_link(npart) do
-    GenServer.start_link(__MODULE__, npart, name: __MODULE__)
+  def start_link(nparts) do
+    GenServer.start_link(__MODULE__, nparts, name: __MODULE__)
   end
 
   @impl true
-  def init(npart) do
+  def init(nparts) do
     Logger.info("rooms: starting")
-    {:ok, npart, {:continue, :start_partitions}}
+    {:ok, nparts, {:continue, :start_partitions}}
   end
 
   @impl true
-  def handle_continue(:start_partitions, npart) do
-    0..(npart - 1) |> Enum.each(&start_partition/1)
-    {:noreply, npart}
+  def handle_continue(:start_partitions, nparts) do
+    0..(nparts - 1) |> Enum.each(&start_partition/1)
+    {:noreply, nparts}
   end
 
   @impl true
-  def handle_call({:map_partitions, rooms}, _from, npart) do
-    result = rooms |> Enum.map(&rem(&1, npart))
-    {:reply, result, npart}
+  def handle_call(:num_partitions, _from, nparts) do
+    {:reply, nparts, nparts}
   end
 
   defp start_partition(id) do
@@ -31,27 +31,22 @@ defmodule Tcc.Rooms do
       room_name: :ets.new(nil, [:ordered_set, :public])
     }
 
-    DynamicSupervisor.start_child(Tcc.Rooms.Partition.Supervisor, {Tcc.Rooms.Partition, {id, tables}})
+    DynamicSupervisor.start_child(Rooms.Partition.Supervisor, {Rooms.Partition, {id, tables}})
   end
 
-  def map_partitions(rooms) do
-    GenServer.call(__MODULE__, {:map_partitions, rooms})
+  def num_partitions() do
+    GenServer.call(__MODULE__, :num_partitions)
   end
 
-  # TODO: bottleneck?
-  defp which_partition(room) do
-    hd(map_partitions([room]))
+  def join(part_id, room, name, client) do
+    Rooms.Partition.join(part_id, room, name, client)
   end
 
-  def join(room, name, client) do
-    Tcc.Rooms.Partition.join(which_partition(room), room, name, client)
+  def exit(part_id, room, name, client) do
+    Rooms.Partition.exit(part_id, room, name, client)
   end
 
-  def exit(room, name, client) do
-    Tcc.Rooms.Partition.exit(which_partition(room), room, name, client)
-  end
-
-  def talk(room, name, text) do
-    Tcc.Rooms.Partition.talk(which_partition(room), room, name, text)
+  def talk(part_id, room, name, text) do
+    Rooms.Partition.talk(part_id, room, name, text)
   end
 end

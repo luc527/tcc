@@ -1,0 +1,5 @@
+cli new a
+cli join a 120 aaaa
+cli join a 180 babebibobu
+cli join a 9 aes df e e...a.g.
+cli lsro a

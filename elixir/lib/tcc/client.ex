@@ -29,7 +29,7 @@ defmodule Tcc.Client do
   end
 
   @impl true
-  def handle_info({:room_msg, msg}, %{conn_pid: conn_pid}=state) do
+  def handle_info({:server_msg, msg}, %{conn_pid: conn_pid}=state) do
     send(conn_pid, {:server_msg, msg})
     {:noreply, state}
   end
@@ -60,6 +60,10 @@ defmodule Tcc.Client do
 
   defp handle_conn_msg({:talk, room, text}, cid) do
     Tcc.Clients.talk(room, text, cid)
+  end
+
+  defp handle_conn_msg(:lsro, cid) do
+    Tcc.Clients.lsro(cid)
   end
 
   defp handle_conn_msg(:pong, _cid) do

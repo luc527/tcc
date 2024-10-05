@@ -1,4 +1,5 @@
 defmodule Tcc.Tcp.Receiver do
+  require Logger
   alias Tcc.{Message, Client}
 
   @recv_timeout 30_000
@@ -25,10 +26,13 @@ defmodule Tcc.Tcp.Receiver do
     case Client.send_conn_msg(client_id, msg) do
       :ok -> :ok
       error ->
-        mtype = if is_tuple(msg), do: elem(msg, 0), else: msg
+        mtype = extract_mtype(msg)
         send_error_back(conn_pid, error, mtype)
     end
   end
+
+  defp extract_mtype(tuple) when is_tuple(tuple), do: elem(tuple, 0)
+  defp extract_mtype(mtype), do: mtype
 
   defp send_error_back(conn_pid, error, mtype) do
     send_prob_back(conn_pid, error |> error_to_prob(mtype))

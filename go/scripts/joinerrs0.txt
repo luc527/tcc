@@ -2,19 +2,19 @@ cli new a
 cli join a 10 a
 cli talk a 10 testeste
 cli join a 10 b
-# ^deve retornar ejoined
+# ^ tests ejoined
 cli new b
 cli join b 10 a
-# ^deve retornar enameinuse
+# ^ tests enameinuse
 cli join b 10 b
 cli talk b 10 ue
 cli exit a 10 a
 cli join b 10 a
-# ^deve retornar ejoined
+# ^ tests ejoined
 cli join b 10 ababababbaebebaebebabebabebabbbebebebebebbbbebabbebeabea
-# ^deve retornar ebadname
+# ^ tests ebadname
 cli exit b 10
 cli join b 10 a
-# ^deve funcionar
+# ^ should work
 cli rm a
 cli rm b

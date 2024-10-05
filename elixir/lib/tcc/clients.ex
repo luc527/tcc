@@ -1,6 +1,6 @@
 defmodule Tcc.Clients do
   require Logger
-  alias Tcc.Clients.Tables
+  alias Tcc.{Clients.Tables, Rooms}
   use GenServer
 
   def start_link(arg) do
@@ -9,94 +9,117 @@ defmodule Tcc.Clients do
 
   @impl true
   def init(_) do
-    {:ok, nil}
+    {:ok, nil, {:continue, :get_num_partitions}}
   end
 
   @impl true
-  def handle_call({:register, cid}, {pid, _tag}, _) do
-    {:reply, check_register(cid, pid), nil}
+  def handle_continue(:get_num_partitions, nil) do
+    nparts = Rooms.num_partitions()
+    {:noreply, %{nparts: nparts}}
   end
 
   @impl true
-  def handle_call({:join, room, name, cid}, _from, _) do
-    with :ok <- Tcc.Rooms.join(room, name, cid) do
+  def handle_continue({:send_to, msg, cid}, state) do
+    with {:ok, pid} <- Tables.client_pid(cid) do
+      send(pid, {:server_msg, msg})
+      {:noreply, state}
+    else
+      error ->
+        Logger.warning("clients: failed to send_to #{inspect(msg)}, #{cid}, error: #{inspect(error)}")
+        {:noreply, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:register, cid}, {pid, _tag}, state) do
+    {:reply, check_register(cid, pid), state}
+  end
+
+  @impl true
+  def handle_call({:join, room, name, cid}, _from, %{nparts: nparts} = state) do
+    partid = which_partition(room, nparts)
+
+    with :ok <- Rooms.join(partid, room, name, cid) do
       true = Tables.enter_room(room, name, cid)
-      {:reply, :ok, nil}
+      {:reply, :ok, state}
     else
       error ->
-        {:reply, error, nil}
+        {:reply, error, state}
     end
   end
 
   @impl true
-  def handle_call({:exit, room, cid}, _from, _) do
+  def handle_call({:exit, room, cid}, _from, %{nparts: nparts} = state) do
+    partid = which_partition(room, nparts)
+
     with {:ok, name} <- Tables.name_in_room(room, cid),
-         :ok <- Tcc.Rooms.exit(room, name, cid) do
+         :ok <- Rooms.exit(partid, room, name, cid) do
       Tables.exit_room(room, cid)
-      {:reply, :ok, nil}
+      {:reply, :ok, state}
     else
       :not_found ->
-        {:reply, {:error, :bad_room}, nil}
+        {:reply, {:error, :bad_room}, state}
 
       error ->
-        {:reply, error, nil}
+        {:reply, error, state}
     end
   end
 
   @impl true
-  def handle_call({:talk, room, text, cid}, _from, _) do
+  def handle_call({:talk, room, text, cid}, _from, %{nparts: nparts} = state) do
+    partid = which_partition(room, nparts)
+
     with {:ok, name} <- Tables.name_in_room(room, cid),
-         :ok <- Tcc.Rooms.talk(room, name, text) do
-      {:reply, :ok, nil}
+         :ok <- Rooms.talk(partid, room, name, text) do
+      {:reply, :ok, state}
     else
       :not_found ->
-        {:reply, {:error, :bad_room}, nil}
+        {:reply, {:error, :bad_room}, state}
 
       error ->
-        {:reply, error, nil}
+        {:reply, error, state}
     end
   end
 
-  # TODO: lsro
-
   @impl true
-  def handle_call({:send_batch, clients, message}, _from, _) do
-    Tables.clients_pids(clients)
-    |> Enum.each(&send(&1, {:room_msg, message}))
-
-    {:reply, :ok, nil}
+  def handle_call({:lsro, cid}, _from, state) do
+    msg = {:rols, Tables.client_rooms(cid)}
+    {:reply, :ok, state, {:continue, {:send_to, msg, cid}}}
   end
 
   @impl true
-  def handle_info({:DOWN, _ref, :process, pid, _reason}, _) do
+  def handle_call({:send_batch, clients, msg}, _from, state) do
+    Tables.clients_pids(clients)
+    |> Enum.each(&send(&1, {:server_msg, msg}))
+
+    {:reply, :ok, state}
+  end
+
+  @impl true
+  def handle_info({:DOWN, _ref, :process, pid, _reason}, %{nparts: nparts} = state) do
     case Tables.pid_client(pid) do
       :not_found ->
         Logger.warning(
           "clients: received #{:erlang.pid_to_list(pid)} down but it's not registered"
         )
 
-        {:noreply, nil}
+        {:noreply, state}
 
       {:ok, cid} ->
         Logger.info("clients: unregistering #{:erlang.pid_to_list(pid)} from #{cid}")
         true = Tables.unregister_client(cid)
 
-        rooms_names = Tables.client_rooms(cid)
-
-        parts =
-          rooms_names
-          |> Enum.map(fn {room, _name} -> room end)
-          |> Tcc.Rooms.map_partitions()
-
-        rooms_names
-        |> Enum.zip(parts)
-        |> Enum.each(fn {{room, name}, part} ->
-          Tcc.Rooms.Partition.exit_async(part, room, name, cid)
+        Tables.client_rooms(cid)
+        |> Enum.each(fn {room, name} ->
+          partid = which_partition(room, nparts)
+          Rooms.Partition.exit_async(partid, room, name, cid)
         end)
 
-        {:noreply, nil}
+        {:noreply, state}
     end
   end
+
+  defp which_partition(room, nparts), do: rem(room, nparts)
 
   defp check_register(nil, pid) do
     case Tables.pid_client(pid) do
@@ -149,5 +172,9 @@ defmodule Tcc.Clients do
 
   def talk(room, text, cid) do
     GenServer.call(__MODULE__, {:talk, room, text, cid})
+  end
+
+  def lsro(cid) do
+    GenServer.call(__MODULE__, {:lsro, cid})
   end
 end
