@@ -4,4 +4,8 @@ defmodule Tcc.Utils do
       if(unquote(b), do: :ok, else: {:error, unquote(e)})
     end
   end
+
+  def unique_integer() do
+    :erlang.unique_integer([:positive, :monotonic])
+  end
 end

@@ -38,6 +38,9 @@ func checkrt(cms <-chan connmes, done chan<- zero) {
 	unfuls := ([]int)(nil)
 	nofuls := ([]int)(nil)
 
+	nneedful := 0
+	nfuls := 0
+
 loop:
 	for {
 		select {
@@ -60,6 +63,7 @@ loop:
 			casts, needsful := sim.handle(cm)
 
 			if needsful {
+				nneedful++
 				if len(casts) == 0 {
 					continue
 				}
@@ -75,6 +79,7 @@ loop:
 				fws[i] = fw
 				go fw.main(fuldc, unfuldc)
 			} else {
+				nfuls++
 				// if it doesn't need fulfillment, then it fulfills some previous message
 				if cm.t == mbegc {
 					// except this one
@@ -112,22 +117,22 @@ loop:
 
 	if len(unfuls) > 0 {
 		prf("\n")
-		prf("(rt) %03d message(s) didn't get fulfilled:\n", len(unfuls))
+		prf("(rt) %03d/%03d message(s) didn't get fulfilled:\n", len(unfuls), nneedful)
 		for _, i := range unfuls {
 			prf("     %v\n", cmlist[i])
 		}
 	} else {
-		prf("\n(rt) all messages got fulfilled!\n")
+		prf("\n(rt) all %03d messages got fulfilled!\n", nneedful)
 	}
 
 	if len(nofuls) > 0 {
 		prf("\n")
-		prf("(rt) %03d message(s) didn't fulfill any previous message:\n", len(nofuls))
+		prf("(rt) %03d/%03d message(s) didn't fulfill any previous message:\n", len(nofuls), nfuls)
 		for _, i := range nofuls {
 			prf("     %v\n", cmlist[i])
 		}
 	} else {
-		prf("\n(rt) all messages did fulfill!\n")
+		prf("\n(rt) all %03d messages did fulfill!\n", nfuls)
 	}
 }
 

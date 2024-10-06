@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"iter"
 	"maps"
+	"slices"
+	"strings"
 	"sync"
 	"unique"
 )
@@ -197,6 +199,19 @@ func (sim simulation) clirooms(cid connid) map[uint32]string {
 	return m
 }
 
+func (sim simulation) lsro(cid connid) (string, error) {
+	m := sim.clirooms(cid)
+	rooms := slices.Sorted(maps.Keys(m))
+	rows := make([]string, 0, len(rooms)+1)
+	rows = append(rows, "room,name\n")
+	for _, room := range rooms {
+		name := m[room]
+		row := fmt.Sprintf("%v,%v\n", room, name)
+		rows = append(rows, row)
+	}
+	return strings.Join(rows, ""), nil
+}
+
 func (sim simulation) handle(m connmes) ([]connmes, bool) {
 	// TODO: simulation needs to be updated after recent adjustments (lsro, rols)
 	switch m.t {
@@ -243,6 +258,14 @@ func (sim simulation) handle(m connmes) ([]connmes, bool) {
 		if err == nil {
 			hear := protomes{t: mhear, room: m.room, name: name, text: text}
 			return addconnids(nil, receivers, hear), true
+		} else if e, ok := err.(ecode); ok {
+			return []connmes{makeconnmes(m.cid, errormes(e))}, true
+		}
+	case mlsro:
+		csv, err := sim.lsro(m.cid)
+		if err == nil {
+			rols := makeconnmes(m.cid, protomes{t: mrols, text: csv})
+			return []connmes{rols}, true
 		} else if e, ok := err.(ecode); ok {
 			return []connmes{makeconnmes(m.cid, errormes(e))}, true
 		}

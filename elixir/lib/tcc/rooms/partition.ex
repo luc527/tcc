@@ -1,142 +1,113 @@
 defmodule Tcc.Rooms.Partition do
   use GenServer
   import Tcc.Utils
+  alias Tcc.Rooms.Tables
+  alias Tcc.Rooms.Partition
+  alias Tcc.Clients
 
   @max_clients 256
-  @max_name_length 24
-  @max_message_length 2048
 
-  def start_link({id, tables}) do
-    GenServer.start_link(__MODULE__, {id, tables}, name: via(id))
+  def start(id) do
+    ts = Tables.new()
+    spec = {Partition, {id, ts}}
+
+    with {:ok, _} <- DynamicSupervisor.start_child(Partition.Supervisor, spec) do
+      {:ok, id}
+    end
+  end
+
+  def start_link({id, ts}) do
+    GenServer.start_link(__MODULE__, {id, ts}, name: via(id))
   end
 
   defp via(id) do
-    {:via, Registry, {Tcc.Rooms.Partition.Registry, id}}
+    {:via, Registry, {Partition.Registry, id}}
   end
 
-  defp do_join(room, name, client, tables) do
-    with :ok <- check(valid_name?(name), :bad_name),
-         :ok <- check(not has_client?(room, client, tables), :joined),
-         :ok <- check(client_count(room, tables) < @max_clients, :room_full),
-         :ok <- check(not has_name?(room, name, tables), :name_in_use) do
-      insert(room, name, client, tables)
+  defp do_join(room, name, client, ts) do
+    with :ok <- check(not Tables.has_client?(ts, room, client), :joined),
+         :ok <- check(Tables.client_count(ts, room) < @max_clients, :room_full),
+         :ok <- check(not Tables.has_name?(ts, room, name), :name_in_use) do
+      Tables.insert(ts, room, name, client)
       {:ok, {:jned, room, name}}
     end
   end
 
-  defp do_exit(room, name, client, tables) do
-    with :ok <- check(has_name?(room, name, tables), :bad_room),
-         :ok <- check(has_client?(room, client, tables), :bad_room) do
-      delete(room, name, client, tables)
+  defp do_exit(room, name, client, ts) do
+    with :ok <- check(Tables.has_name?(ts, room, name), :bad_room),
+         :ok <- check(Tables.has_client?(ts, room, client), :bad_room) do
+      Tables.delete(ts, room, name, client)
       {:ok, {:exed, room, name}}
     end
   end
 
-  defp do_talk(room, name, text, tables) do
-    with :ok <- check(has_name?(room, name, tables), :bad_room),
-         :ok <- check(valid_message_text?(text), :bad_message) do
+  defp do_talk(room, name, text, ts) do
+    with :ok <- check(Tables.has_name?(ts, room, name), :bad_room) do
       {:ok, {:hear, room, name, text}}
     end
   end
 
   @impl true
-  def init({id, tables}) do
-    tables = %{
+  def init({id, ts}) do
+    state = %{
       id: id,
-      room_name: tables.room_name,
-      room_client: tables.room_client
+      tables: ts,
     }
 
-    {:ok, tables}
+    {:ok, state}
   end
 
   @impl true
-  def handle_call({:join, room, name, client}, _from, tables) do
-    do_join(room, name, client, tables)
-    |> handle_result(room, tables)
+  def handle_call({:join, room, name, client}, _from, %{tables: ts}=state) do
+    do_join(room, name, client, ts)
+    |> handle_result(room, client, state)
   end
 
   @impl true
-  def handle_call({:exit, room, name, client}, _from, tables) do
-    do_exit(room, name, client, tables)
-    |> handle_result(room, tables)
+  def handle_call({:exit, room, name, client}, _from, %{tables: ts}=state) do
+    do_exit(room, name, client, ts)
+    |> handle_result(room, client, state)
   end
 
   @impl true
-  def handle_call({:talk, room, name, text}, _from, tables) do
-    do_talk(room, name, text, tables)
-    |> handle_result(room, tables)
+  def handle_call({:talk, room, name, text, client}, _from, %{tables: ts}=state) do
+    do_talk(room, name, text, ts)
+    |> handle_result(room, client, state)
   end
 
   @impl true
-  def handle_cast({:exit, room, name, client}, tables) do
-    do_exit(room, name, client, tables)
-    |> handle_result_async(room, tables)
+  def handle_cast({:exit, room, name, client}, %{tables: ts}=state) do
+    do_exit(room, name, client, ts)
+    |> handle_result_async(room, state)
   end
 
   @impl true
-  def handle_continue({:broadcast, room, msg}, tables) do
-    broadcast(room, msg, tables)
-    {:noreply, tables}
+  def handle_continue({:broadcast, room, msg}, %{tables: ts}=state) do
+    clients = Tables.clients(ts, room)
+    Clients.send_batch(clients, msg)
+    {:noreply, state}
   end
 
-  defp handle_result({:ok, msg}, room, tables) do
-    {:reply, :ok, tables, {:continue, {:broadcast, room, msg}}}
+  @impl true
+  def handle_continue({:send_to, client, msg}, state) do
+    Clients.send(client, msg)
+    {:noreply, state}
   end
 
-  defp handle_result(error, _room, tables) do
-    {:reply, error, tables}
+  defp handle_result({:ok, msg}, _client, room, state) do
+    {:reply, :ack, state, {:continue, {:broadcast, room, msg}}}
   end
 
-  defp handle_result_async({:ok, msg}, room, tables) do
-    {:noreply, tables, {:continue, {:broadcast, room, msg}}}
+  defp handle_result({:error, e}, client, _room, state) do
+    {:reply, :ack, state, {:continue, {:send_to, client, {:prob, e}}}}
   end
 
-  defp handle_result_async(_error, _room, tables) do
-    {:noreply, tables}
+  defp handle_result_async({:ok, msg}, room, state) do
+    {:noreply, state, {:continue, {:broadcast, room, msg}}}
   end
 
-  defp has_name?(room, name, %{room_name: table}) do
-    [] != :ets.lookup(table, {room, name})
-  end
-
-  defp has_client?(room, client, %{room_client: table}) do
-    [] != :ets.lookup(table, {room, client})
-  end
-
-  defp valid_name?(name) do
-    n = byte_size(name)
-    n > 0 and n <= @max_name_length and not String.contains?(name, "\n")
-  end
-
-  defp valid_message_text?(text) do
-    n = byte_size(text)
-    n > 0 and n <= @max_message_length
-  end
-
-  defp insert(room, name, client, %{room_client: rc, room_name: rn}) do
-    true = :ets.insert_new(rc, {{room, client}})
-    true = :ets.insert_new(rn, {{room, name}})
-  end
-
-  defp delete(room, name, client, %{room_client: rc, room_name: rn}) do
-    true = :ets.delete(rc, {room, client})
-    true = :ets.delete(rn, {room, name})
-  end
-
-  defp client_count(room, %{room_client: table}) do
-    match = {{room, :_}}
-    :ets.select_count(table, [{match, [], [true]}])
-  end
-
-  defp clients(room, %{room_client: table}) do
-    :ets.match(table, {{room, :"$1"}})
-    |> Enum.map(fn [id] -> id end)
-  end
-
-  defp broadcast(room, message, tables) do
-    clients = clients(room, tables)
-    Tcc.Clients.send_batch(clients, message)
+  defp handle_result_async(_error, _room, state) do
+    {:noreply, state}
   end
 
   def join(id, room, name, client) do

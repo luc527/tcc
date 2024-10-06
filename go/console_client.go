@@ -11,8 +11,8 @@ type conclient struct {
 }
 
 func (c conclient) send(m protomes) {
+	prf("< client %q: sending %v\n", c.id, m)
 	c.pc.send(m)
-	prf("< client %q: sent %v\n", c.id, m)
 }
 
 func (c conclient) handlemessages() {
@@ -23,15 +23,15 @@ func (c conclient) handlemessages() {
 			return
 		case js := <-c.join:
 			m := protomes{t: mjoin, room: js.room, name: js.name}
-			c.mu <- zero{}
 			c.send(m)
+			c.mu <- zero{}
 		case room := <-c.exit:
 			m := protomes{t: mexit, room: room}
 			c.send(m)
 		case ts := <-c.talk:
 			m := protomes{t: mtalk, room: ts.room, text: ts.text}
-			c.mu <- zero{}
 			c.send(m)
+			c.mu <- zero{}
 		case <-c.lsro:
 			m := protomes{t: mlsro}
 			c.send(m)

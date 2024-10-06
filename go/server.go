@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"log"
+	"maps"
 	"net"
+	"slices"
 	"strconv"
 	"time"
 )
@@ -249,7 +251,9 @@ func (cc clientconn) handletalk(room uint32, text string) {
 func (cc clientconn) handlelsro() {
 	bb := new(bytes.Buffer)
 	bb.WriteString("room,name\n")
-	for room, rch := range cc.rooms {
+	rooms := slices.Sorted(maps.Keys(cc.rooms))
+	for _, room := range rooms {
+		rch := cc.rooms[room]
 		bb.WriteString(strconv.FormatUint(uint64(room), 10))
 		bb.WriteRune(',')
 		bb.WriteString(rch.name)

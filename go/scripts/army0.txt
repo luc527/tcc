@@ -1,0 +1,16 @@
+army spawn a 5 -5s -5 8
+army spawn b 2 -3s -10 2
+army join a 120 bob
+sleep 2s
+army join b 120 bob
+army join b 120 gog
+army join b 121 ooo
+sleep 2s
+army join a 121 mmm
+sleep 10s
+army kill a
+army kill b
+sleep 4s
+# TODO: fix elixir impl
+# 16:40:53.704 [warning] clients: failed to send_to({:prob, :name_in_use}, 120), error: :not_found
+# 16:40:53.830 [warning] clients: failed to send_to({:prob, :name_in_use}, 120), error: :not_found

@@ -9,13 +9,12 @@ defmodule Tcc.Rooms do
 
   @impl true
   def init(nparts) do
-    Logger.info("rooms: starting")
     {:ok, nparts, {:continue, :start_partitions}}
   end
 
   @impl true
   def handle_continue(:start_partitions, nparts) do
-    0..(nparts - 1) |> Enum.each(&start_partition/1)
+    0..(nparts - 1) |> Enum.each(&Rooms.Partition.start/1)
     {:noreply, nparts}
   end
 
@@ -24,29 +23,33 @@ defmodule Tcc.Rooms do
     {:reply, nparts, nparts}
   end
 
-  defp start_partition(id) do
-    Logger.info("rooms: starting partition #{id}")
-    tables = %{
-      room_client: :ets.new(nil, [:ordered_set, :public]),
-      room_name: :ets.new(nil, [:ordered_set, :public])
-    }
-
-    DynamicSupervisor.start_child(Rooms.Partition.Supervisor, {Rooms.Partition, {id, tables}})
-  end
-
-  def num_partitions() do
+  defp num_partitions() do
     GenServer.call(__MODULE__, :num_partitions)
   end
 
-  def join(part_id, room, name, client) do
-    Rooms.Partition.join(part_id, room, name, client)
+  defp which_partition(room) do
+    rem(room, num_partitions())
   end
 
-  def exit(part_id, room, name, client) do
-    Rooms.Partition.exit(part_id, room, name, client)
+  def join(room, name, client) do
+    Rooms.Partition.join(which_partition(room), room, name, client)
   end
 
-  def talk(part_id, room, name, text) do
-    Rooms.Partition.talk(part_id, room, name, text)
+  def exit(room, name, client) do
+    Rooms.Partition.exit(which_partition(room), room, name, client)
+  end
+
+  def talk(room, name, text) do
+    Rooms.Partition.talk(which_partition(room), room, name, text)
+  end
+
+  def exit_all_async(rooms_names, cid) do
+    nparts = num_partitions()
+
+    rooms_names
+    |> Enum.each(fn {room, name} ->
+      partid = rem(room, nparts)
+      Rooms.Partition.exit_async(partid, room, name, cid)
+    end)
   end
 end

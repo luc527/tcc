@@ -117,6 +117,7 @@ defmodule Tcc.Message do
     do: <<@mprob, code::little-integer-32>>
 
   def encode({:rols, rooms}) do
+    rooms = Enum.sort_by(rooms, fn {room, _name} -> room end)
     lines = Enum.map(rooms, fn {room, name} -> "#{room},#{name}\n" end)
     lines = ["room,name\n" | lines]
     csv = Enum.join(lines)

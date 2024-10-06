@@ -20,7 +20,7 @@ import (
 
 var (
 	namedbotspecs = map[string]botspec{ /*TODO*/ }
-	wordpool      = []string{"hello", "goodbye", "ok", "yeah", "nah", "true", "false", "is", "it", "the", "do", "don't", "they", "you", "them", "your", "me", "I", "mine", "dog", "cat", "duck", "robot", "squid", "tiger", "lion", "snake", "truth", "lie"}
+	wordpool      = []string{"I", "you", "he", "she", "it", "me", "her", "him", "them", "do", "not", "agree", "disagree", "with", "about", "the", "what", "something", "everything", "nothing", "is", "are", "think", "thought", "would", "should", "could", "dog", "cat", "hat", "god", "devil", "heaven", "hell", "yes", "no"}
 	nextbotid     atomic.Uint64
 )
 

@@ -1,6 +1,5 @@
 defmodule Tcc.Client do
   require Logger
-  alias Tcc.Clients.Tables
   alias Tcc.Clients
   use GenServer, restart: :transient
 
@@ -35,14 +34,8 @@ defmodule Tcc.Client do
   end
 
   @impl true
-  def handle_info({:DOWN, _ref, :process, pid, reason}, %{conn_pid: pid}=state) do
-    Logger.info("client stopping, connection ended with reason #{inspect(reason)}")
+  def handle_info({:DOWN, _ref, :process, pid, _reason}, %{conn_pid: pid}=state) do
     {:stop, :normal, state}
-  end
-
-  @impl true
-  def handle_call({:conn_msg, msg}, _from, %{client_id: cid}=state) do
-    {:reply, handle_conn_msg(msg, cid), state}
   end
 
   @impl true
@@ -50,31 +43,11 @@ defmodule Tcc.Client do
     {:reply, cid, state}
   end
 
-  defp handle_conn_msg({:join, room, name}, cid) do
-    Tcc.Clients.join(room, name, cid)
-  end
-
-  defp handle_conn_msg({:exit, room}, cid) do
-    Tcc.Clients.exit(room, cid)
-  end
-
-  defp handle_conn_msg({:talk, room, text}, cid) do
-    Tcc.Clients.talk(room, text, cid)
-  end
-
-  defp handle_conn_msg(:lsro, cid) do
-    Tcc.Clients.lsro(cid)
-  end
-
-  defp handle_conn_msg(:pong, _cid) do
-    :ok
-  end
-
-  def send_conn_msg(cid, msg) do
-    with {:ok, client_pid} <- Tables.client_pid(cid) do
-      GenServer.call(client_pid, {:conn_msg, msg})
-    end
-  end
+  def send_conn_msg(cid, {:join, room, name}), do: Clients.join(room, name, cid)
+  def send_conn_msg(cid, {:exit, room}), do: Clients.exit(room, cid)
+  def send_conn_msg(cid, {:talk, room, text}), do: Clients.talk(room, text, cid)
+  def send_conn_msg(cid, :lsro), do: Clients.list_rooms(cid)
+  def send_conn_msg(_cid, :pong), do: :ok
 
   def id(pid) do
     GenServer.call(pid, :id)

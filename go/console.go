@@ -420,6 +420,7 @@ func (cc conclients) handleclient(address string, cmd string, argl *arglist, f f
 			join: make(chan joinspec),
 			exit: make(chan uint32),
 			talk: make(chan talkspec),
+			lsro: make(chan zero),
 		}
 		cc[id] = cli
 		go cli.handlemessages()

@@ -17,41 +17,14 @@ defmodule Tcc.Tcp.Receiver do
 
   defp handle_packet(packet, %{client_id: client_id, conn_pid: conn_pid}) do
     {messages, errors, rest} = Message.decode_all(packet)
-    Enum.each(messages, &send_conn_msg(client_id, conn_pid, &1))
-    Enum.each(errors, &send_error_back(conn_pid, &1, nil))
+    Enum.each(messages, &Client.send_conn_msg(client_id, &1))
+    Enum.each(errors, &send_error_back(conn_pid, &1))
     rest
   end
 
-  defp send_conn_msg(client_id, conn_pid, msg) do
-    case Client.send_conn_msg(client_id, msg) do
-      :ok -> :ok
-      error ->
-        mtype = extract_mtype(msg)
-        send_error_back(conn_pid, error, mtype)
-    end
-  end
-
-  defp extract_mtype(tuple) when is_tuple(tuple), do: elem(tuple, 0)
-  defp extract_mtype(mtype), do: mtype
-
-  defp send_error_back(conn_pid, error, mtype) do
-    send_prob_back(conn_pid, error |> error_to_prob(mtype))
-  end
-
-  defp send_prob_back(conn_pid, prob) do
+  defp send_error_back(conn_pid, :invalid_message_type) do
+    prob = {:prob, :bad_type}
     send(conn_pid, {:server_msg, prob})
-  end
-
-  defp error_to_prob(:invalid_message_type, _mtype) do
-    {:prob, :bad_type}
-  end
-
-  defp error_to_prob({:error, error}, mtype) do
-    if Message.is_message_error(error) do
-      {:prob, error}
-    else
-      {:prob, {:transient, mtype}}
-    end
   end
 
 end
