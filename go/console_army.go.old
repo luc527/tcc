@@ -224,7 +224,7 @@ func (a army) exit(room uint32) {
 }
 
 type bot struct {
-	pc   protoconn
+	pc   conn.conn
 	spec botspec
 	join chan joinspec
 	exit chan uint32
@@ -240,7 +240,7 @@ func (b bot) handleping() {
 			return
 		case m := <-b.pc.in:
 			if m.t == mping {
-				if !b.pc.send(pongmes()) {
+				if !b.pc.send(mes.Pong()) {
 					return
 				}
 			}
@@ -266,7 +266,7 @@ func (b bot) main() {
 			}
 		case room := <-ended:
 			delete(rooms, room)
-			if !b.pc.send(exitmes(room)) {
+			if !b.pc.send(mes.Exit(room)) {
 				return
 			}
 		case join := <-b.join:
@@ -274,7 +274,7 @@ func (b bot) main() {
 			if _, joined := rooms[room]; joined {
 				continue
 			}
-			if !b.pc.send(joinmes(join.room, join.name)) {
+			if !b.pc.send(mes.Join(join.room, join.name)) {
 				return
 			}
 
@@ -300,7 +300,7 @@ type roombot struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	texts  <-chan string
-	out    chan<- protomes
+	out    chan<- conn.mes
 }
 
 // TODO: send output when all bots from a room finished
@@ -322,7 +322,7 @@ func (rb roombot) main(room uint32) {
 			if !ok {
 				return
 			}
-			m := talkmes(room, text)
+			m := mes.Talk(room, text)
 			if !trysend(rb.out, m, rb.ctx.Done()) {
 				return
 			}

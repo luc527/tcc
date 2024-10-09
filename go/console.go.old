@@ -49,8 +49,6 @@ func prf(f string, a ...any) {
 	fmt.Fprintf(os.Stderr, f, a...)
 }
 
-const logdateformat = "20060102_1504"
-
 func conmain(address string, logname string, realtime bool) {
 
 	// TODO: should use a sync.WaitGroup
@@ -74,9 +72,9 @@ func conmain(address string, logname string, realtime bool) {
 
 	var cms chan connmes
 	var rtdone chan zero
-	var cip *connidprovider
+	var cip *ConnIdProvider
 	if realtime {
-		cip = newconnidprovider()
+		cip = newConnIdProvider()
 		cms = make(chan connmes)
 		rtdone = make(chan zero)
 		go checkrt(cms, rtdone)
@@ -84,7 +82,7 @@ func conmain(address string, logname string, realtime bool) {
 	}
 
 	makemw := func(s string) middleware {
-		return func(m protomes, _ dir) {
+		return func(m proto.mes, _ dir) {
 			if shouldlog {
 				l.log(s, m)
 			}
@@ -101,7 +99,7 @@ func conmain(address string, logname string, realtime bool) {
 		}
 		if realtime {
 			cid := cip.connidfor(id)
-			cm := makeconnmes(cid, protomes{t: mbegc})
+			cm := makeconnmes(cid, proto.mes{t: mbegc})
 			cms <- cm
 		}
 	}
@@ -111,7 +109,7 @@ func conmain(address string, logname string, realtime bool) {
 		}
 		if realtime {
 			cid := cip.connidfor(id)
-			cm := makeconnmes(cid, protomes{t: mendc})
+			cm := makeconnmes(cid, proto.mes{t: mendc})
 			cms <- cm
 		}
 	}

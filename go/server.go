@@ -8,6 +8,8 @@ import (
 	"net"
 	"slices"
 	"strconv"
+	"tccgo/conn"
+	"tccgo/mes"
 	"time"
 )
 
@@ -24,23 +26,24 @@ func serve(listener net.Listener) {
 		}
 
 		ctx, cancel := context.WithCancel(hctx)
-		pc := makeconn(ctx, cancel).start(rawconn, nil)
-		go pingclient(pc)
+		c := conn.New(ctx, cancel)
+		c.Start(rawconn)
+		go pingclient(c)
 
-		cc := makeclientconn(pc, hj)
+		cc := makeclientconn(ctx, c, hj)
 		go cc.main()
 	}
 }
 
-func pingclient(pc protoconn) {
+func pingclient(c conn.Conn) {
 	goinc()
 	defer godec()
 	tick := time.Tick(pingInterval)
 	for {
 		select {
 		case <-tick:
-			pc.send(pingmes())
-		case <-pc.ctx.Done():
+			conn.Send(c, mes.Ping())
+		case <-c.Done():
 			return
 		}
 	}
@@ -54,17 +57,18 @@ type roomclienthandle struct {
 }
 
 type clientconn struct {
-	pc     protoconn
+	ctx    context.Context
+	c      conn.Conn
 	hj     hubroomjoiner
 	rl     <-chan zero
 	rooms  map[uint32]roomclienthandle
 	exited chan uint32
 }
 
-func makeclientconn(pc protoconn, hj hubroomjoiner) clientconn {
-	rl := ratelimiter(pc.ctx.Done(), connIncomingRateLimit, connIncomingBurstLimit)
+func makeclientconn(ctx context.Context, c conn.Conn, hj hubroomjoiner) clientconn {
+	rl := ratelimiter(c.Done(), connIncomingRateLimit, connIncomingBurstLimit)
 	return clientconn{
-		pc:     pc,
+		c:      c,
 		hj:     hj,
 		rl:     rl,
 		rooms:  make(map[uint32]roomclienthandle),
@@ -74,7 +78,7 @@ func makeclientconn(pc protoconn, hj hubroomjoiner) clientconn {
 
 func (cc clientconn) wait() bool {
 	select {
-	case <-cc.pc.ctx.Done():
+	case <-cc.c.Done():
 		return false
 	case <-cc.rl:
 		return true
@@ -82,38 +86,38 @@ func (cc clientconn) wait() bool {
 }
 
 func (cc clientconn) main() {
-	pc := cc.pc
-	defer pc.cancel()
+	c := cc.c
+	defer c.Close()
 
 	for {
 		select {
-		case <-pc.ctx.Done():
+		case <-c.Done():
 			return
 		case room := <-cc.exited:
 			delete(cc.rooms, room)
-		case m := <-pc.in:
+		case m := <-c.In():
 			cc.handle(m)
 		}
 	}
 }
 
-func (cc clientconn) handle(m protomes) {
-	pc := cc.pc
+func (cc clientconn) handle(m mes.Message) {
+	c := cc.c
 
-	if m.t.hasname() && !isnamevalid(m.name) {
-		pc.send(probmes(ebadname))
+	if m.T.HasName() && !mes.NameValid(m.Name) {
+		conn.Send(c, mes.Prob(mes.ErrBadName))
 		return
 	}
-	if m.t.hastext() && !ismesvalid(m.text) {
-		pc.send(probmes(ebadmes))
+	if m.T.HasText() && !mes.TextValid(m.Text) {
+		conn.Send(c, mes.Prob(mes.ErrBadMessage))
 	}
 
-	if m.t == mpong {
+	if m.T == mes.PongType {
 		return
 	}
 
-	if !m.t.valid() {
-		pc.send(probmes(ebadtype))
+	if !m.T.Valid() {
+		conn.Send(c, mes.Prob(mes.ErrBadType))
 		return
 	}
 
@@ -121,26 +125,26 @@ func (cc clientconn) handle(m protomes) {
 		return
 	}
 
-	switch m.t {
-	case mjoin:
-		cc.handlejoin(m.room, m.name)
-	case mexit:
-		cc.handleexit(m.room)
-	case mtalk:
-		cc.handletalk(m.room, m.text)
-	case mlsro:
+	switch m.T {
+	case mes.JoinType:
+		cc.handlejoin(m.Room, m.Name)
+	case mes.ExitType:
+		cc.handleexit(m.Room)
+	case mes.TalkType:
+		cc.handletalk(m.Room, m.Text)
+	case mes.LsroType:
 		cc.handlelsro()
 	}
 }
 
 func (cc clientconn) handlejoin(room uint32, name string) {
-	pc := cc.pc
+	c := cc.c
 	if _, ok := cc.rooms[room]; ok {
-		pc.send(probmes(ejoined))
+		conn.Send(c, mes.Prob(mes.ErrJoined))
 		return
 	}
 	if len(cc.rooms) >= clientMaxRooms {
-		pc.send(probmes(eroomlimit))
+		conn.Send(c, mes.Prob(mes.ErrRoomLimit))
 		return
 	}
 	hj := cc.hj
@@ -150,14 +154,14 @@ func (cc clientconn) handlejoin(room uint32, name string) {
 
 	joined := false
 
-	ctx, cancel := context.WithCancel(pc.ctx)
+	ctx, cancel := context.WithCancel(cc.ctx)
 	defer func() {
 		if !joined {
 			cancel()
 		}
 	}()
 	{
-		done := pc.ctx.Done()
+		done := c.Done()
 		exited := cc.exited
 		context.AfterFunc(ctx, func() {
 			select {
@@ -183,11 +187,11 @@ func (cc clientconn) handlejoin(room uint32, name string) {
 		case jp := <-prob: // TODO: prob should return some problem id instead of just zero{}
 			switch jp {
 			case jfull:
-				pc.send(probmes(eroomfull))
+				conn.Send(c, mes.Prob(mes.ErrRoomFull))
 			case jname:
-				pc.send(probmes(enameinuse))
+				conn.Send(c, mes.Prob(mes.ErrNameInUse))
 			case jtransient:
-				pc.send(probmes(etransient(mjoin)))
+				conn.Send(c, mes.Prob(mes.ErrTransient(mes.JoinType)))
 			default:
 				log.Printf("unknown join prob: %d", jp)
 			}
@@ -196,7 +200,7 @@ func (cc clientconn) handlejoin(room uint32, name string) {
 			ch := connhandle{
 				ctx:    ctx,
 				cancel: cancel,
-				out:    pc.out,
+				out:    c.Out(),
 				in:     texts,
 			}
 			rc := roomclient{
@@ -222,28 +226,28 @@ func (cc clientconn) handlejoin(room uint32, name string) {
 func (cc clientconn) handleexit(room uint32) {
 	rch, ok := cc.rooms[room]
 	if !ok {
-		cc.pc.send(probmes(ebadroom))
+		conn.Send(cc.c, mes.Prob(mes.ErrBadRoom))
 		return
 	}
 	rch.cancel()
 }
 
 var (
-	etalkdonecc  = etransientprefixed(mtalk, 0x01)
-	etalkdonerc  = etransientprefixed(mtalk, 0x02)
-	etalktimeout = etransientprefixed(mtalk, 0x03)
+	etalkdonecc  = mes.ErrTransientExtra(mes.TalkType, 0x01)
+	etalkdonerc  = mes.ErrTransientExtra(mes.TalkType, 0x02)
+	etalktimeout = mes.ErrTransientExtra(mes.TalkType, 0x03)
 )
 
 func (cc clientconn) handletalk(room uint32, text string) {
-	pc := cc.pc
+	c := cc.c
 	rch, ok := cc.rooms[room]
 	if !ok {
-		pc.send(probmes(ebadroom))
+		conn.Send(c, mes.Prob(mes.ErrBadRoom))
 		return
 	}
 	select {
 	case <-rch.ctx.Done():
-		pc.send(probmes(etalkdonecc))
+		conn.Send(c, mes.Prob(etalkdonecc))
 	case rch.talk <- text:
 	}
 }
@@ -261,17 +265,17 @@ func (cc clientconn) handlelsro() {
 		// the name might contain commas, but since we have only 2 columns, we
 		// can assume everything after the first comma is the second column
 	}
-	cc.pc.send(rolsmes(bb.String()))
+	conn.Send(cc.c, mes.Rols(bb.String()))
 }
 
 type connhandle struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	in     <-chan string
-	out    chan<- protomes
+	out    chan<- mes.Message
 }
 
-func (ch connhandle) send(m protomes) {
+func (ch connhandle) send(m mes.Message) {
 	select {
 	case <-ch.ctx.Done():
 	case ch.out <- m:
@@ -295,9 +299,9 @@ func (rc roomclient) send(rm roommes) {
 
 	select {
 	case <-rh.ctx.Done():
-		ch.send(probmes(etalkdonerc))
+		ch.send(mes.Prob(etalkdonerc))
 	case <-t.C:
-		ch.send(probmes(etalktimeout))
+		ch.send(mes.Prob(etalktimeout))
 	case rh.out <- rm:
 	}
 }
@@ -321,13 +325,13 @@ func (rc roomclient) main() {
 		case <-rh.ctx.Done():
 			return
 		case rm := <-rh.in:
-			m := hearmes(rc.room, rm.name, rm.text)
+			m := mes.Hear(rc.room, rm.name, rm.text)
 			ch.send(m)
 		case name := <-rh.jned:
-			m := jnedmes(rc.room, name)
+			m := mes.Jned(rc.room, name)
 			ch.send(m)
 		case name := <-rh.exed:
-			m := exedmes(rc.room, name)
+			m := mes.Exed(rc.room, name)
 			ch.send(m)
 		}
 	}

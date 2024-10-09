@@ -9,11 +9,6 @@ const (
 )
 
 const (
-	maxMessageLength = 2048
-	maxNameLength    = 24
-)
-
-const (
 	connOutgoingBufferSize = 128
 	connIncomingRateLimit  = time.Second / 2
 	connIncomingBurstLimit = 8

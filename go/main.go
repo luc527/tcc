@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"tccgo/chk"
 )
 
 const usage = `
@@ -20,21 +21,9 @@ usage:
 `
 
 func prusage() {
-	rep := strings.NewReplacer("%", os.Args[0], "$", logdateformat)
+	rep := strings.NewReplacer("%", os.Args[0], "$", chk.LogDateFormat)
 	fmt.Fprint(os.Stderr, rep.Replace(usage))
 	os.Exit(1)
-}
-
-type _test struct {
-	s string
-	f func(string) error
-}
-
-var _tests = []_test{
-	{"timeout", testTimeout},
-	// {"1", test1},
-	//{"singleRoom", testSingleRoom},
-	//{"rate limiting", testRateLimiting}, //doesn't really test, just shows the intervals between messages and you have to look at them to check if the rate limiting is working
 }
 
 func main() {
@@ -47,9 +36,6 @@ func main() {
 	case "server":
 		servermain()
 		return
-	case "check":
-		checkmain()
-		return
 	}
 
 	if len(args) < 2 {
@@ -61,41 +47,9 @@ func main() {
 	case "client":
 		clientmain(address)
 		return
-	case "test":
-		for _, t := range _tests {
-			fmt.Printf("\n-- %-30s ", t.s)
-			err := t.f(address)
-			if err == nil {
-				fmt.Printf("OK\n")
-			} else {
-				fmt.Printf("ERR: %v\n", err)
-			}
-		}
-		return
 	}
 
-	switch args[0] {
-	case "console":
-		var logname string
-		var realtime bool
-		for _, arg := range args[2:] {
-			bef, aft, ok := strings.Cut(arg, "=")
-			if bef == "log" {
-				if ok && len(aft) > 0 {
-					logname = aft
-				} else {
-					prusage()
-				}
-			} else if bef == "rt" {
-				realtime = true
-			} else {
-				fmt.Println(bef, "unknown arg")
-			}
-		}
-		conmain(address, logname, realtime)
-	default:
-		prusage()
-	}
+	prusage()
 }
 
 func servermain() {

@@ -1,4 +1,4 @@
-package main
+package chk
 
 import (
 	"context"
@@ -7,8 +7,11 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"tccgo/mes"
 	"time"
 )
+
+const LogDateFormat = "20060102_1504"
 
 var (
 	logepoch  time.Time
@@ -33,7 +36,7 @@ func init() {
 type logmes struct {
 	connName string
 	dur      time.Duration
-	m        protomes
+	m        mes.Message
 }
 
 func (lm logmes) String() string {
@@ -58,10 +61,10 @@ func (lm logmes) torecord() []string {
 	return []string{
 		lm.connName,
 		strconv.FormatInt(lm.dur.Nanoseconds(), 10),
-		lm.m.t.String(),
-		strconv.FormatUint(uint64(lm.m.room), 10),
-		lm.m.name,
-		lm.m.text,
+		lm.m.T.String(),
+		strconv.FormatUint(uint64(lm.m.Room), 10),
+		lm.m.Name,
+		lm.m.Text,
 	}
 }
 
@@ -83,13 +86,13 @@ func (lm *logmes) fromrecord(rec []string) error {
 	}
 	dur := time.Duration(nsec * int64(time.Nanosecond))
 
-	t, err := parseMtype(smtype)
+	t, err := mes.ParseType(smtype)
 	if err != nil {
 		return fmt.Errorf("logmes: %w", err)
 	}
 
 	room := uint32(0)
-	if t.hasroom() {
+	if t.HasRoom() {
 		uroom, err := strconv.ParseUint(sroom, 10, 32)
 		if err != nil {
 			return fmt.Errorf("logmes: %w", err)
@@ -99,10 +102,10 @@ func (lm *logmes) fromrecord(rec []string) error {
 
 	lm.connName = connName
 	lm.dur = dur
-	lm.m.room = room
-	lm.m.t = t
-	lm.m.name = name
-	lm.m.text = text
+	lm.m.Room = room
+	lm.m.T = t
+	lm.m.Name = name
+	lm.m.Text = text
 	return nil
 }
 
@@ -126,7 +129,7 @@ func (l logger) main() {
 	}
 }
 
-func (l logger) log(connName string, m protomes) {
+func (l logger) log(connName string, m mes.Message) {
 	lm := logmes{connName, time.Since(logepoch), m}
 	rec := lm.torecord()
 	if !trysend(l.recs, rec, l.ctx.Done()) {
@@ -151,5 +154,14 @@ func (l logger) quit(connName string) {
 	rec[2] = "endc"
 	if !trysend(l.recs, rec, l.ctx.Done()) {
 		fmt.Fprintln(os.Stderr, "failed to log begc")
+	}
+}
+
+func trysend[T any](dest chan<- T, v T, done <-chan zero) bool {
+	select {
+	case dest <- v:
+		return true
+	case <-done:
+		return false
 	}
 }

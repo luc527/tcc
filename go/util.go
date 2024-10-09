@@ -35,44 +35,6 @@ func godec() {
 	// log.Printf("<go> count: %d", gocount.Add(-1))
 }
 
-func runmiddleware(dest chan<- protomes, src <-chan protomes, done <-chan zero, d dir, f func(protomes, dir)) {
-	for {
-		select {
-		case v := <-src:
-			f(v, d)
-			select {
-			case dest <- v:
-			case <-done:
-				return
-			}
-		case <-done:
-			return
-		}
-	}
-}
-
-func readfull(r io.Reader, destination []byte) (n int, err error) {
-	remaining := destination
-	for len(remaining) > 0 {
-		if nn, err := r.Read(remaining); err != nil {
-			return n, err
-		} else {
-			n += nn
-			remaining = remaining[nn:]
-		}
-	}
-	return n, err
-}
-
-func trysend[T any](dest chan<- T, v T, done <-chan zero) bool {
-	select {
-	case dest <- v:
-		return true
-	case <-done:
-		return false
-	}
-}
-
 // think of the ratelimitee [sic] as needing a token to perform some action
 // it can accumulate at most `b` tokens, so if it wishes it can perform the action `b` times in a (b)urst
 // but it gains a new token at the (r)ate of `r`, i.e. only every `r` time units

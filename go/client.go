@@ -7,6 +7,8 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"tccgo/conn"
+	"tccgo/mes"
 )
 
 func clientmain(address string) {
@@ -17,38 +19,37 @@ func clientmain(address string) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	pc := makeconn(ctx, cancel).start(rawconn, rawconn)
+	c := conn.New(ctx, cancel)
+	c.Start(rawconn)
 
-	go handleserver(pc)
-	handlescanner(bufio.NewScanner(os.Stdin), pc)
+	go handleserver(c)
+	handlescanner(bufio.NewScanner(os.Stdin), c)
 }
 
-func handleserver(pc protoconn) {
-	goinc()
-	defer godec()
-	defer pc.cancel()
+func handleserver(c conn.Conn) {
+	defer c.Close()
 
-	for m := range pc.messages() {
-		switch m.t {
-		case mping:
+	for m := range conn.Messages(c) {
+		switch m.T {
+		case mes.PingType:
 			fmt.Printf("< ping\n")
-			pc.send(pongmes())
-		case mjned:
-			fmt.Printf("< (%d, %v) joined\n", m.room, m.name)
-		case mexed:
-			fmt.Printf("< (%d, %v) exited\n", m.room, m.name)
-		case mhear:
-			fmt.Printf("< (%d, %v) %v\n", m.room, m.name, m.text)
-		case mrols:
-			fmt.Printf("< room list\n%v\n", m.text)
-		case mprob:
-			fmt.Printf("< (error) %v\n", ecode(m.room))
+			conn.Send(c, mes.Pong())
+		case mes.JnedType:
+			fmt.Printf("< (%d, %v) joined\n", m.Room, m.Name)
+		case mes.ExedType:
+			fmt.Printf("< (%d, %v) exited\n", m.Room, m.Name)
+		case mes.HearType:
+			fmt.Printf("< (%d, %v) %v\n", m.Room, m.Name, m.Text)
+		case mes.RolsType:
+			fmt.Printf("< room list\n%v\n", m.Text)
+		case mes.ProbType:
+			fmt.Printf("< (error) %v\n", m.Error())
 		}
 	}
 }
 
-func handlescanner(sc *bufio.Scanner, pc protoconn) {
-	defer pc.cancel()
+func handlescanner(sc *bufio.Scanner, c conn.Conn) {
+	defer c.Close()
 	for sc.Scan() {
 		toks := respace.Split(sc.Text(), 3)
 		if len(toks) == 0 {
@@ -78,11 +79,11 @@ func handlescanner(sc *bufio.Scanner, pc protoconn) {
 				continue
 			}
 			name := toks[2]
-			if !pc.send(joinmes(room, name)) {
+			if !conn.Send(c, mes.Join(room, name)) {
 				goto end
 			}
 		case "exit":
-			if !pc.send(exitmes(room)) {
+			if !conn.Send(c, mes.Exit(room)) {
 				goto end
 			}
 		case "talk":
@@ -91,13 +92,13 @@ func handlescanner(sc *bufio.Scanner, pc protoconn) {
 				continue
 			}
 			text := toks[2]
-			m := talkmes(room, text)
+			m := mes.Talk(room, text)
 			fmt.Println("the message is", m)
-			if !pc.send(m) {
+			if !conn.Send(c, m) {
 				goto end
 			}
 		case "ls":
-			if !pc.send(lsromes()) {
+			if !conn.Send(c, mes.Lsro()) {
 				goto end
 			}
 		default:
@@ -112,10 +113,8 @@ func handlescanner(sc *bufio.Scanner, pc protoconn) {
 			)
 		}
 
-		select {
-		case <-pc.ctx.Done():
+		if conn.Closed(c) {
 			return
-		default:
 		}
 	}
 
