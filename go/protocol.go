@@ -214,13 +214,6 @@ func parseMtype(s string) (mtype, error) {
 	}
 }
 
-func errormes(e ecode) protomes {
-	return protomes{
-		t:    mprob,
-		room: uint32(e),
-	}
-}
-
 func protomes2string(t mtype, room uint32, name string, text string) string {
 	bb := new(bytes.Buffer)
 	bb.WriteString("{")
@@ -443,4 +436,40 @@ func ismesvalid(s string) bool {
 		return false
 	}
 	return true
+}
+
+func joinmes(room uint32, name string) protomes {
+	return protomes{t: mjoin, room: room, name: name}
+}
+
+func jnedmes(room uint32, name string) protomes {
+	return protomes{t: mjned, room: room, name: name}
+}
+
+func exitmes(room uint32) protomes {
+	return protomes{t: mexit, room: room}
+}
+
+func exedmes(room uint32, name string) protomes {
+	return protomes{t: mexed, room: room, name: name}
+}
+
+func talkmes(room uint32, text string) protomes {
+	return protomes{t: mtalk, room: room, text: text}
+}
+
+func hearmes(room uint32, name string, text string) protomes {
+	return protomes{t: mhear, room: room, name: name, text: text}
+}
+
+func lsromes() protomes           { return protomes{t: mlsro} }
+func rolsmes(csv string) protomes { return protomes{t: mrols, text: csv} }
+func pingmes() protomes           { return protomes{t: mping} }
+func pongmes() protomes           { return protomes{t: mpong} }
+
+func probmes(e ecode) protomes {
+	return protomes{
+		t:    mprob,
+		room: uint32(e),
+	}
 }

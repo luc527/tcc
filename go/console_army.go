@@ -240,10 +240,8 @@ func (b bot) handleping() {
 			return
 		case m := <-b.pc.in:
 			if m.t == mping {
-				select {
-				case <-b.pc.ctx.Done():
+				if !b.pc.send(pongmes()) {
 					return
-				case b.pc.out <- protomes{t: mpong}:
 				}
 			}
 		}
@@ -268,22 +266,16 @@ func (b bot) main() {
 			}
 		case room := <-ended:
 			delete(rooms, room)
-			m := protomes{t: mexit, room: room}
-			select {
-			case <-b.pc.ctx.Done():
+			if !b.pc.send(exitmes(room)) {
 				return
-			case b.pc.out <- m:
 			}
 		case join := <-b.join:
 			room := join.room
 			if _, joined := rooms[room]; joined {
 				continue
 			}
-			m := protomes{t: mjoin, name: join.name, room: join.room}
-			select {
-			case <-b.pc.ctx.Done():
+			if !b.pc.send(joinmes(join.room, join.name)) {
 				return
-			case b.pc.out <- m:
 			}
 
 			ctx, cancel := context.WithCancel(b.pc.ctx)
@@ -330,7 +322,7 @@ func (rb roombot) main(room uint32) {
 			if !ok {
 				return
 			}
-			m := protomes{t: mtalk, room: room, text: text}
+			m := talkmes(room, text)
 			if !trysend(rb.out, m, rb.ctx.Done()) {
 				return
 			}

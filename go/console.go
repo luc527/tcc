@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -42,7 +41,7 @@ func (a *arglist) rest() []string {
 	return (*a)[:]
 }
 
-type conclients map[string]conclient
+// type conclients map[string]conclient
 
 type conarmies map[string]army
 
@@ -85,7 +84,7 @@ func conmain(address string, logname string, realtime bool) {
 	}
 
 	makemw := func(s string) middleware {
-		return func(m protomes) {
+		return func(m protomes, _ dir) {
 			if shouldlog {
 				l.log(s, m)
 			}
@@ -117,7 +116,7 @@ func conmain(address string, logname string, realtime bool) {
 		}
 	}
 
-	cc := make(conclients)
+	// cc := make(conclients)
 	ca := make(conarmies)
 
 	sc := bufio.NewScanner(os.Stdin)
@@ -157,7 +156,8 @@ func conmain(address string, logname string, realtime bool) {
 			case "army":
 				ca.handlearmy(address, cmd, argl, makemw, startf, endf)
 			case "cli":
-				cc.handleclient(address, cmd, argl, makemw, startf, endf)
+				prf("! cli deactivated temporarely\n")
+				// cc.handleclient(address, cmd, argl, makemw, startf, endf)
 			default:
 				prf("! unknown domain %q\n", domain)
 			}
@@ -343,153 +343,152 @@ func (ca conarmies) handlearmy(address string, cmd string, argl *arglist, f func
 }
 
 // those callbacks are a little ugly, but ok
-func (cc conclients) handleclient(address string, cmd string, argl *arglist, f func(string) middleware, startf func(string), endf func(string)) {
-	getid := func() (string, bool) {
-		id, ok := argl.next()
-		if !ok {
-			prf("! missing id for client\n")
-			return "", false
-		}
-		return id, true
-	}
+// func (cc conclients) handleclient(address string, cmd string, argl *arglist, f func(string) middleware, startf func(string), endf func(string)) {
+// 	getid := func() (string, bool) {
+// 		id, ok := argl.next()
+// 		if !ok {
+// 			prf("! missing id for client\n")
+// 			return "", false
+// 		}
+// 		return id, true
+// 	}
 
-	getcli := func() (conclient, bool) {
-		id, ok := getid()
-		if !ok {
-			return conclient{}, false
-		}
-		cli, ok := cc[id]
-		if !ok {
-			prf("! client %q not found\n", id)
-			return conclient{}, false
-		}
-		return cli, true
-	}
+// 	getcli := func() (conclient, bool) {
+// 		id, ok := getid()
+// 		if !ok {
+// 			return conclient{}, false
+// 		}
+// 		cli, ok := cc[id]
+// 		if !ok {
+// 			prf("! client %q not found\n", id)
+// 			return conclient{}, false
+// 		}
+// 		return cli, true
+// 	}
 
-	getroom := func() (uint32, bool) {
-		s, ok := argl.next()
-		if !ok {
-			prf("! missing room\n")
-			return 0, false
-		}
-		u, err := strconv.ParseUint(s, 10, 32)
-		if err != nil {
-			prf("! invalid room %q: %v\n", s, err)
-			return 0, false
-		}
-		return uint32(u), true
-	}
+// 	getroom := func() (uint32, bool) {
+// 		s, ok := argl.next()
+// 		if !ok {
+// 			prf("! missing room\n")
+// 			return 0, false
+// 		}
+// 		u, err := strconv.ParseUint(s, 10, 32)
+// 		if err != nil {
+// 			prf("! invalid room %q: %v\n", s, err)
+// 			return 0, false
+// 		}
+// 		return uint32(u), true
+// 	}
 
-	switch cmd {
-	case "new":
-		id, ok := getid()
-		if !ok {
-			return
-		}
-		if len(id) == 0 {
-			prf("! connection id cannot be empty\n")
-			return
-		}
-		if _, ok := cc[id]; ok {
-			prf("! there's another client with that id\n")
-			return
-		}
-		rawconn, err := net.Dial("tcp", address)
-		if err != nil {
-			prf("! failed to connect: %v\n", err)
-			return
-		}
+// 	switch cmd {
+// 	case "new":
+// 		id, ok := getid()
+// 		if !ok {
+// 			return
+// 		}
+// 		if len(id) == 0 {
+// 			prf("! connection id cannot be empty\n")
+// 			return
+// 		}
+// 		if _, ok := cc[id]; ok {
+// 			prf("! there's another client with that id\n")
+// 			return
+// 		}
+// 		rawconn, err := net.Dial("tcp", address)
+// 		if err != nil {
+// 			prf("! failed to connect: %v\n", err)
+// 			return
+// 		}
 
-		logid := fmt.Sprintf("client/%v", id)
+// 		logid := fmt.Sprintf("client/%v", id)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		if startf != nil {
-			startf(logid)
-		}
-		if endf != nil {
-			context.AfterFunc(ctx, func() { endf(logid) })
-		}
+// 		ctx, cancel := context.WithCancel(context.Background())
+// 		if startf != nil {
+// 			startf(logid)
+// 		}
+// 		if endf != nil {
+// 			context.AfterFunc(ctx, func() { endf(logid) })
+// 		}
 
-		pc := makeconn(ctx, cancel).
-			start(rawconn, rawconn).
-			withmiddleware(f(logid))
-		cli := conclient{
-			mu:   make(chan zero, 1),
-			id:   id,
-			pc:   pc,
-			join: make(chan joinspec),
-			exit: make(chan uint32),
-			talk: make(chan talkspec),
-			lsro: make(chan zero),
-		}
-		cc[id] = cli
-		go cli.handlemessages()
-		go cli.main()
-		prf("< started client %q\n", id)
-	case "rm":
-		cli, ok := getcli()
-		if ok {
-			cli.pc.cancel()
-			delete(cc, cli.id)
-			prf("< removed client %q\n", cli.id)
-		}
-	case "join":
-		cli, ok := getcli()
-		if !ok {
-			return
-		}
-		room, ok := getroom()
-		if !ok {
-			return
-		}
-		name, ok := argl.next()
-		if !ok {
-			prf("! missing name\n")
-			return
-		}
-		js := joinspec{room, name}
-		if !trysend(cli.join, js, cli.pc.ctx.Done()) {
-			prf("! client dead (?)\n")
-		}
-	case "exit":
-		cli, ok := getcli()
-		if !ok {
-			return
-		}
-		room, ok := getroom()
-		if !ok {
-			return
-		}
-		if !trysend(cli.exit, room, cli.pc.ctx.Done()) {
-			prf("! client dead (?)\n")
-		}
-	case "talk":
-		cli, ok := getcli()
-		if !ok {
-			return
-		}
-		room, ok := getroom()
-		if !ok {
-			return
-		}
-		atext := argl.rest()
-		text := strings.Join(atext, " ")
-		if len(text) == 0 {
-			prf("! missing text\n")
-			return
-		}
-		if !trysend(cli.talk, talkspec{room, text}, cli.pc.ctx.Done()) {
-			prf("! client dead (?)\n")
-		}
-	case "lsro":
-		cli, ok := getcli()
-		if !ok {
-			return
-		}
-		if !trysend(cli.lsro, zero{}, cli.pc.ctx.Done()) {
-			prf("! client dead (?)\n")
-		}
-	default:
-		prf("! unknown command %q\n", cmd)
-	}
-}
+// 		pc := makeconn(ctx, cancel).
+// 			start(rawconn, rawconn).
+// 			withmiddleware(f(logid))
+// 		cli := conclient{
+// 			id:   id,
+// 			pc:   pc,
+// 			join: make(chan joinspec),
+// 			exit: make(chan uint32),
+// 			talk: make(chan talkspec),
+// 			lsro: make(chan zero),
+// 		}
+// 		cc[id] = cli
+// 		go cli.handlemessages()
+// 		go cli.main()
+// 		prf("< started client %q\n", id)
+// 	case "rm":
+// 		cli, ok := getcli()
+// 		if ok {
+// 			cli.pc.cancel()
+// 			delete(cc, cli.id)
+// 			prf("< removed client %q\n", cli.id)
+// 		}
+// 	case "join":
+// 		cli, ok := getcli()
+// 		if !ok {
+// 			return
+// 		}
+// 		room, ok := getroom()
+// 		if !ok {
+// 			return
+// 		}
+// 		name, ok := argl.next()
+// 		if !ok {
+// 			prf("! missing name\n")
+// 			return
+// 		}
+// 		js := joinspec{room, name}
+// 		if !trysend(cli.join, js, cli.pc.ctx.Done()) {
+// 			prf("! client dead (?)\n")
+// 		}
+// 	case "exit":
+// 		cli, ok := getcli()
+// 		if !ok {
+// 			return
+// 		}
+// 		room, ok := getroom()
+// 		if !ok {
+// 			return
+// 		}
+// 		if !trysend(cli.exit, room, cli.pc.ctx.Done()) {
+// 			prf("! client dead (?)\n")
+// 		}
+// 	case "talk":
+// 		cli, ok := getcli()
+// 		if !ok {
+// 			return
+// 		}
+// 		room, ok := getroom()
+// 		if !ok {
+// 			return
+// 		}
+// 		atext := argl.rest()
+// 		text := strings.Join(atext, " ")
+// 		if len(text) == 0 {
+// 			prf("! missing text\n")
+// 			return
+// 		}
+// 		if !trysend(cli.talk, talkspec{room, text}, cli.pc.ctx.Done()) {
+// 			prf("! client dead (?)\n")
+// 		}
+// 	case "lsro":
+// 		cli, ok := getcli()
+// 		if !ok {
+// 			return
+// 		}
+// 		if !trysend(cli.lsro, zero{}, cli.pc.ctx.Done()) {
+// 			prf("! client dead (?)\n")
+// 		}
+// 	default:
+// 		prf("! unknown command %q\n", cmd)
+// 	}
+// }

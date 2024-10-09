@@ -35,11 +35,11 @@ func godec() {
 	// log.Printf("<go> count: %d", gocount.Add(-1))
 }
 
-func runmiddleware[T any](dest chan<- T, src <-chan T, done <-chan zero, f func(T)) {
+func runmiddleware(dest chan<- protomes, src <-chan protomes, done <-chan zero, d dir, f func(protomes, dir)) {
 	for {
 		select {
 		case v := <-src:
-			f(v)
+			f(v, d)
 			select {
 			case dest <- v:
 			case <-done:

@@ -226,7 +226,7 @@ func (sim simulation) handle(m connmes) ([]connmes, bool) {
 		if err == nil {
 			for rid := range rids {
 				name, receivers, err := sim.exit(m.cid, rid)
-				exed := protomes{t: mexed, room: rid, name: name}
+				exed := exedmes(rid, name)
 				if err == nil {
 					result = addconnids(result, receivers, exed)
 				}
@@ -234,40 +234,40 @@ func (sim simulation) handle(m connmes) ([]connmes, bool) {
 			return result, true
 		}
 	case mping:
-		pong := protomes{t: mpong}
+		pong := pongmes()
 		return []connmes{makeconnmes(m.cid, pong)}, true
 	case mjoin:
 		receivers, err := sim.join(m.cid, m.room, m.name.Value())
 		if err == nil {
-			jned := protomes{t: mjned, room: m.room, name: m.name.Value()}
+			jned := jnedmes(m.room, m.name.Value())
 			return addconnids(nil, receivers, jned), true
 		} else if e, ok := err.(ecode); ok {
-			return []connmes{makeconnmes(m.cid, errormes(e))}, true
+			return []connmes{makeconnmes(m.cid, probmes(e))}, true
 		}
 	case mexit:
 		name, receivers, err := sim.exit(m.cid, m.room)
 		if err == nil {
-			exed := protomes{t: mexed, room: m.room, name: name}
+			exed := exedmes(m.room, name)
 			return addconnids(nil, receivers, exed), true
 		} else if e, ok := err.(ecode); ok {
-			return []connmes{makeconnmes(m.cid, errormes(e))}, true
+			return []connmes{makeconnmes(m.cid, probmes(e))}, true
 		}
 	case mtalk:
 		text := m.text.Value()
 		name, receivers, err := sim.talk(m.cid, text, m.room)
 		if err == nil {
-			hear := protomes{t: mhear, room: m.room, name: name, text: text}
+			hear := hearmes(m.room, name, text)
 			return addconnids(nil, receivers, hear), true
 		} else if e, ok := err.(ecode); ok {
-			return []connmes{makeconnmes(m.cid, errormes(e))}, true
+			return []connmes{makeconnmes(m.cid, probmes(e))}, true
 		}
 	case mlsro:
 		csv, err := sim.lsro(m.cid)
 		if err == nil {
-			rols := makeconnmes(m.cid, protomes{t: mrols, text: csv})
+			rols := makeconnmes(m.cid, rolsmes(csv))
 			return []connmes{rols}, true
 		} else if e, ok := err.(ecode); ok {
-			return []connmes{makeconnmes(m.cid, errormes(e))}, true
+			return []connmes{makeconnmes(m.cid, probmes(e))}, true
 		}
 	}
 	return nil, false

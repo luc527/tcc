@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"strconv"
@@ -13,7 +12,7 @@ import (
 func clientmain(address string) {
 	rawconn, err := net.Dial("tcp", address)
 	if err != nil {
-		log.Printf("failed to connect: %v", err)
+		fmt.Printf("failed to connect: %v", err)
 		return
 	}
 
@@ -29,26 +28,21 @@ func handleserver(pc protoconn) {
 	defer godec()
 	defer pc.cancel()
 
-	for {
-		select {
-		case <-pc.ctx.Done():
-			return
-		case m := <-pc.in:
-			switch m.t {
-			case mping:
-				log.Printf("< ping\n")
-				pc.send(protomes{t: mpong})
-			case mjned:
-				log.Printf("< (%d, %v) joined\n", m.room, m.name)
-			case mexed:
-				log.Printf("< (%d, %v) exited\n", m.room, m.name)
-			case mhear:
-				log.Printf("< (%d, %v) %v\n", m.room, m.name, m.text)
-			case mrols:
-				log.Printf("< room list\n%v\n", m.text)
-			case mprob:
-				log.Printf("< (error) %v\n", ecode(m.room))
-			}
+	for m := range pc.messages() {
+		switch m.t {
+		case mping:
+			fmt.Printf("< ping\n")
+			pc.send(pongmes())
+		case mjned:
+			fmt.Printf("< (%d, %v) joined\n", m.room, m.name)
+		case mexed:
+			fmt.Printf("< (%d, %v) exited\n", m.room, m.name)
+		case mhear:
+			fmt.Printf("< (%d, %v) %v\n", m.room, m.name, m.text)
+		case mrols:
+			fmt.Printf("< room list\n%v\n", m.text)
+		case mprob:
+			fmt.Printf("< (error) %v\n", ecode(m.room))
 		}
 	}
 }
@@ -65,14 +59,14 @@ func handlescanner(sc *bufio.Scanner, pc protoconn) {
 		if cmd == "quit" {
 			break
 		}
-		if len(toks) == 1 {
+		if len(toks) == 1 && toks[0] != "ls" {
 			fmt.Fprintln(os.Stderr, "! missing room")
 			continue
 		}
 		sroom := toks[1]
 		iroom, err := strconv.ParseUint(sroom, 10, 32)
 		if err != nil {
-			log.Printf("! invalid room: %v\n", err)
+			fmt.Printf("! invalid room: %v\n", err)
 			continue
 		}
 		room := uint32(iroom)
@@ -84,18 +78,12 @@ func handlescanner(sc *bufio.Scanner, pc protoconn) {
 				continue
 			}
 			name := toks[2]
-			m := protomes{t: mjoin, room: room, name: name}
-			select {
-			case <-pc.ctx.Done():
+			if !pc.send(joinmes(room, name)) {
 				goto end
-			case pc.out <- m:
 			}
 		case "exit":
-			m := protomes{t: mexit, room: room}
-			select {
-			case <-pc.ctx.Done():
+			if !pc.send(exitmes(room)) {
 				goto end
-			case pc.out <- m:
 			}
 		case "talk":
 			if len(toks) == 2 {
@@ -103,21 +91,17 @@ func handlescanner(sc *bufio.Scanner, pc protoconn) {
 				continue
 			}
 			text := toks[2]
-			m := protomes{t: mtalk, room: room, text: text}
-			select {
-			case <-pc.ctx.Done():
+			m := talkmes(room, text)
+			fmt.Println("the message is", m)
+			if !pc.send(m) {
 				goto end
-			case pc.out <- m:
 			}
 		case "ls":
-			m := protomes{t: mlsro}
-			select {
-			case <-pc.ctx.Done():
+			if !pc.send(lsromes()) {
 				goto end
-			case pc.out <- m:
 			}
 		default:
-			log.Printf(
+			fmt.Printf(
 				"! unknown command %q\n! available commands are: %q, %q, %q %q and %q\n",
 				cmd,
 				"quit",

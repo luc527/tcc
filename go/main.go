@@ -10,12 +10,12 @@ import (
 
 const usage = `
 usage:
-	% server
-	% client <address>
-	% console <address> [log=<logname>] [rt]
-		log logs all messages as csv to ./logs/<logname>_$.csv
-		rt enables real-time checking
-	% check
+	$ server
+	$ client <address>
+	$ console <address> [log=<logname>] [rt]
+		log		logs all messages as csv to ./logs/<logname>_$.csv
+		rt		enables real-time checking
+	$ check
 		expects log file contents from stdin
 `
 

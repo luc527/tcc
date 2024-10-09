@@ -59,7 +59,7 @@ func t_sendchan(id int, wg *sync.WaitGroup, pc protoconn, ms <-chan protomes, po
 				case <-pc.ctx.Done():
 					errc <- fmt.Errorf("%d) failed to pong", id)
 					return
-				case pc.out <- protomes{t: mpong}:
+				case pc.out <- pongmes():
 				}
 			case <-pc.ctx.Done():
 				errc <- fmt.Errorf("%d) failed to send %v", id, m)
@@ -121,7 +121,7 @@ func test1(address string) error {
 				log.Println("received", m)
 				// if m.t == mping {
 				// 	log.Println("sending pong back")
-				// 	pc.send(protomes{t: mpong})
+				// 	pc.send(pongmes())
 				// }
 			}
 		}
@@ -179,61 +179,61 @@ func testSingleRoom(address string) error {
 		room := uint32(1234)
 
 		name1 := "testman"
-		send1 <- protomes{t: mjoin, room: room, name: name1}
-		recv1 <- protomes{t: mjned, room: room, name: name1}
+		send1 <- joinmes(room, name1)
+		recv1 <- jnedmes(room, name1)
 		<-tick
 
 		text := "hello good morning"
-		send1 <- protomes{t: mtalk, room: room, text: text}
-		recv1 <- protomes{t: mhear, room: room, name: name1, text: text}
+		send1 <- talkmes(room, text)
+		recv1 <- hearmes(room, name1, text)
 		<-tick
 
 		name2 := "name"
-		send2 <- protomes{t: mjoin, room: room, name: name2}
-		recv2 <- protomes{t: mjned, room: room, name: name2}
-		recv1 <- protomes{t: mjned, room: room, name: name2}
+		send2 <- joinmes(room, name2)
+		recv2 <- jnedmes(room, name2)
+		recv1 <- jnedmes(room, name2)
 		<-tick
 
 		text = "olá bom dia"
-		send2 <- protomes{t: mtalk, room: room, text: text}
-		recv2 <- protomes{t: mhear, room: room, name: name2, text: text}
-		recv1 <- protomes{t: mhear, room: room, name: name2, text: text}
+		send2 <- talkmes(room, text)
+		recv2 <- hearmes(room, name2, text)
+		recv1 <- hearmes(room, name2, text)
 		<-tick
 
 		// TODO: test joining another room and talking there too
 
 		name3 := "abcd"
-		send3 <- protomes{t: mjoin, room: room, name: name3}
-		recv3 <- protomes{t: mjned, room: room, name: name3}
-		recv2 <- protomes{t: mjned, room: room, name: name3}
-		recv1 <- protomes{t: mjned, room: room, name: name3}
+		send3 <- joinmes(room, name3)
+		recv3 <- jnedmes(room, name3)
+		recv2 <- jnedmes(room, name3)
+		recv1 <- jnedmes(room, name3)
 		<-tick
 
 		text = "wow"
-		send1 <- protomes{t: mtalk, room: room, text: text}
-		recv3 <- protomes{t: mhear, room: room, name: name1, text: text}
-		recv2 <- protomes{t: mhear, room: room, name: name1, text: text}
-		recv1 <- protomes{t: mhear, room: room, name: name1, text: text}
+		send1 <- talkmes(room, text)
+		recv3 <- hearmes(room, name1, text)
+		recv2 <- hearmes(room, name1, text)
+		recv1 <- hearmes(room, name1, text)
 		<-tick
 
-		send2 <- protomes{t: mexit, room: room}
-		recv3 <- protomes{t: mexed, room: room, name: name2}
-		recv1 <- protomes{t: mexed, room: room, name: name2}
+		send2 <- exitmes(room)
+		recv3 <- exedmes(room, name2)
+		recv1 <- exedmes(room, name2)
 		close(send2)
 		<-tick
 		close(recv2)
 
 		text = "well goodbye"
-		send3 <- protomes{t: mtalk, room: room, text: text}
-		recv3 <- protomes{t: mhear, room: room, name: name3, text: text}
+		send3 <- talkmes(room, text)
+		recv3 <- hearmes(room, name3, text)
 		<-tick
 
-		send3 <- protomes{t: mexit, room: room}
+		send3 <- exitmes(room)
 		close(send3)
 		<-tick
 		close(recv3)
 
-		recv1 <- protomes{t: mhear, room: room, name: name3, text: text}
+		recv1 <- hearmes(room, name3, text)
 		close(send1)
 		<-tick
 		close(recv1)
@@ -264,7 +264,7 @@ func testRateLimiting(address string) error {
 	pc := makeconn(ctx, cancel).
 		start(rawconn, rawconn)
 
-	joinm := protomes{t: mjoin, room: 1234, name: "test"}
+	joinm := joinmes(1234, "test")
 	text := "hello"
 
 	select {
@@ -315,7 +315,7 @@ func testRateLimiting(address string) error {
 					select {
 					case <-pc.ctx.Done():
 						errc <- fmt.Errorf("failed to pong back")
-					case pc.out <- protomes{t: mpong}:
+					case pc.out <- pongmes():
 					}
 				} else {
 					ok := true &&
@@ -340,7 +340,7 @@ func testRateLimiting(address string) error {
 	go func() {
 		defer wg.Done()
 		for range N {
-			m := protomes{t: mtalk, room: joinm.room, text: text}
+			m := talkmes(joinm.room, text)
 			select {
 			case <-pc.ctx.Done():
 				errc <- fmt.Errorf("unable to talk")
