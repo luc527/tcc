@@ -5,69 +5,56 @@ import (
 	"log"
 	"net"
 	"os"
-	"strings"
-	"tccgo/chk"
-	"tccgo/tests"
 )
 
-const usage = `
-usage:
-	$ server
-	$ client <address>
-	$ console <address> [log=<logname>] [rt]
-		log		logs all messages as csv to ./logs/<logname>_$.csv
-		rt		enables real-time checking
-	$ check
-		expects log file contents from stdin
-`
-
-func prusage() {
-	rep := strings.NewReplacer("%", os.Args[0], "$", chk.LogDateFormat)
-	fmt.Fprint(os.Stderr, rep.Replace(usage))
-	os.Exit(1)
-}
-
-func climain() {
-	args := os.Args[1:]
-	if len(args) == 0 {
-		prusage()
-	}
-
-	switch args[0] {
-	case "server":
-		servermain()
-		return
-	}
-
-	if len(args) < 2 {
-		prusage()
-	}
-	address := args[1]
-
-	switch args[0] {
-	case "client":
-		clientmain(address)
-		return
-	}
-
-	prusage()
-}
-
 func main() {
-	if os.Args[1] == "server" {
-		servermain()
-	} else {
-		// test1(os.Args[1])
-		tests.Randmain(os.Args[1])
+	args := os.Args[1:]
+
+	if len(args) == 0 {
+		fmt.Println("cmd?")
+		return
+	}
+
+	cmd, args := args[0], args[1:]
+
+	switch cmd {
+	case "server":
+		serverMain(args)
+	case "client":
+		clientMain(args)
+	default:
+		fmt.Printf("unknown command %q\n", cmd)
 	}
 }
 
-func servermain() {
-	listener, err := net.Listen("tcp", "127.0.0.1:")
+func serverMain(args []string) {
+	if len(args) == 0 {
+		fmt.Println("address?")
+		return
+	}
+	l, err := net.Listen("tcp", args[0])
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer listener.Close()
-	log.Printf("server running on %v\n", listener.Addr().String())
-	serve(listener)
+	_ = args[1:]
+
+	address := l.Addr()
+	fmt.Printf("listening on %v\n", address)
+
+	s, err := newServer(numPartitions)
+	if err != nil {
+		log.Fatal(err)
+	}
+	s.start()
+
+	serve(l, s)
+}
+
+func clientMain(args []string) {
+	if len(args) == 0 {
+		fmt.Println("address?")
+		return
+	}
+	address, _ := args[0], args[1:]
+	client(address)
 }

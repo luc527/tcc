@@ -1,9 +1,0 @@
-cli new a
-cli new b
-cli new c
-cli join a 120 a
-cli join b 120 b
-cli join c 120 c
-cli rm c
-# disconnecting should cause the client to immediatly exit the rooms
-# a and b should receive {exed, 120, "c"}

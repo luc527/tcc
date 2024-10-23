@@ -2,124 +2,96 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"fmt"
+	"io"
+	"log"
 	"net"
 	"os"
+	"regexp"
 	"strconv"
-	"tccgo/conn"
-	"tccgo/mes"
 )
 
-func clientmain(address string) {
-	rawconn, err := net.Dial("tcp", address)
+func client(address string) {
+	conn, err := net.Dial("tcp", address)
 	if err != nil {
-		fmt.Printf("failed to connect: %v", err)
-		return
+		log.Fatal(err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	c := conn.New(ctx, cancel)
-	c.Start(rawconn)
-
-	go handleserver(c)
-	handlescanner(bufio.NewScanner(os.Stdin), c)
-}
-
-func handleserver(c conn.Conn) {
-	defer c.Stop()
-
-	for m := range conn.Messages(c) {
-		switch m.T {
-		case mes.PingType:
-			fmt.Printf("< ping\n")
-			conn.Send(c, mes.Pong())
-		case mes.JnedType:
-			fmt.Printf("< (%d, %v) joined\n", m.Room, m.Name)
-		case mes.ExedType:
-			fmt.Printf("< (%d, %v) exited\n", m.Room, m.Name)
-		case mes.HearType:
-			fmt.Printf("< (%d, %v) %v\n", m.Room, m.Name, m.Text)
-		case mes.RolsType:
-			fmt.Printf("< room list\n%v\n", m.Text)
-		case mes.ProbType:
-			fmt.Printf("< (error) %v\n", m.Error())
+	write := func(m msg) {
+		if _, err := m.WriteTo(conn); err != nil {
+			log.Fatal(err)
 		}
 	}
-}
 
-func handlescanner(sc *bufio.Scanner, c conn.Conn) {
-	defer c.Stop()
-	for sc.Scan() {
-		toks := respace.Split(sc.Text(), 3)
-		if len(toks) == 0 {
-			fmt.Fprintln(os.Stderr, "! missing command")
-			continue
-		}
-		cmd := toks[0]
-		if cmd == "quit" {
+	respace := regexp.MustCompile(`\s+`)
+
+	go cliReadFromConn(conn)
+
+	sc := bufio.NewScanner(os.Stdin)
+	for {
+		if !sc.Scan() {
 			break
 		}
-		if len(toks) == 1 && toks[0] != "ls" {
-			fmt.Fprintln(os.Stderr, "! missing room")
+		s := sc.Text()
+		ss := respace.Split(s, 3)
+
+		if len(ss) == 0 {
+			fmt.Printf("< command?\n")
 			continue
 		}
-		sroom := toks[1]
-		iroom, err := strconv.ParseUint(sroom, 10, 32)
+		cmd, ss := ss[0], ss[1:]
+
+		if len(ss) == 0 {
+			fmt.Printf("< topic?\n")
+			continue
+		}
+		topicStr, ss := ss[0], ss[1:]
+
+		topic64, err := strconv.ParseUint(topicStr, 10, 16)
 		if err != nil {
-			fmt.Printf("! invalid room: %v\n", err)
+			fmt.Printf("< topic: %v\n", err)
 			continue
 		}
-		room := uint32(iroom)
+		topic := uint16(topic64)
+
+		var payload string
+		if cmd == "pub" {
+			if len(ss) == 0 {
+				fmt.Printf("< payload?\n")
+				continue
+			}
+			payload, ss = ss[0], ss[1:]
+		}
+
+		if len(ss) != 0 {
+			fmt.Printf("< excess: %v\n", ss)
+			continue
+		}
 
 		switch cmd {
-		case "join":
-			if len(toks) == 2 {
-				fmt.Fprintln(os.Stderr, "! missing name")
-				continue
-			}
-			name := toks[2]
-			if !conn.Send(c, mes.Join(room, name)) {
-				goto end
-			}
-		case "exit":
-			if !conn.Send(c, mes.Exit(room)) {
-				goto end
-			}
-		case "talk":
-			if len(toks) == 2 {
-				fmt.Fprintln(os.Stderr, "! missing text")
-				continue
-			}
-			text := toks[2]
-			m := mes.Talk(room, text)
-			fmt.Println("the message is", m)
-			if !conn.Send(c, m) {
-				goto end
-			}
-		case "ls":
-			if !conn.Send(c, mes.Lsro()) {
-				goto end
-			}
+		case "sub":
+			write(msg{t: subMsg, topic: topic})
+		case "unsub":
+			write(msg{t: unsubMsg, topic: topic, payload: payload})
+		case "pub":
+			write(msg{t: pubMsg, topic: topic, payload: payload})
 		default:
-			fmt.Printf(
-				"! unknown command %q\n! available commands are: %q, %q, %q %q and %q\n",
-				cmd,
-				"quit",
-				"join",
-				"exit",
-				"talk",
-				"ls",
-			)
-		}
-
-		if conn.Closed(c) {
-			return
+			fmt.Printf("< unknown command %q\n", cmd)
 		}
 	}
 
-end:
 	if err := sc.Err(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		log.Fatal(err)
+	}
+}
+
+func cliReadFromConn(r io.Reader) {
+	for {
+		var m msg
+		if _, err := m.ReadFrom(r); err != nil {
+			log.Fatal(err)
+		} else {
+			fmt.Printf("< %v\n", m)
+		}
 	}
 }

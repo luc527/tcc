@@ -1,9 +1,9 @@
-defmodule Tcc.MixProject do
+defmodule Tccex.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :tcc,
+      app: :tccex,
       version: "0.1.0",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
@@ -15,7 +15,7 @@ defmodule Tcc.MixProject do
   def application do
     [
       extra_applications: [:logger],
-      mod: {Tcc.Application, []}
+      mod: {Tccex.Application, []}
     ]
   end
 
