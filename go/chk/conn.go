@@ -7,7 +7,7 @@ import (
 	"unique"
 )
 
-type connId int
+type connId = int
 
 type ConnMessage struct {
 	ConnId connId

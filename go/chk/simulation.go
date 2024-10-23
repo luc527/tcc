@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	ErrNotOnline = fmt.Errorf("no connection with this id has begun")
+	errNotOnline = fmt.Errorf("no connection with this id has begun")
 )
 
 type zero = struct{}
@@ -37,7 +37,7 @@ func (sim Simulation) startconn(cid connId) bool {
 
 func (sim Simulation) join(cid connId, rid uint32, name string) (iter.Seq[connId], error) {
 	if _, ok := sim.online[cid]; !ok {
-		return nil, ErrNotOnline
+		return nil, errNotOnline
 	}
 	if !mes.NameValid(name) {
 		return nil, mes.ErrBadName
@@ -106,7 +106,7 @@ func (sim Simulation) lsro(cid connId) (string, error) {
 
 func (sim Simulation) endconn(cid connId) (iter.Seq[uint32], error) {
 	if _, ok := sim.online[cid]; !ok {
-		return nil, ErrNotOnline
+		return nil, errNotOnline
 	}
 	delete(sim.online, cid)
 	return maps.Keys(sim.clirooms(cid)), nil
@@ -114,7 +114,7 @@ func (sim Simulation) endconn(cid connId) (iter.Seq[uint32], error) {
 
 func (sim Simulation) talk(cid connId, text string, rid uint32) (string, iter.Seq[connId], error) {
 	if _, ok := sim.online[cid]; !ok {
-		return "", nil, ErrNotOnline
+		return "", nil, errNotOnline
 	}
 	if !mes.TextValid(text) {
 		return "", nil, mes.ErrBadMessage

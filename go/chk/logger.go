@@ -33,13 +33,13 @@ func init() {
 	}
 }
 
-type logmes struct {
+type LoggedMessage struct {
 	connName string
 	dur      time.Duration
 	m        mes.Message
 }
 
-func (lm logmes) String() string {
+func (lm LoggedMessage) String() string {
 	return fmt.Sprintf("{%v, %v, %v}", lm.connName, logepoch.Add(lm.dur).Format("01/06 15:04:05.000000"), lm.m)
 }
 
@@ -57,7 +57,7 @@ func makelogger(w *csv.Writer) logger {
 	return logger{ctx, cancel, w, recs}
 }
 
-func (lm logmes) torecord() []string {
+func (lm LoggedMessage) torecord() []string {
 	return []string{
 		lm.connName,
 		strconv.FormatInt(lm.dur.Nanoseconds(), 10),
@@ -68,9 +68,9 @@ func (lm logmes) torecord() []string {
 	}
 }
 
-func (lm *logmes) fromrecord(rec []string) error {
+func (lm *LoggedMessage) fromrecord(rec []string) error {
 	if len(rec) != 6 {
-		return fmt.Errorf("logmes: invalid record length %d", len(rec))
+		return fmt.Errorf("LoggedMessage: invalid record length %d", len(rec))
 	}
 
 	connName := rec[0]
@@ -82,20 +82,20 @@ func (lm *logmes) fromrecord(rec []string) error {
 
 	nsec, err := strconv.ParseInt(snsec, 10, 64)
 	if err != nil {
-		return fmt.Errorf("logmes: %w", err)
+		return fmt.Errorf("LoggedMessage: %w", err)
 	}
 	dur := time.Duration(nsec * int64(time.Nanosecond))
 
 	t, err := mes.ParseType(smtype)
 	if err != nil {
-		return fmt.Errorf("logmes: %w", err)
+		return fmt.Errorf("LoggedMessage: %w", err)
 	}
 
 	room := uint32(0)
 	if t.HasRoom() {
 		uroom, err := strconv.ParseUint(sroom, 10, 32)
 		if err != nil {
-			return fmt.Errorf("logmes: %w", err)
+			return fmt.Errorf("LoggedMessage: %w", err)
 		}
 		room = uint32(uroom)
 	}
@@ -130,7 +130,7 @@ func (l logger) main() {
 }
 
 func (l logger) log(connName string, m mes.Message) {
-	lm := logmes{connName, time.Since(logepoch), m}
+	lm := LoggedMessage{connName, time.Since(logepoch), m}
 	rec := lm.torecord()
 	if !trysend(l.recs, rec, l.ctx.Done()) {
 		fmt.Fprintln(os.Stderr, "failed to log")

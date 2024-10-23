@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+// TODO: ensure nodelay is OFF
+
 func serve(listener net.Listener) {
 	// TODO: one hub per core
 	hctx, hcancel := context.WithCancel(context.Background())
@@ -66,17 +68,20 @@ type clientconn struct {
 }
 
 func makeclientconn(ctx context.Context, c conn.Conn, hj hubroomjoiner) clientconn {
-	rl := ratelimiter(c.Done(), connIncomingRateLimit, connIncomingBurstLimit)
+	// rl := ratelimiter(c.Done(), connIncomingRateLimit, connIncomingBurstLimit)
 	return clientconn{
-		c:      c,
-		hj:     hj,
-		rl:     rl,
+		ctx: ctx,
+		c:   c,
+		hj:  hj,
+		// rl:     rl,
 		rooms:  make(map[uint32]roomclienthandle),
 		exited: make(chan uint32),
 	}
 }
 
 func (cc clientconn) wait() bool {
+	return true
+
 	select {
 	case <-cc.c.Done():
 		return false
@@ -87,7 +92,7 @@ func (cc clientconn) wait() bool {
 
 func (cc clientconn) main() {
 	c := cc.c
-	defer c.Close()
+	defer c.Stop()
 
 	for {
 		select {
@@ -184,7 +189,7 @@ func (cc clientconn) handlejoin(room uint32, name string) {
 	case hj.reqs <- hreq:
 		select {
 		case <-time.After(clientRoomTimeout):
-		case jp := <-prob: // TODO: prob should return some problem id instead of just zero{}
+		case jp := <-prob:
 			switch jp {
 			case jfull:
 				conn.Send(c, mes.Prob(mes.ErrRoomFull))

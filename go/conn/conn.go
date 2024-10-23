@@ -23,14 +23,14 @@ type conn struct {
 	out    chan mes.Message
 }
 
-func (c conn) Close()                  { c.cancel() }
+func (c conn) Stop()                   { c.cancel() }
 func (c conn) Done() <-chan zero       { return c.ctx.Done() }
 func (c conn) In() <-chan mes.Message  { return c.in }
 func (c conn) Out() chan<- mes.Message { return c.out }
 
 func (c conn) Start(raw net.Conn) {
-	go c.produceIn(raw)
 	go c.consumeOut(raw)
+	go c.produceIn(raw)
 }
 
 func (c conn) produceIn(raw net.Conn) {
@@ -88,7 +88,7 @@ func (c conn) consumeOut(raw net.Conn) {
 				return
 			}
 			if _, err := m.WriteTo(raw); err != nil {
-				log.Printf("failed to write: %v\n", err)
+				// log.Printf("failed to write: %v\n", err)
 				return
 			}
 		}

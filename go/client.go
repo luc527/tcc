@@ -27,7 +27,7 @@ func clientmain(address string) {
 }
 
 func handleserver(c conn.Conn) {
-	defer c.Close()
+	defer c.Stop()
 
 	for m := range conn.Messages(c) {
 		switch m.T {
@@ -49,7 +49,7 @@ func handleserver(c conn.Conn) {
 }
 
 func handlescanner(sc *bufio.Scanner, c conn.Conn) {
-	defer c.Close()
+	defer c.Stop()
 	for sc.Scan() {
 		toks := respace.Split(sc.Text(), 3)
 		if len(toks) == 0 {

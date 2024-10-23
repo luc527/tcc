@@ -1,5 +1,7 @@
 package chk
 
+// TODO: have to re-test the realtime checker
+
 import (
 	"context"
 	"slices"
@@ -81,8 +83,13 @@ func (rtc *Rtchecker) Start() {
 	go rtc.main()
 }
 
-func (rtc *Rtchecker) Done() <-chan zero {
-	return rtc.done
+func (rtc *Rtchecker) Stop() {
+	close(rtc.cms)
+}
+
+func (rtc *Rtchecker) Results() RtcheckResults {
+	<-rtc.done
+	return rtc.res
 }
 
 func (rtc *Rtchecker) main() {

@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"tccgo/chk"
+	"tccgo/tests"
 )
 
 const usage = `
@@ -26,7 +27,7 @@ func prusage() {
 	os.Exit(1)
 }
 
-func main() {
+func climain() {
 	args := os.Args[1:]
 	if len(args) == 0 {
 		prusage()
@@ -50,6 +51,15 @@ func main() {
 	}
 
 	prusage()
+}
+
+func main() {
+	if os.Args[1] == "server" {
+		servermain()
+	} else {
+		// test1(os.Args[1])
+		tests.Randmain(os.Args[1])
+	}
 }
 
 func servermain() {

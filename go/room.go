@@ -1,5 +1,8 @@
 package main
 
+// TODO: when client exits room, should receive exed message
+// update in simulator and also in elixir impl
+
 import (
 	"context"
 )

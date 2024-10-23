@@ -11,7 +11,7 @@ type zero = struct{}
 
 type Conn interface {
 	Start(net.Conn)
-	Close()
+	Stop()
 	Done() <-chan zero
 	In() <-chan mes.Message
 	Out() chan<- mes.Message
