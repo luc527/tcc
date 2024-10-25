@@ -2,8 +2,6 @@ defmodule Tccex.Message do
   @ping 0x01
   @pub 0x02
   @sub 0x03
-  @unsub 0x04
-  @subbed 0x05
 
   def decode(binary) do
     decode(binary, [])
@@ -30,22 +28,12 @@ defmodule Tccex.Message do
         <<
           @sub::unsigned-integer-8,
           topic::unsigned-little-integer-16,
+          b::unsigned-integer-8,
           rest::binary
         >>,
         messages
       ) do
-    decode(rest, [{:sub, topic} | messages])
-  end
-
-  def decode(
-        <<
-          @unsub::unsigned-integer-8,
-          topic::unsigned-little-integer-16,
-          rest::binary
-        >>,
-        messages
-      ) do
-    decode(rest, [{:sub, topic} | messages])
+    decode(rest, [{:sub, topic, b != 0} | messages])
   end
 
   def decode(<<type::unsigned-integer-8, rest::binary>>, messages)
@@ -70,11 +58,12 @@ defmodule Tccex.Message do
     >>
   end
 
-  def encode({:subbed, topic, true}) do
-    <<@subbed::unsigned-integer-8, topic::unsigned-little-integer-16, 1::unsigned-integer-8>>
+  def encode({:sub, topic, b}) do
+    <<
+      @sub::unsigned-integer-8,
+      topic::unsigned-little-integer-16,
+      (if b, do: 1, else: 0) ::unsigned-integer-8
+    >>
   end
 
-  def encode({:subbed, topic, false}) do
-    <<@subbed::unsigned-integer-8, topic::unsigned-little-integer-16, 0::unsigned-integer-8>>
-  end
 end

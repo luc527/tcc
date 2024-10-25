@@ -34,8 +34,7 @@ defmodule Tccex.Receiver do
   end
 
   defp handle_message(:ping, client_pid), do: Client.ping(client_pid)
-  defp handle_message({:sub, topic}, client_pid), do: Client.sub(client_pid, topic)
-  defp handle_message({:unsub, topic}, client_pid), do: Client.unsub(client_pid, topic)
+  defp handle_message({:sub, topic, b}, client_pid), do: Client.sub(client_pid, topic, b)
 
   defp handle_message({:pub, topic, payload}, client_pid),
     do: Client.pub(client_pid, topic, payload)

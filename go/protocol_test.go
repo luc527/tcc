@@ -10,10 +10,8 @@ func TestProtocol(t *testing.T) {
 	ms := []msg{
 		{t: pingMsg},
 		{t: pingMsg, topic: 123, payload: "abcba"},
-		{t: subMsg, topic: 666},
-		{t: subbedMsg, topic: 120, payload: "lol ignored", subbed: false},
-		{t: subbedMsg, topic: 120, subbed: true},
-		{t: subMsg, topic: 666, payload: "asdf"},
+		{t: subMsg, topic: 120, payload: "lol ignored", b: false},
+		{t: subMsg, topic: 120, b: true},
 		{t: pubMsg, topic: 99, payload: "hello"},
 		{t: pubMsg, topic: 129, payload: "now this is a really really long message :) üỳʔ oo--"},
 		{t: pubMsg, topic: 0, payload: ""},

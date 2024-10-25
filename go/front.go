@@ -39,6 +39,14 @@ func (s server) partition(topic uint16) *serverPartition {
 	return s.partitions[int(topic)%len(s.partitions)]
 }
 
+func (s server) chsub(topic uint16, sub subscriber, b bool) bool {
+	if b {
+		return s.sub(topic, sub)
+	} else {
+		return s.unsub(topic, sub)
+	}
+}
+
 func (s server) sub(topic uint16, sub subscriber) bool {
 	sp := s.partition(topic)
 	return sp.sub(topic, sub)
@@ -109,9 +117,7 @@ func handleMessage(s server, sub subscriber, m msg) {
 	case pubMsg:
 		s.pub(m.topic, m.payload)
 	case subMsg:
-		s.sub(m.topic, sub)
-	case unsubMsg:
-		s.unsub(m.topic, sub)
+		s.chsub(m.topic, sub, m.b)
 	}
 }
 
@@ -141,9 +147,9 @@ func writeToConn(
 			}
 		case sed := <-sub.subbedc:
 			m := msg{
-				t:      subbedMsg,
-				topic:  sed.topic,
-				subbed: sed.b,
+				t:     subMsg,
+				topic: sed.topic,
+				b:     sed.b,
 			}
 			if !tryWrite(conn, m) {
 				return

@@ -70,9 +70,9 @@ func client(address string) {
 
 		switch cmd {
 		case "sub":
-			write(msg{t: subMsg, topic: topic})
+			write(msg{t: subMsg, b: true, topic: topic})
 		case "unsub":
-			write(msg{t: unsubMsg, topic: topic, payload: payload})
+			write(msg{t: subMsg, b: false, topic: topic})
 		case "pub":
 			write(msg{t: pubMsg, topic: topic, payload: payload})
 		default:

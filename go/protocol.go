@@ -10,17 +10,15 @@ import (
 type msgType uint8
 
 const (
-	pingMsg   = msgType(0x01)
-	pubMsg    = msgType(0x02)
-	subMsg    = msgType(0x03)
-	unsubMsg  = msgType(0x04)
-	subbedMsg = msgType(0x05)
+	pingMsg = msgType(0x01)
+	pubMsg  = msgType(0x02)
+	subMsg  = msgType(0x03)
 )
 
 type msg struct {
 	t       msgType
 	topic   uint16
-	subbed  bool
+	b       bool
 	payload string
 }
 
@@ -46,7 +44,7 @@ func (m msg) WriteTo(w io.Writer) (int64, error) {
 	n += int64(nn)
 
 	// write topic (2 bytes)
-	if m.t == pubMsg || m.t == subMsg || m.t == unsubMsg || m.t == subbedMsg {
+	if m.t == pubMsg || m.t == subMsg {
 		binary.LittleEndian.PutUint16(buf[:], m.topic)
 		nn, err = writefull(w, buf[:])
 		if err != nil {
@@ -55,10 +53,10 @@ func (m msg) WriteTo(w io.Writer) (int64, error) {
 		n += int64(nn)
 	}
 
-	// write subbed (1 byte)
-	if m.t == subbedMsg {
+	// write bool (1 byte)
+	if m.t == subMsg {
 		buf[0] = 0
-		if m.subbed {
+		if m.b {
 			buf[0] = 1
 		}
 		nn, err = writefull(w, buf[:1])
@@ -104,7 +102,7 @@ func (m *msg) ReadFrom(r io.Reader) (int64, error) {
 		return n, err
 	}
 
-	if t == pubMsg || t == subMsg || t == unsubMsg || t == subbedMsg {
+	if t == pubMsg || t == subMsg {
 		nn, err = readfull(r, buf[:2])
 		n += int64(nn)
 		topic := binary.LittleEndian.Uint16(buf[:])
@@ -114,10 +112,10 @@ func (m *msg) ReadFrom(r io.Reader) (int64, error) {
 		}
 	}
 
-	if t == subbedMsg {
+	if t == subMsg {
 		nn, err = readfull(r, buf[:1])
 		n += int64(nn)
-		m.subbed = buf[0] > 0
+		m.b = buf[0] > 0
 		if err != nil {
 			return n, err
 		}
@@ -149,13 +147,13 @@ func (a msg) eq(b msg) bool {
 	if a.t != b.t {
 		return false
 	}
-	if a.t == pubMsg || a.t == subMsg || a.t == unsubMsg || a.t == subbedMsg {
+	if a.t == pubMsg || a.t == subMsg {
 		if a.topic != b.topic {
 			return false
 		}
 	}
-	if a.t == subbedMsg {
-		if a.subbed != b.subbed {
+	if a.t == subMsg {
+		if a.b != b.b {
 			return false
 		}
 	}
@@ -172,13 +170,11 @@ func (m msg) String() string {
 	case pingMsg:
 		return "msg{ping}"
 	case subMsg:
-		return fmt.Sprintf("msg{sub, %d}", m.topic)
+		return fmt.Sprintf("msg{sub, %d, %v}", m.topic, m.b)
 	case pubMsg:
 		return fmt.Sprintf("msg{pub, %d, %q}", m.topic, m.payload)
-	case subbedMsg:
-		return fmt.Sprintf("msg{subbed, %d, %v}", m.topic, m.subbed)
 	default:
-		return fmt.Sprintf("msg{<invalid %d>, %d, %v, %v}", m.t, m.topic, m.subbed, m.payload)
+		return fmt.Sprintf("msg{<invalid %d>, %d, %v, %v}", m.t, m.topic, m.b, m.payload)
 	}
 }
 

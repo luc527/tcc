@@ -19,43 +19,6 @@ defmodule Tccex.Client do
     send_back(msg, sock)
   end
 
-  def handle_call({:conn_msg, msg}, _from, sock) do
-    case handle_conn_msg(msg) do
-      {:response, _} = resp -> {:reply, :ok, sock, {:continue, resp}}
-      _ -> {:reply, :ok, sock}
-    end
-  end
-
-  defp handle_conn_msg(:ping) do
-    Logger.info("received ping, responding ping")
-    {:response, :ping}
-  end
-
-  defp handle_conn_msg({:sub, topic}) do
-    Logger.info("received sub #{topic}, subscribing")
-    Registry.register(Topic.Registry, topic, nil)
-    {:response, {:subbed, topic, true}}
-  end
-
-  defp handle_conn_msg({:unsub, topic}) do
-    Logger.info("received unsub #{topic}, unsubscribing")
-    Registry.unregister(Topic.Registry, topic)
-    {:response, {:subbed, topic, false}}
-  end
-
-  defp handle_conn_msg({:pub, topic, payload}) do
-    Logger.info("received pub #{topic};#{payload}, publishing")
-
-    Registry.dispatch(Topic.Registry, topic, fn clients ->
-      Logger.info("publishing to pids: #{inspect(clients)}")
-      Enum.each(clients, fn {pid, _value} ->
-        GenServer.cast(pid, {:pub, topic, payload})
-      end)
-    end)
-
-    :ok
-  end
-
   defp send_back(msg, sock) do
     Logger.info("sending msg #{inspect(msg)}")
     packet = Message.encode(msg)
@@ -69,8 +32,39 @@ defmodule Tccex.Client do
     end
   end
 
+  def handle_call({:conn_msg, msg}, _from, sock) do
+    handle_conn_msg(msg, sock)
+  end
+
+  defp handle_conn_msg(:ping, sock) do
+    Logger.info("received ping, responding ping")
+    {:reply, :ok, sock, {:continue, {:response, :ping}}}
+  end
+
+  defp handle_conn_msg({:sub, topic, b}, sock) do
+    Logger.info("received sub #{topic} (#{inspect(b)})")
+    handle_sub(topic, b)
+    {:reply, :ok, sock, {:continue, {:response, {:sub, topic, b}}}}
+  end
+
+  defp handle_conn_msg({:pub, topic, payload}, sock) do
+    Logger.info("received pub #{topic};#{payload}, publishing")
+    handle_pub(topic, payload)
+    {:reply, :ok, sock}
+  end
+
+  defp handle_sub(topic, true), do: Registry.register(Topic.Registry, topic, nil)
+  defp handle_sub(topic, false), do: Registry.unregister(Topic.Registry, topic)
+
+  defp handle_pub(topic, payload) do
+    Registry.dispatch(Topic.Registry, topic, fn clients ->
+      Enum.each(clients, fn {pid, _value} ->
+        GenServer.cast(pid, {:pub, topic, payload})
+      end)
+    end)
+  end
+
   def ping(pid), do: GenServer.call(pid, {:conn_msg, :ping})
-  def sub(pid, topic), do: GenServer.call(pid, {:conn_msg, {:sub, topic}})
+  def sub(pid, topic, b), do: GenServer.call(pid, {:conn_msg, {:sub, topic, b}})
   def pub(pid, topic, payload), do: GenServer.call(pid, {:conn_msg, {:pub, topic, payload}})
-  def unsub(pid, topic), do: GenServer.call(pid, {:conn_msg, {:unsub, topic}})
 end
