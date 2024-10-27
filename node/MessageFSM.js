@@ -24,7 +24,7 @@ class Uint16FSM {
     }
 }
 
-class Payload {
+class PayloadFSM {
     constructor() {
         this.reset(0);
     }
@@ -35,6 +35,7 @@ class Payload {
         this.ok = false;
     }
 
+    // XXX: possible bottleneck? this runs for *each byte* of the payload
     handle(byte) {
         if (this.read < this.buffer.length) {
             this.buffer[this.read++] = byte;
@@ -48,7 +49,7 @@ class Payload {
 export default class MessageFSM {
     constructor() {
         this.uint = new Uint16FSM();
-        this.payload = new Payload();
+        this.payload = new PayloadFSM();
         this.stateFn = this.start;
     }
 
