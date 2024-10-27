@@ -1,9 +1,5 @@
 package main
 
-import (
-	"fmt"
-)
-
 type zero = struct{}
 
 type publication struct {
@@ -11,158 +7,191 @@ type publication struct {
 	payload string
 }
 
-func (p publication) String() string {
-	return fmt.Sprintf("publication{topic: %d, payload: %q}", p.topic, p.payload)
+type subscription struct {
+	topic      uint16
+	subscribed bool
 }
 
-type subbed struct {
-	topic uint16
-	b     bool
-}
-
-func (s subbed) String() string {
-	return fmt.Sprintf("subbed{topic: %d, b: %v}", s.topic, s.b)
+type subscriptionRequest struct {
+	subscription
+	subscriber
 }
 
 type subscriber struct {
-	subbedc chan subbed
-	pubc    chan publication
-	done    <-chan zero
-}
-
-type subscription struct {
-	topic uint16
-	sub   subscriber
+	done <-chan zero
+	pub  chan publication
+	sub  chan subscription
 }
 
 type serverPartition struct {
-	id     int
-	subs   map[uint16]map[subscriber]zero
-	subc   chan subscription
-	unsubc chan subscription
-	pubc   chan publication
-	done   chan zero
+	subscribers map[uint16]map[subscriber]zero
+	topics      map[subscriber]map[uint16]zero
 }
 
-func newServerPartition(id int) *serverPartition {
-	return &serverPartition{
-		id:     id,
-		subs:   make(map[uint16]map[subscriber]zero),
-		subc:   make(chan subscription),
-		unsubc: make(chan subscription),
-		pubc:   make(chan publication),
-		done:   make(chan zero),
+func makeServerPartition() serverPartition {
+	return serverPartition{
+		subscribers: make(map[uint16]map[subscriber]zero),
+		topics:      make(map[subscriber]map[uint16]zero),
 	}
 }
 
-func makeSubscriber() subscriber {
-	return subscriber{
-		subbedc: make(chan subbed),
-		pubc:    make(chan publication),
-		done:    make(chan zero),
+func (sp serverPartition) handleDisconnect(s subscriber) {
+	ts, ok := sp.topics[s]
+	if !ok {
+		return
 	}
+	for t := range ts {
+		if ss, ok := sp.subscribers[t]; ok {
+			delete(ss, s)
+			if len(ss) == 0 {
+				delete(sp.subscribers, t)
+			}
+		}
+	}
+	delete(sp.topics, s)
 }
 
-func (sp *serverPartition) sub(topic uint16, s subscriber) bool {
+func (sp serverPartition) handleSubscribe(t uint16, s subscriber) {
+	ss, ok := sp.subscribers[t]
+	if !ok {
+		ss = make(map[subscriber]zero)
+		sp.subscribers[t] = ss
+	}
+	ss[s] = zero{}
+
+	ts, ok := sp.topics[s]
+	if !ok {
+		ts = make(map[uint16]zero)
+		sp.topics[s] = ts
+	}
+	ts[t] = zero{}
+
+	sx := subscription{
+		topic:      t,
+		subscribed: true,
+	}
 	select {
-	case <-sp.done:
-		return false
-	case sp.subc <- subscription{topic, s}:
-		return true
+	case <-s.done:
+	case s.sub <- sx:
 	}
 }
 
-func (sp *serverPartition) pub(topic uint16, payload string) bool {
+func (sp serverPartition) handleUnsubscribe(t uint16, s subscriber) {
+	ss, ok := sp.subscribers[t]
+	if ok {
+		delete(ss, s)
+		if len(ss) == 0 {
+			delete(sp.subscribers, t)
+		}
+	}
+
+	ts, ok := sp.topics[s]
+	if ok {
+		delete(ts, t)
+		if len(ts) == 0 {
+			delete(sp.topics, s)
+		}
+	}
+
+	sx := subscription{
+		topic:      t,
+		subscribed: false,
+	}
 	select {
-	case <-sp.done:
-		return false
-	case sp.pubc <- publication{topic, payload}:
-		return true
+	case <-s.done:
+	case s.sub <- sx:
 	}
 }
 
-func (sp *serverPartition) unsub(topic uint16, s subscriber) bool {
-	select {
-	case <-sp.done:
-		return false
-	case sp.unsubc <- subscription{topic, s}:
-		return true
+func (sp serverPartition) handlePublish(t uint16, p string) {
+	ss, ok := sp.subscribers[t]
+	if !ok {
+		return
 	}
-
+	px := publication{
+		topic:   t,
+		payload: p,
+	}
+	for s := range ss {
+		select {
+		case <-s.done:
+		case s.pub <- px:
+		}
+	}
 }
 
-func (sp *serverPartition) main() {
+type serverPartitionChannels struct {
+	disconnect chan subscriber
+	subscribe  chan subscriptionRequest
+	publish    chan publication
+}
+
+func makeServerPartitionChannels() serverPartitionChannels {
+	return serverPartitionChannels{
+		disconnect: make(chan subscriber),
+		subscribe:  make(chan subscriptionRequest),
+		publish:    make(chan publication),
+	}
+}
+
+func (spc serverPartitionChannels) main(sp serverPartition) {
 	for {
 		select {
-		case s := <-sp.subc:
-			sp.handleSub(s)
-		case s := <-sp.unsubc:
-			sp.handleUnsub(s)
-		case p := <-sp.pubc:
-			sp.handlePub(p)
-		case <-sp.done:
-			return
+		case s := <-spc.disconnect:
+			sp.handleDisconnect(s)
+		case sx := <-spc.subscribe:
+			if sx.subscribed {
+				sp.handleSubscribe(sx.topic, sx.subscriber)
+			} else {
+				sp.handleUnsubscribe(sx.topic, sx.subscriber)
+			}
+		case px := <-spc.publish:
+			sp.handlePublish(px.topic, px.payload)
 		}
 	}
 }
 
-func (sp *serverPartition) start() {
-	go sp.main()
+type server struct {
+	parts []serverPartition
+	chans []serverPartitionChannels
 }
 
-func (sp *serverPartition) stop() {
-	select {
-	case <-sp.done:
-	default:
-		close(sp.done)
+func makeServer(nparts int) server {
+	parts := make([]serverPartition, nparts)
+	chans := make([]serverPartitionChannels, nparts)
+	for i := range nparts {
+		parts[i] = makeServerPartition()
+		chans[i] = makeServerPartitionChannels()
 	}
-}
-
-func (sp *serverPartition) handleSub(sx subscription) {
-	subs, ok := sp.subs[sx.topic]
-	if !ok {
-		subs = make(map[subscriber]zero)
-		sp.subs[sx.topic] = subs
-	}
-
-	subs[sx.sub] = zero{}
-
-	subbed := subbed{topic: sx.topic, b: true}
-	select {
-	case sx.sub.subbedc <- subbed:
-	case <-sx.sub.done:
+	return server{
+		parts: parts,
+		chans: chans,
 	}
 }
 
-func (sp *serverPartition) handleUnsub(sx subscription) {
-	subs, ok := sp.subs[sx.topic]
-	if !ok {
-		return
-	}
-
-	delete(subs, sx.sub)
-
-	if len(subs) == 0 {
-		delete(sp.subs, sx.topic)
-	}
-
-	subbed := subbed{topic: sx.topic, b: false}
-	select {
-	case sx.sub.subbedc <- subbed:
-	case <-sx.sub.done:
+func (sv server) start() {
+	for i := range sv.parts {
+		go sv.chans[i].main(sv.parts[i])
 	}
 }
 
-func (sp *serverPartition) handlePub(px publication) {
-	subs, ok := sp.subs[px.topic]
-	if !ok {
-		return
-	}
+func (sv server) partitionChannels(t uint16) serverPartitionChannels {
+	i := int(t) % len(sv.parts)
+	return sv.chans[i]
+}
 
-	for sub := range subs {
-		select {
-		case sub.pubc <- px:
-		case <-sub.done:
-		}
+func (sv server) disconnect(s subscriber) {
+	for _, spc := range sv.chans {
+		spc.disconnect <- s
 	}
+}
+
+func (sv server) subscribe(t uint16, s subscriber, b bool) {
+	sx := subscriptionRequest{subscription{t, b}, s}
+	sv.partitionChannels(t).subscribe <- sx
+}
+
+func (sv server) publish(t uint16, p string) {
+	px := publication{t, p}
+	sv.partitionChannels(t).publish <- px
 }

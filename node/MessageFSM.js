@@ -1,8 +1,4 @@
-class Type {
-    static ping = 1;
-    static pub = 2;
-    static sub = 3;
-};
+import Type from './Type.js';
 
 // little-endian
 class Uint16FSM {
@@ -79,7 +75,7 @@ export default class MessageFSM {
             this.stateFn = this.pubTopic;
             break;
         default:
-            this.unknownCb && this.unknownCb();
+            this.unknownCb && this.unknownCb(byte);
             break;
         }
     }

@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
 func client(address string) {
@@ -18,11 +20,21 @@ func client(address string) {
 		log.Fatal(err)
 	}
 
+	mu := new(sync.Mutex)
 	write := func(m msg) {
+		mu.Lock()
+		defer mu.Unlock()
 		if _, err := m.WriteTo(conn); err != nil {
 			log.Fatal(err)
 		}
 	}
+
+	go func() {
+		tick := time.Tick(50 * time.Second)
+		for range tick {
+			write(msg{t: pingMsg})
+		}
+	}()
 
 	respace := regexp.MustCompile(`\s+`)
 
@@ -34,7 +46,7 @@ func client(address string) {
 			break
 		}
 		for _, s := range strings.Split(sc.Text(), ";") {
-            s = strings.Trim(s, " \n\r\t")
+			s = strings.Trim(s, " \n\r\t")
 			ss := respace.Split(s, 3)
 
 			if len(ss) == 0 {

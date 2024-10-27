@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"iter"
 	"log"
 	"net"
 	"runtime"
@@ -17,114 +18,72 @@ var (
 	numPartitions = runtime.NumCPU()
 )
 
-type server struct {
-	partitions []*serverPartition
-}
-
-// NOTE: since the partitions slice won't be modified, we don't need server methods to have ptr
-// receivers, as in (s *server)
-
-func newServer(numPartitions int) (server, error) {
-	s := server{
-		partitions: make([]*serverPartition, numPartitions),
-	}
-	for id := range numPartitions {
-		sp := newServerPartition(id)
-		s.partitions[id] = sp
-	}
-	return s, nil
-}
-
-func (s server) partition(topic uint16) *serverPartition {
-	return s.partitions[int(topic)%len(s.partitions)]
-}
-
-func (s server) chsub(topic uint16, sub subscriber, b bool) bool {
-	if b {
-		return s.sub(topic, sub)
-	} else {
-		return s.unsub(topic, sub)
-	}
-}
-
-func (s server) sub(topic uint16, sub subscriber) bool {
-	sp := s.partition(topic)
-	return sp.sub(topic, sub)
-}
-
-func (s server) unsub(topic uint16, sub subscriber) bool {
-	sp := s.partition(topic)
-	return sp.unsub(topic, sub)
-}
-
-func (s server) pub(topic uint16, payload string) bool {
-	sp := s.partition(topic)
-	return sp.pub(topic, payload)
-}
-
-func (s server) start() {
-	for _, sp := range s.partitions {
-		sp.start()
-	}
-}
-
-func serve(l net.Listener, s server) {
+func serve(l net.Listener, sv server) {
 	for {
 		conn, err := l.Accept()
 		if err != nil {
 			log.Println(err)
 			continue
 		}
-		go handleConn(s, conn)
+		go handleConn(sv, conn)
 	}
 }
 
-func handleConn(s server, conn net.Conn) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel() // overkill?
-
-	sub := subscriber{
-		subbedc: make(chan subbed),
-		pubc:    make(chan publication),
-		done:    ctx.Done(),
-	}
-	ping := make(chan zero)
-	go writeToConn(ctx, cancel, sub, ping, conn)
-
-	in := make(chan msg)
-	go readFromConn(ctx, cancel, in, conn)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case m := <-in:
-			if m.t == pingMsg {
-				select {
-				case <-ctx.Done():
+func messages(done <-chan zero, in <-chan msg) iter.Seq[msg] {
+	return func(yield func(msg) bool) {
+		for {
+			select {
+			case <-done:
+				return
+			case m := <-in:
+				if !yield(m) {
 					return
-				case ping <- zero{}:
 				}
-			} else {
-				handleMessage(s, sub, m)
 			}
 		}
 	}
 }
 
-func handleMessage(s server, sub subscriber, m msg) {
-	switch m.t {
-	case pubMsg:
-		s.pub(m.topic, m.payload)
-	case subMsg:
-		s.chsub(m.topic, sub, m.b)
+func handleConn(sv server, conn net.Conn) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s := subscriber{
+		done: ctx.Done(),
+		sub:  make(chan subscription),
+		pub:  make(chan publication),
+	}
+
+	context.AfterFunc(ctx, func() {
+		sv.disconnect(s)
+	})
+
+	ping := make(chan zero)
+	go writeToConn(ctx, cancel, s, ping, conn)
+
+	in := make(chan msg)
+	go readFromConn(ctx, cancel, in, conn)
+
+	for m := range messages(ctx.Done(), in) {
+		switch m.t {
+		case pingMsg:
+			select {
+			case <-ctx.Done():
+				return
+			case ping <- zero{}:
+			}
+		case pubMsg:
+			sv.publish(m.topic, m.payload)
+		case subMsg:
+			sv.subscribe(m.topic, s, m.b)
+		}
 	}
 }
 
 func writeToConn(
 	ctx context.Context,
 	cancel context.CancelFunc,
-	sub subscriber,
+	s subscriber,
 	ping <-chan zero,
 	conn net.Conn,
 ) {
@@ -145,16 +104,16 @@ func writeToConn(
 			if !tryWrite(conn, m) {
 				return
 			}
-		case sed := <-sub.subbedc:
+		case sx := <-s.sub:
 			m := msg{
 				t:     subMsg,
-				topic: sed.topic,
-				b:     sed.b,
+				topic: sx.topic,
+				b:     sx.subscribed,
 			}
 			if !tryWrite(conn, m) {
 				return
 			}
-		case px := <-sub.pubc:
+		case px := <-s.pub:
 			m := msg{
 				t:       pubMsg,
 				topic:   px.topic,

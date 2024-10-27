@@ -1,5 +1,6 @@
 import * as net from 'net';
 import MessageFSM from './MessageFSM.js';
+import Type from './Type.js';
 
 let serverOpts = {
     noDelay: true,
@@ -11,26 +12,41 @@ server.on('error', err => {
 });
 
 server.on('connection', sock => {
+    sock.on('end', () => {
+        console.log('sock ended');
+    });
+
+    sock.on('timeout', () => {
+        console.log('sock timed out');
+        sock.end();
+    });
+
+    function resetTimeout() {
+        // TODO: do I have to call setTimeout(0) to cancel the previous timer?
+        sock.setTimeout(60_000);
+    }
+    resetTimeout();
+    // TODO: check if calling resetTimeout() for every message received is the right way to go on
+    // about this. 
+
     let fsm = new MessageFSM();
     fsm.onPing(() => {
-        console.log('ping!');
+        sock.write(Buffer.of(Type.ping));
+        resetTimeout();
     });
     fsm.onSub((topic, b) => {
-        console.log(`sub, topic: ${topic}, b: ${b}`);
+
+        resetTimeout();
     });
     fsm.onPub((topic, payload) => {
-        console.log(`pub, topic: ${topic}, payload: ${payload}`)
+
+        resetTimeout();
     });
-    fsm.onUnknown(() => {
-        console.log('unknown message type :(');
-    });
+
     sock.on('data', data => {
-        for (let i = 0; i < data.length; i++) {
-            fsm.handle(data[i]);
+        for (let byte of data) {
+            fsm.handle(byte);
         }
-    });
-    sock.on('end', () => {
-        console.log('sock end');
     });
 });
 

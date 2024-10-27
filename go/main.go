@@ -41,13 +41,10 @@ func serverMain(args []string) {
 	address := l.Addr()
 	fmt.Printf("listening on %v\n", address)
 
-	s, err := newServer(numPartitions)
-	if err != nil {
-		log.Fatal(err)
-	}
-	s.start()
+	sv := makeServer(numPartitions)
+	sv.start()
 
-	serve(l, s)
+	serve(l, sv)
 }
 
 func clientMain(args []string) {
