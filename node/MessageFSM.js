@@ -119,8 +119,8 @@ export default class MessageFSM {
         let payload = this.payload;
         payload.handle(byte);
         if (payload.ok) {
-            let text = payload.buffer.toString('utf8');
-            this.pubCb && this.pubCb(this.topic, text);
+            let buffer = payload.buffer;
+            this.pubCb && this.pubCb(this.topic, buffer);
             this.stateFn = this.start;
         }
     }

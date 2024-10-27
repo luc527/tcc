@@ -1,19 +1,22 @@
 import * as net from 'net';
 import MessageFSM from './MessageFSM.js';
 import Type from './Type.js';
+import PubSubServer from './PubSubServer.js';
 
-let serverOpts = {
+let netsvOpts = {
     noDelay: true,
 };
-let server = net.createServer(serverOpts);
+let netsv = net.createServer(netsvOpts);
 
-server.on('error', err => {
+let pubsub = new PubSubServer();
+
+netsv.on('error', err => {
     console.log('server error', err);
 });
 
-server.on('connection', sock => {
+netsv.on('connection', sock => {
     sock.on('end', () => {
-        console.log('sock ended');
+        pubsub.disconnect(sock);
     });
 
     sock.on('timeout', () => {
@@ -22,28 +25,27 @@ server.on('connection', sock => {
     });
 
     function resetTimeout() {
-        // TODO: do I have to call setTimeout(0) to cancel the previous timer?
         sock.setTimeout(60_000);
     }
     resetTimeout();
-    // TODO: check if calling resetTimeout() for every message received is the right way to go on
-    // about this. 
 
     let fsm = new MessageFSM();
     fsm.onPing(() => {
         sock.write(Buffer.of(Type.ping));
-        resetTimeout();
     });
     fsm.onSub((topic, b) => {
-
-        resetTimeout();
+        if (b) {
+            pubsub.subscribe(topic, sock);
+        } else {
+            pubsub.unsubscribe(topic, sock);
+        }
     });
-    fsm.onPub((topic, payload) => {
-
-        resetTimeout();
+    fsm.onPub((topic, buf) => {
+        pubsub.publish(topic, buf);
     });
 
     sock.on('data', data => {
+        resetTimeout();
         for (let byte of data) {
             fsm.handle(byte);
         }
@@ -54,7 +56,7 @@ let listenOpts = {
     host: 'localhost',
     port: 0, // ephemeral
 };
-server.listen(listenOpts, () => {
-    let {port} = server.address();
+netsv.listen(listenOpts, () => {
+    let {port} = netsv.address();
     console.log(`listening on port ${port}`);
 });
