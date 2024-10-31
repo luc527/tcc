@@ -55,3 +55,4 @@ func clientMain(args []string) {
 	address, _ := args[0], args[1:]
 	client(address)
 }
+

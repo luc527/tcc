@@ -101,12 +101,14 @@ func client(address string) {
 }
 
 func cliReadFromConn(r io.Reader) {
+	count := 0
 	for {
 		var m msg
 		if _, err := m.ReadFrom(r); err != nil {
 			log.Fatal(err)
 		} else {
-			fmt.Printf("< %v\n", m)
+			count++
+			fmt.Printf("< (%5d) %v\n", count, m)
 		}
 	}
 }

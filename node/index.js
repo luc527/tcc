@@ -7,8 +7,7 @@ let netsvOpts = {
     noDelay: true,
 };
 let netsv = net.createServer(netsvOpts);
-
-let pubsub = new PubSubServer();
+let sv = new PubSubServer();
 
 netsv.on('error', err => {
     console.log('server error', err);
@@ -16,11 +15,10 @@ netsv.on('error', err => {
 
 netsv.on('connection', sock => {
     sock.on('end', () => {
-        pubsub.disconnect(sock);
+        sv.disconnect(sock);
     });
 
     sock.on('timeout', () => {
-        console.log('sock timed out');
         sock.end();
     });
 
@@ -35,13 +33,13 @@ netsv.on('connection', sock => {
     });
     fsm.onSub((topic, b) => {
         if (b) {
-            pubsub.subscribe(topic, sock);
+            sv.subscribe(topic, sock);
         } else {
-            pubsub.unsubscribe(topic, sock);
+            sv.unsubscribe(topic, sock);
         }
     });
     fsm.onPub((topic, buf) => {
-        pubsub.publish(topic, buf);
+        sv.publish(topic, buf);
     });
 
     sock.on('data', data => {
