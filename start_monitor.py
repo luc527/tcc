@@ -1,48 +1,53 @@
-import os, sys, subprocess, psutil, time
+import psutil, time, sys, subprocess
+from typing import TextIO
 
-# e.g. $ python start_monitor.py ./tccgo server 127.0.0.1:
-server_args = sys.argv[1:]
+# csv field field separator
+sep = ';'
 
-sp = subprocess.Popen(server_args, stdout=subprocess.PIPE)
-print(f'pid: {sp.pid}')
-print(f'out: {sp.stdout.readline().decode().rstrip()}')
+args = sys.argv[1:]
 
-tgid = sp.pid
-pcache = {} # to avoid creating new psutil.Process instances every loop iteration
+if not args:
+    print('cpufile?')
+    exit()
+cpufile, args = args[0], args[1:]
 
-while True:
-    time.sleep(2)
+if not args:
+    print('memfile?')
+    exit()
+memfile, args = args[0], args[1:]
 
-    if (code := sp.poll()):
-        print(f'exit ({code})')
-        break
+if not args:
+    print('server args?')
+    exit()
+subproc = subprocess.Popen(args, stdout=subprocess.PIPE, encoding='utf-8')
+proc = psutil.Process(subproc.pid)
 
-    prev_tids = set(pcache.keys())
-    curr_tids = set(map(int, os.listdir(f'/proc/{tgid}/task')))
+print(f'pid: {subproc.pid}')
+print(f'out: {subproc.stdout.readline().rstrip()}')
 
-    pcache = {tid: pcache[tid] if tid in pcache else psutil.Process(tid)
-              for tid in curr_tids}
+psutil.cpu_times_percent(interval=0, percpu=True)
 
-    vet_tids = curr_tids & prev_tids  # "veteran"
-    new_tids = curr_tids - prev_tids
+def write_row(file: TextIO, fields: list):
+    file.write(sep.join(map(str, fields)) + '\n')
+    file.flush()
 
-    vet_ps = {pcache[tid] for tid in vet_tids}
-    new_ps = {pcache[tid] for tid in new_tids}
-    all_ps = pcache.values()
+with (
+    open(cpufile, 'w') as outcpu,
+    open(memfile, 'w') as outmem,
+):
+    write_row(outcpu, ['timestamp', 'cpu', 'user', 'system', 'iowait'])
+    write_row(outmem, ['timestamp', 'rss', 'vms', 'uss', 'pss'])
 
-    for p in new_ps:
-        p.cpu_percent(0)
+    while True:
+        time.sleep(1)
+        if subproc.poll():
+            break
 
-    # TODO: find out which memory metric to take the percent of
-    # (full info in p.memory_info())
+        timestamp = int(time.time())
 
-    # TODO: sort cpu nums
+        cpu_times = psutil.cpu_times_percent(interval=0, percpu=True)
+        for cpu, info in enumerate(cpu_times, start=1):
+            write_row(outcpu, [timestamp, cpu, info.user, info.system, info.iowait])
 
-    percs = {p.cpu_num(): p.cpu_percent(0) for p in vet_ps}
-    mems  = {p.cpu_num(): p.memory_percent() for p in all_ps}
-
-    print('CPU:', ', '.join(f'{p:>5.2f}%' for p in percs))
-    print('MEM:', ', '.join(f'{m:>5.2f}%' for m in mems))
-    print()
-
-
+        info = proc.memory_full_info()
+        write_row(outmem, [timestamp, info.rss, info.vms, info.uss, info.pss])
