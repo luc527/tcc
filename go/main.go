@@ -22,6 +22,8 @@ func main() {
 		serverMain(args)
 	case "client":
 		clientMain(args)
+	case "test":
+		testMain(args)
 	default:
 		fmt.Printf("unknown command %q\n", cmd)
 	}
@@ -56,3 +58,11 @@ func clientMain(args []string) {
 	client(address)
 }
 
+func testMain(args []string) {
+	if len(args) == 0 {
+		fmt.Println("address?")
+		return
+	}
+	address, _ := args[0], args[1:]
+	runTests(address)
+}
