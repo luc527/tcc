@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"iter"
 	"log"
 	"net"
@@ -146,7 +147,9 @@ func readFromConn(ctx context.Context, cancel context.CancelFunc, in chan<- msg,
 		}
 		var m msg
 		if _, err := m.ReadFrom(conn); err != nil {
-			log.Printf("failed to read: %v", err)
+			if err != io.EOF {
+				log.Printf("failed to read: %v", err)
+			}
 			return
 		} else {
 			select {

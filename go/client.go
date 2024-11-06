@@ -105,7 +105,9 @@ func cliReadFromConn(r io.Reader) {
 	for {
 		var m msg
 		if _, err := m.ReadFrom(r); err != nil {
-			log.Fatal(err)
+			if err != io.EOF {
+				log.Fatal(err)
+			}
 		} else {
 			count++
 			fmt.Printf("< (%5d) %v\n", count, m)
