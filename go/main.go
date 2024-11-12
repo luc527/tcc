@@ -1,11 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
 	"os"
-	"strconv"
+	"time"
 )
 
 func main() {
@@ -65,26 +66,9 @@ func testMain(args []string) {
 		return
 	}
 	address, args := args[0], args[1:]
-	if len(args) == 0 {
-		fmt.Println("recv count sync threshold?")
-		return
-	}
-	recvThreshold_, args := args[0], args[1:]
-	recvThreshold, err := strconv.ParseInt(recvThreshold_, 10, 32)
-	if err != nil {
-		fmt.Printf("invalid recv count sync threshold: %v\n", err)
-		return
-	}
-	if len(args) == 0 {
-		fmt.Println("send count sync threshold?")
-		return
-	}
-	sendThreshold_, args := args[0], args[1:]
-	sendThreshold, err := strconv.ParseInt(sendThreshold_, 10, 32)
-	if err != nil {
-		fmt.Printf("invalid send count sync threshold: %v\n", err)
-		return
-	}
 	_ = args
-	runTestConsole(address, int(recvThreshold), int(sendThreshold))
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(5*time.Minute))
+	defer cancel()
+	test0(ctx, address)
 }

@@ -1,362 +1,317 @@
 package main
 
 import (
-	"bufio"
 	"context"
-	"crypto/rand"
 	"fmt"
+	"io"
+	"math/rand/v2"
 	"net"
-	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
-func nextarg(args []string, name string) (bool, string, []string) {
-	if len(args) == 0 {
-		fmt.Printf("%v?\n", name)
-		return false, "", nil
-	}
-	return true, args[0], args[1:]
+// @taskGroup
+
+type task struct {
+	name string
+	f    func()
 }
 
-var (
-	respace = regexp.MustCompile(`\s+`)
-)
-
-type proc struct {
-	id     int
+type taskGroup struct {
+	d      chan zero
 	ctx    context.Context
 	cancel context.CancelFunc
-	nconn  int
-	topic  uint16
-	count  *atomic.Int32
+	wg     sync.WaitGroup
 }
 
-type subproc struct {
-	proc
-}
-
-type pubproc struct {
-	proc
-	msglen   int
-	interval time.Duration
-}
-
-type testConsole struct {
-	mu sync.Mutex
-
-	address           string
-	sendSyncThreshold int
-	recvSyncThreshold int
-
-	subNextid int
-	subs      map[int]subproc
-
-	pubNextid int
-	pubs      map[int]pubproc
-}
-
-func (tc *testConsole) spawnSub(nconn int, topic uint16) {
-	tc.mu.Lock()
-	defer tc.mu.Unlock()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	count := &atomic.Int32{}
-	for range nconn {
-		conn, err := net.Dial("tcp", tc.address)
-		if err != nil {
-			cancel()
-			fmt.Printf("failed to connect: %v\n", err)
-			return
-		}
-		connctx, conncancel := context.WithCancel(ctx)
-		go runSubConn(connctx, conncancel, conn, topic, count, tc.recvSyncThreshold)
+func newTaskGroup(ctx context.Context) *taskGroup {
+	ctx, cancel := context.WithCancel(ctx)
+	tg := &taskGroup{
+		d:      make(chan zero),
+		ctx:    ctx,
+		cancel: cancel,
+		wg:     sync.WaitGroup{},
 	}
-	id := tc.subNextid
-	subproc := subproc{
-		proc{
-			id:     id,
-			ctx:    ctx,
-			cancel: cancel,
-			nconn:  nconn,
-			topic:  topic,
-			count:  count,
-		},
-	}
-	tc.subNextid++
-	tc.subs[id] = subproc
+	tg.wg.Add(1)
+	return tg
 }
 
-func runSubConn(ctx context.Context, cancel context.CancelFunc, conn net.Conn, topic uint16, count *atomic.Int32, syncThreshold int) {
-	defer cancel()
-
-	go ping(conn, ctx)
-
-	m := msg{t: subMsg, topic: topic, b: true}
-	if _, err := m.WriteTo(conn); err != nil {
-		fmt.Printf("failed to subscribe: %v\n", err)
-		return
+func (tg *taskGroup) do(name string, f0 func(context.Context)) {
+	tg.wg.Add(1)
+	ctx, cancel := context.WithCancel(tg.ctx)
+	f1 := func() {
+		defer tg.wg.Done()
+		defer cancel()
+		defer fmt.Printf("dbg: task %q ended\n", name)
+		f0(ctx)
 	}
-
-	local := 0
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
-
-		m := msg{}
-		if _, err := m.ReadFrom(conn); err != nil {
-			fmt.Printf("failed to receive: %v\n", err)
-			return
-		}
-		local++
-		if local == syncThreshold {
-			count.Add(int32(local))
-			local = 0
-		}
-	}
+	fmt.Printf("dbg: task %q started\n", name)
+	go f1()
 }
 
-func ping(conn net.Conn, ctx context.Context) {
-	tick := time.Tick(50 * time.Second)
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-tick:
-			m := msg{t: pingMsg}
-			if _, err := m.WriteTo(conn); err != nil {
-				fmt.Printf("failed to ping: %v\n", err)
+func (tg *taskGroup) stop() {
+	tg.wg.Done()
+	tg.cancel()
+}
+
+func (tg *taskGroup) wait() {
+	tg.wg.Wait()
+	close(tg.d)
+}
+
+func (tg *taskGroup) done() <-chan zero {
+	return tg.d
+}
+
+// @testDriver
+
+type idtime struct {
+	i int
+	t time.Time
+}
+
+type observation struct {
+	send time.Time
+	recv time.Time
+}
+
+type monitorObservation struct {
+	topic uint16
+	send  time.Time
+	recv  time.Time
+}
+
+type testDriver struct {
+	tg      *taskGroup
+	address string
+	mobs    []monitorObservation
+	mobc    chan monitorObservation
+}
+
+func newTestDriver(ctx context.Context, address string) *testDriver {
+	td := &testDriver{
+		tg:      newTaskGroup(ctx),
+		address: address,
+		mobc:    make(chan monitorObservation),
+	}
+
+	go func() {
+		for {
+			select {
+			case <-td.tg.done():
+				fmt.Printf("dbg: test driver mobs goroutine ended\n")
+				return
+			case mob := <-td.mobc:
+				fmt.Printf("dbg: mob %v, %v\n", mob.topic, mob.recv.Sub(mob.send))
+				td.mobs = append(td.mobs, mob)
+			}
+		}
+	}()
+
+	return td
+}
+
+func (td *testDriver) spawnMonitors(n int, topic uint16, interval time.Duration) {
+	xx := int16(rand.Int32() & 0xFFFF)
+	for i := range n {
+		name := fmt.Sprintf("mon{x:%04x,t:%04d,i:%02d}", xx, topic, i)
+		td.tg.do(name, func(ctx context.Context) {
+			conn, err := net.Dial("tcp", td.address)
+			if err != nil {
+				fmt.Printf("dbg: %v failed to connect: %v\n", name, err)
 				return
 			}
-		}
-	}
-}
+			defer conn.Close()
 
-func (tc *testConsole) spawnPub(nconn int, topic uint16, msglen int, interval time.Duration) {
-	tc.mu.Lock()
-	defer tc.mu.Unlock()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	count := &atomic.Int32{}
-	for range nconn {
-		conn, err := net.Dial("tcp", tc.address)
-		if err != nil {
-			cancel()
-			fmt.Printf("failed to connect: %v\n", err)
-			return
-		}
-		connctx, conncancel := context.WithCancel(ctx)
-		go runPubConn(connctx, conncancel, conn, topic, msglen, interval, count, tc.sendSyncThreshold)
-	}
-	id := tc.pubNextid
-	pubproc := pubproc{
-		proc: proc{
-			id:     id,
-			ctx:    ctx,
-			cancel: cancel,
-			nconn:  nconn,
-			topic:  topic,
-			count:  count,
-		},
-		msglen:   msglen,
-		interval: interval,
-	}
-	tc.pubNextid++
-	tc.pubs[id] = pubproc
-}
-
-func runPubConn(ctx context.Context, cancel context.CancelFunc, conn net.Conn, topic uint16, msglen int, interval time.Duration, count *atomic.Int32, syncThreshold int) {
-	defer cancel()
-
-	local := 0
-	tick := time.Tick(interval)
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-tick:
-			m := msg{t: pubMsg, topic: topic, payload: makePayload(msglen)}
+			m := msg{t: subMsg, topic: topic, b: true}
 			if _, err := m.WriteTo(conn); err != nil {
-				fmt.Printf("failed to send: %v\n", err)
+				fmt.Printf("dbg: %v failed to subscribe: %v\n", name, err)
+			}
+			fmt.Printf("dbg: %v subscribed\n", name)
+
+			sends := make(chan idtime)
+			recvs := make(chan idtime)
+
+			go func() {
+				obs := make(map[int]observation)
+				for {
+					// fmt.Printf("dbg: %v waiting recv/send\n", name)
+					select {
+					case <-ctx.Done():
+						return
+					case x := <-sends:
+						if _, ok := obs[x.i]; ok {
+							fmt.Printf("dbg: %v - send after receive?!\n", name)
+						} else {
+							obs[x.i] = observation{send: x.t}
+							// fmt.Printf("dbg: %v got send\n", name)
+						}
+					case x := <-recvs:
+						if o, ok := obs[x.i]; !ok {
+							fmt.Printf("dbg: %v - receive without send?!\n", name)
+						} else {
+							o.recv = x.t
+							// fmt.Printf("dbg: %v got recv, sending to td.mobc\n", name)
+							select {
+							case <-ctx.Done():
+							case td.mobc <- monitorObservation{topic: topic, send: o.send, recv: o.recv}:
+								// fmt.Printf("dbg: %v sent observation\n", name)
+							}
+						}
+					}
+				}
+			}()
+
+			prefix := fmt.Sprintf("%v ", name)
+
+			go func() {
+				for {
+					// fmt.Printf("dbg: %v reading message\n", name)
+					m := msg{}
+					if _, err := m.ReadFrom(conn); err != nil {
+						if err != io.EOF {
+							// fmt.Printf("dbg: %v failed to read: %v\n", name, err)
+						}
+						return
+					}
+					// fmt.Printf("dbg: %v read message\n", name)
+					t := time.Now()
+					if m.t == pubMsg && m.topic == topic && strings.Index(m.payload, prefix) == 0 {
+						s := m.payload[len(prefix):]
+						i, err := strconv.ParseInt(s, 10, 32)
+						if err != nil {
+							fmt.Printf("dbg: %v unable to parse %q: %v\n", name, s, err)
+							return
+						}
+						// fmt.Printf("dbg: %v read - sending recv time\n", name)
+						select {
+						case <-ctx.Done():
+						case recvs <- idtime{int(i), t}:
+							// fmt.Printf("dbg: %v read - sent recv time\n", name)
+						}
+					}
+				}
+			}()
+
+			tick := time.Tick(interval)
+			check := func() bool {
+				select {
+				case <-ctx.Done():
+					return false
+				case <-tick:
+					// fmt.Printf("dbg: %v write - tick\n", name)
+					return true
+				}
+			}
+
+			for j := 0; check(); j++ {
+				payload := fmt.Sprintf("%s%d", prefix, j)
+				m := msg{t: pubMsg, topic: topic, payload: payload}
+				// fmt.Printf("dbg: %v writing\n", name)
+				if _, err := m.WriteTo(conn); err != nil {
+					fmt.Printf("dbg: %v failed to publish: %v\n", name, err)
+					return
+				}
+				t := time.Now()
+				// fmt.Printf("dbg: %v write - sending send time\n", name)
+				select {
+				case <-ctx.Done():
+				case sends <- idtime{i: j, t: t}:
+					// fmt.Printf("dbg: %v write - sent send time\n", name)
+				}
+			}
+		})
+	}
+}
+
+func (td *testDriver) spawnSubs(n int, topic uint16) {
+	xx := int16(rand.Int32() & 0xFFFF)
+	for i := range n {
+		name := fmt.Sprintf("sub{x:%04x,t:%04d,i:%04d}", xx, topic, i)
+		td.tg.do(name, func(ctx context.Context) {
+			conn, err := net.Dial("tcp", td.address)
+			if err != nil {
+				fmt.Printf("dbg: %v failed to connect: %v\n", name, err)
 				return
 			}
-			local++
-			if local == syncThreshold {
-				count.Add(int32(local))
-				local = 0
+			defer conn.Close()
+
+			m := msg{t: subMsg, topic: topic}
+			if _, err := m.WriteTo(conn); err != nil {
+				fmt.Printf("dbg: %v failed to subscribe: %v\n", name, err)
+				return
 			}
-		}
-	}
-}
 
-func makePayload(n int) string {
-	bs := make([]byte, n)
-	if _, err := rand.Read(bs); err != nil {
-		fmt.Printf("failed to make payload: %v\n", err)
-		return ""
-	}
-	for i := range bs {
-		bs[i] = 'a' + bs[i]%26
-	}
-	return string(bs)
-}
+			go io.Copy(io.Discard, conn)
 
-func (tc *testConsole) killPub(id int) {
-	tc.mu.Lock()
-	defer tc.mu.Unlock()
-
-	if pubproc, ok := tc.pubs[id]; ok {
-		pubproc.cancel()
-		delete(tc.pubs, id)
-	}
-}
-
-func (tc *testConsole) killSub(id int) {
-	tc.mu.Lock()
-	defer tc.mu.Unlock()
-
-	if subproc, ok := tc.subs[id]; ok {
-		subproc.cancel()
-		delete(tc.subs, id)
-	}
-}
-
-func (tc *testConsole) ls() {
-	tc.mu.Lock()
-	defer tc.mu.Unlock()
-
-	if len(tc.subs) > 0 {
-		fmt.Println("subprocs")
-		for _, sp := range tc.subs {
-			fmt.Printf("%3d  %3d nconn  %5d topic  %11d count\n", sp.id, sp.nconn, sp.topic, sp.count.Load())
-		}
-	}
-
-	if len(tc.pubs) > 0 {
-		fmt.Println("pubprocs")
-		for _, pp := range tc.pubs {
-			fmt.Printf("%3d  %3d nconn  %5d topic  %11d count  %3d msglen  %9s interval\n", pp.id, pp.nconn, pp.topic, pp.count.Load(), pp.msglen, pp.interval.String())
-		}
-	}
-}
-
-func newTestConsole(address string, recvSyncThreshold int, sendSyncThreshold int) *testConsole {
-	return &testConsole{
-		mu:                sync.Mutex{},
-		address:           address,
-		recvSyncThreshold: recvSyncThreshold,
-		sendSyncThreshold: sendSyncThreshold,
-		subNextid:         1,
-		subs:              make(map[int]subproc),
-		pubNextid:         1,
-		pubs:              make(map[int]pubproc),
-	}
-}
-
-func runTestConsole(address string, recvSyncThreshold int, sendSyncThreshold int) {
-	tc := newTestConsole(address, recvSyncThreshold, sendSyncThreshold)
-
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		text := strings.Trim(scanner.Text(), " \t\n\r")
-		args := respace.Split(text, -1)
-
-		ok, cmd, args := nextarg(args, "command")
-		if !ok {
-			continue
-		}
-
-		if cmd == "quit" {
-			fmt.Println("goodbye")
-			break
-		}
-
-		switch cmd {
-		case "spawn":
-			ok, kind, args := nextarg(args, "kind")
-			if !ok {
-				continue
+			tick := time.Tick(50 * time.Second)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-tick:
+					m := msg{t: pingMsg}
+					if _, err := m.WriteTo(conn); err != nil {
+						fmt.Printf("dbg: %v failed to ping: %v\n", name, err)
+						return
+					}
+				}
 			}
-			ok, nconn_, args := nextarg(args, "number of connections?")
-			if !ok {
-				continue
-			}
-			ok, topic_, args := nextarg(args, "topic")
-			if !ok {
-				continue
-			}
-			nconn, err := strconv.ParseInt(nconn_, 10, 32)
+		})
+	}
+}
+
+func (td *testDriver) spawnPubs(n int, topic uint16, interval time.Duration, payloadf func() string) {
+	xx := int16(rand.Int32() & 0xFFFF)
+	for i := range n {
+		name := fmt.Sprintf("pub{x:%04x,t:%04d,i:%02d}", xx, topic, i)
+		td.tg.do(name, func(ctx context.Context) {
+			conn, err := net.Dial("tcp", td.address)
 			if err != nil {
-				fmt.Printf("invalid nconn: %v\n", err)
-				continue
+				fmt.Printf("dbg: %v failed to connect: %v\n", name, err)
+				return
 			}
-			topic, err := strconv.ParseUint(topic_, 10, 16)
-			if err != nil {
-				fmt.Printf("invalid topic: %v\n", err)
-			}
-			switch kind {
-			case "pub":
-				ok, msglen_, args := nextarg(args, "msglen")
-				if !ok {
-					continue
-				}
-				ok, interval_, args := nextarg(args, "interval")
-				if !ok {
-					continue
-				}
-				_ = args
-				msglen, err := strconv.ParseInt(msglen_, 10, 32)
-				if err != nil {
-					fmt.Printf("invalid msglen: %v\n", err)
-					continue
-				}
-				interval, err := time.ParseDuration(interval_)
-				if err != nil {
-					fmt.Printf("invalid interval: %v\n", err)
-					continue
-				}
-				tc.spawnPub(int(nconn), uint16(topic), int(msglen), interval)
-			case "sub":
-				go tc.spawnSub(int(nconn), uint16(topic))
-			default:
-				fmt.Printf("unknown kind %q\n", kind)
-			}
-		case "kill":
-			ok, kind, args := nextarg(args, "kind")
-			if !ok {
-				continue
-			}
-			ok, id_, args := nextarg(args, "id")
-			if !ok {
-				continue
-			}
-			id, err := strconv.ParseInt(id_, 10, 32)
-			if err != nil {
-				fmt.Printf("invalid id: %v\n", err)
-				continue
-			}
-			_ = args
-			switch kind {
-			case "pub":
-				tc.killPub(int(id))
-			case "sub":
-				tc.killSub(int(id))
-			case "default":
-				fmt.Printf("unknown process kind %q\n", kind)
-			}
-		case "ls":
-			tc.ls()
-		default:
-			fmt.Printf("unknown command %q\n", cmd)
-		}
+			defer conn.Close()
 
-		fmt.Println(time.Now())
+			// NOTE: in principle, we don't really need to do this. we don't subscribe to any topic,
+			// so we won't receive anything from the server.
+			go io.Copy(io.Discard, conn)
+
+			tick := time.Tick(interval)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-tick:
+					p := payloadf()
+					m := msg{t: pubMsg, topic: topic, payload: p}
+					if _, err := m.WriteTo(conn); err != nil {
+						fmt.Printf("dbg: %v failed to publish: %v\n", name, err)
+					}
+				}
+			}
+		})
+	}
+}
+
+// @tests
+
+func test0(ctx context.Context, address string) {
+	td := newTestDriver(ctx, address)
+
+	td.spawnMonitors(10, 15, 5*time.Second)
+	time.Sleep(30 * time.Second)
+	td.spawnMonitors(100, 15, 5*time.Second)
+	time.Sleep(30 * time.Second)
+	td.spawnMonitors(100, 15, 5*time.Second)
+	time.Sleep(30 * time.Second)
+
+	td.tg.stop()
+	td.tg.wait()
+
+	for _, mob := range td.mobs {
+		fmt.Printf("result: topic %6d: %s: delay of %v\n", mob.topic, mob.send.Format(time.TimeOnly), mob.recv.Sub(mob.send))
 	}
 }

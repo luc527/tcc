@@ -16,7 +16,7 @@ defmodule Tccex.Application do
       {Tccex.Listener, {@ip, @port}}
     ]
 
-    opts = [strategy: :one_for_one, name: Tccex.Supervisor]
+    opts = [strategy: :rest_for_one, name: Tccex.Supervisor]
     Supervisor.start_link(children, opts)
   end
 end
