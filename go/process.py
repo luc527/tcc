@@ -1,8 +1,8 @@
 import re
 from collections import defaultdict
 
-# dir = './data_go_1211_2143'
-dir = './data_node_1211_2225'
+dir = './data_go_1211_2143'
+# dir = './data_node_1211_2225'
 
 actions = defaultdict(list)
 
