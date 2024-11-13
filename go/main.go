@@ -70,5 +70,6 @@ func testMain(args []string) {
 
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(5*time.Minute))
 	defer cancel()
-	test0(ctx, address)
+	// test0(ctx, address)
+	testIncreasingSubs(ctx, address)
 }

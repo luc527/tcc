@@ -50,9 +50,13 @@ netsv.on('connection', sock => {
     });
 });
 
+
+let host =        process.argv[2]  || 'localhost'
+let port = Number(process.argv[3]) || 0 // ephemeral
+
 let listenOpts = {
-    host: 'localhost',
-    port: 0, // ephemeral
+    host,
+    port,
 };
 netsv.listen(listenOpts, () => {
     let {port} = netsv.address();
