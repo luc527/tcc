@@ -22,6 +22,11 @@ netsv.on('connection', sock => {
         sock.end();
     });
 
+    sock.on('error', err => {
+        console.log('socket err:', err.code);
+        sock.end();
+    })
+
     function resetTimeout() {
         sock.setTimeout(60_000);
     }

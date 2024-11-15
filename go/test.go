@@ -1,331 +1,390 @@
 package main
 
-// TODO: connect to server gradually
-// use fixed number of goroutines to actually call net.Dial, round-robin
-
 import (
 	"context"
 	"fmt"
-	"io"
 	"net"
+	"regexp"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 )
 
-// TODO: maybe print dbg err msg only if channel not done yet
+var (
+	reMsgid    = regexp.MustCompile(`(\d+)-(\d+)`)
+	errNomatch = fmt.Errorf("no match")
+)
 
-func runSubscriber(done <-chan zero, conn net.Conn, topic uint16) {
-	go io.Copy(io.Discard, conn)
+func dbg(f string, a ...any) {
+	fmt.Printf("dbg: %d %s\n", time.Now().Unix(), fmt.Sprintf(f, a...))
+}
 
-	m := msg{t: subMsg, topic: topic, b: true}
-	if _, err := m.WriteTo(conn); err != nil {
-		dbg("unable to subscribe: %v", err)
-		return
+func dbg2(f string, a ...any) {
+	// dbg(f, a...)
+	_ = f
+	_ = a
+}
+
+func observation(topic uint16, sendt time.Time, recvt time.Time) {
+	delayMs := recvt.Sub(sendt).Milliseconds()
+	fmt.Printf("observation: %d topic=%d delayMs=%d\n", sendt.Unix(), topic, delayMs)
+}
+
+type itime struct {
+	i     int
+	t     time.Time
+	topic uint16
+}
+
+type testconn struct {
+	id     int
+	ctx    context.Context
+	cancel context.CancelFunc
+	conn   net.Conn
+	subc   chan subscription
+	pubc   chan publication
+	sends  chan itime
+	recvs  chan itime
+}
+
+func newTestconn(id int, parent context.Context, conn net.Conn) *testconn {
+	ctx, cancel := context.WithCancel(parent)
+	return &testconn{
+		id:     id,
+		ctx:    ctx,
+		conn:   conn,
+		cancel: cancel,
+		subc:   make(chan subscription),
+		pubc:   make(chan publication),
+		sends:  make(chan itime),
+		recvs:  make(chan itime),
 	}
+}
 
-	tick := time.Tick(46 * time.Second)
+func prependMsgid(payload string, connid int, msgid int) string {
+	return fmt.Sprintf("%d-%d %s", connid, msgid, payload)
+}
+
+func extractMsgid(payload string, wantConnid int) (int, error) {
+	ms := reMsgid.FindStringSubmatch(payload)
+	if len(ms) != 3 {
+		return 0, fmt.Errorf("extract msg: regexp failed")
+	}
+	gotConnid_, err := strconv.ParseInt(ms[1], 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("extract msg connid: %w", err)
+	}
+	gotConnid := int(gotConnid_)
+	if gotConnid != wantConnid {
+		return 0, errNomatch
+	}
+	msgid_, err := strconv.ParseInt(ms[2], 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("extract msg id: %w", err)
+	}
+	msgid := int(msgid_)
+	return msgid, nil
+}
+
+func (tc *testconn) runWriter() {
+	msgi := 0
 	for {
 		select {
-		case <-done:
+		case <-tc.ctx.Done():
+			return
+		case sx := <-tc.subc:
+			m := msg{t: subMsg, topic: sx.topic, b: sx.subscribed}
+			if _, err := m.WriteTo(tc.conn); err != nil {
+				dbg("failed to subscribe: %v", err)
+				return
+			}
+			dbg2("testconn %d wrote: %v", tc.id, m)
+		case px := <-tc.pubc:
+			payload := prependMsgid(px.payload, tc.id, msgi)
+			m := msg{t: pubMsg, topic: px.topic, payload: payload}
+			if _, err := m.WriteTo(tc.conn); err != nil {
+				dbg("failed to publish: %v", err)
+				return
+			}
+			dbg2("testconn %d wrote: %v", tc.id, m)
+			select {
+			case <-tc.ctx.Done():
+			case tc.sends <- itime{i: msgi, t: time.Now(), topic: px.topic}:
+			}
+			msgi++
+		}
+	}
+}
+
+func (tc *testconn) runMeasurer() {
+	pending := make(map[int]time.Time)
+	for {
+		select {
+		case <-tc.ctx.Done():
+			return
+		case x := <-tc.sends:
+			pending[x.i] = x.t
+		case x := <-tc.recvs:
+			if sendt, ok := pending[x.i]; ok {
+				recvt := x.t
+				observation(x.topic, sendt, recvt)
+			} else {
+				dbg("recv without send?! connid: %d, msgid: %d", tc.id, x.i)
+			}
+		}
+	}
+}
+
+func (tc *testconn) runReader() {
+	for {
+		m := msg{}
+		if _, err := m.ReadFrom(tc.conn); err != nil {
+			dbg("failed to read: %v", err)
+			return
+		}
+		dbg2("testconn %d read: %v", tc.id, m)
+		if m.t == pubMsg {
+			msgid, err := extractMsgid(m.payload, tc.id)
+			if err != nil {
+				if err != errNomatch {
+					dbg("failed to extract msgid: %v", err)
+				}
+				continue
+			}
+			select {
+			case <-tc.ctx.Done():
+			case tc.recvs <- itime{i: msgid, t: time.Now(), topic: m.topic}:
+			}
+		}
+	}
+}
+
+func (tc *testconn) run(wg *sync.WaitGroup) {
+	defer tc.cancel()
+	defer wg.Done()
+
+	dbg("testconn %d started", tc.id)
+	defer dbg("testconn %d closed", tc.id)
+
+	go pingConn(tc.ctx, tc.conn)
+	go tc.runMeasurer()
+	go tc.runReader()
+
+	tc.runWriter()
+}
+
+func (tc *testconn) subscribe(topic uint16) {
+	select {
+	case <-tc.ctx.Done():
+	case tc.subc <- subscription{topic, true}:
+	}
+}
+
+func (tc *testconn) publish(topic uint16, payload string) {
+	select {
+	case <-tc.ctx.Done():
+	case tc.pubc <- publication{topic: topic, payload: payload}:
+	}
+}
+
+func pingConn(ctx context.Context, conn net.Conn) {
+	tick := time.Tick(50 * time.Second)
+	for {
+		select {
+		case <-ctx.Done():
 			return
 		case <-tick:
 			m := msg{t: pingMsg}
 			if _, err := m.WriteTo(conn); err != nil {
-				dbg("unable to ping: %v", err)
+				dbg("failed to ping: %v", err)
 				return
 			}
 		}
 	}
 }
 
-func runPublisher(done <-chan zero, conn net.Conn, topic uint16, interval time.Duration, gen func() string) {
-	go io.Copy(io.Discard, conn)
-
-	tick := time.Tick(interval)
-	for range tick {
-		select {
-		case <-done:
-			return
-		case <-tick:
-			p := gen()
-			m := msg{t: pubMsg, topic: topic, payload: p}
-			if _, err := m.WriteTo(conn); err != nil {
-				dbg("unable to publish: %v", err)
-				return
-			}
-		}
-	}
-}
-
-func runMonitor(id int, done <-chan zero, conn net.Conn, topic uint16, interval time.Duration) {
-	m := msg{t: subMsg, topic: topic, b: true}
-	if _, err := m.WriteTo(conn); err != nil {
-		dbg("unable to subscribe: %v", err)
-		return
-	}
-
-	type itime struct {
-		i int
-		t time.Time
-	}
-
-	sends := make(chan itime)
-	recvs := make(chan itime)
-
-	prefix := fmt.Sprintf("mon(%d)", id)
+func multiConnect(n int, address string, p int) <-chan net.Conn {
+	work := make(chan zero)
 	go func() {
-		tick := time.Tick(interval)
-
-		i := 0
-		for {
-			select {
-			case <-done:
-				return
-			case <-tick:
-				p := fmt.Sprintf("%v%v", prefix, i)
-				m := msg{t: pubMsg, topic: topic, payload: p}
-				if _, err := m.WriteTo(conn); err != nil {
-					dbg("unable to publish: %v", err)
-					return
-				}
-				select {
-				case <-done:
-				case sends <- itime{i, time.Now()}:
-				}
-				i++
-			}
+		for range n {
+			work <- zero{}
 		}
+		close(work)
 	}()
 
-	go func() {
-		for {
-			m := msg{}
-			if _, err := m.ReadFrom(conn); err != nil {
-				if err != io.EOF {
-					dbg("unable to read: %v", err)
-				}
-				return
-			}
-			t := time.Now()
-			if m.t == pubMsg && m.topic == topic && strings.Index(m.payload, prefix) == 0 {
-				i__ := m.payload[len(prefix):]
-				i_, err := strconv.ParseInt(i__, 10, 32)
+	wg := new(sync.WaitGroup)
+	ret := make(chan net.Conn)
+	for range p {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range work {
+				conn, err := net.Dial("tcp", address)
 				if err != nil {
-					dbg("unable to recover monitor message id: %v", err)
-					return
+					dbg("failed to connect: %v", err)
 				}
-				i := int(i_)
-				select {
-				case <-done:
-				case recvs <- itime{i, t}:
-				}
+				ret <- conn
 			}
-		}
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(ret)
 	}()
 
-	sendtimes := make(map[int]time.Time)
+	return ret
+}
 
+type testconnPool struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
+	n      int
+	i      int
+	a      []*testconn
+}
+
+func newTestconnPool(n int, parent context.Context) *testconnPool {
+	ctx, cancel := context.WithCancel(parent)
+	tp := &testconnPool{
+		ctx:    ctx,
+		cancel: cancel,
+		wg:     sync.WaitGroup{},
+		n:      n,
+		i:      0,
+		a:      make([]*testconn, n),
+	}
+	return tp
+}
+
+func (tp *testconnPool) start(address string) {
+	// TODO: instead of pre-creating all connections
+	// create connections only when asked, but stop creating and start reusing previous connections
+	// when n is reached
+
+	// TODO: something about the observations' delayMs is fishy
+	// increases almost monotonically with every burst of publications -- on localhost, at least
+	// maybe that's expected?
+
+	// -- also happens with the node impl, so not a go impl specific thing
+
+	// TODO: maybe should be able to activate measurer for a single topic only?
+	// would that solve the other problem? cascading delay
+
+	const p = 32
+	i := 0
+	for conn := range multiConnect(tp.n, address, p) {
+		if conn == nil {
+			continue
+		}
+		tc := newTestconn(i, tp.ctx, conn)
+		tp.a[i] = tc
+		i++
+
+		tp.wg.Add(1)
+		go tc.run(&tp.wg)
+	}
+	dbg("test conn pool started")
+}
+
+func (tp *testconnPool) choose() *testconn {
+	i := tp.i
+	tp.i = (i + 1) % len(tp.a)
+	return tp.a[i]
+}
+
+func (tp *testconnPool) stop() {
+	tp.cancel()
+	tp.wg.Wait()
+}
+
+func runPublisher(tc *testconn, topic uint16, interval time.Duration, msgf func() string) {
+	tick := time.Tick(interval)
+	done := tc.ctx.Done()
 	for {
 		select {
 		case <-done:
 			return
-		case x := <-sends:
-			sendtimes[x.i] = x.t
-		case x := <-recvs:
-			if sendtime, ok := sendtimes[x.i]; ok {
-				delay := x.t.Sub(sendtime)
-				out("observation topic=%v delayMs=%v", topic, delay.Milliseconds())
-			} else {
-				dbg("recv without send?!")
-			}
+		case <-tick:
+			tc.publish(topic, msgf())
 		}
 	}
 }
 
-func dbg(f string, args ...any) {
-	fmt.Printf("dbg: %d %v\n", time.Now().Unix(), fmt.Sprintf(f, args...))
-}
+func testTest(address string) {
+	const nconn = 10
+	tp := newTestconnPool(nconn, context.Background())
+	tp.start(address)
 
-// TODO: in/out didn't really help, could've just been 'observation', 'subs' etc directly as prefix
+	topics := []uint16{1, 10, 100}
+	for _, topic := range topics {
+		for range 3 {
+			tc := tp.choose()
+			tc.subscribe(topic)
+			go runPublisher(tc, topic, 7*time.Second, func() string { return "hello world" })
+		}
+		for range 5 {
+			tp.choose().subscribe(topic)
+		}
 
-func in(f string, args ...any) {
-	fmt.Printf("in: %d %v\n", time.Now().Unix(), fmt.Sprintf(f, args...))
-}
-
-func out(f string, args ...any) {
-	fmt.Printf("out: %d %v\n", time.Now().Unix(), fmt.Sprintf(f, args...))
-}
-
-type taskGroup struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
-}
-
-func newTaskGroup(ctx context.Context) *taskGroup {
-	ctx, cancel := context.WithCancel(ctx)
-	tg := &taskGroup{
-		ctx:    ctx,
-		cancel: cancel,
-		wg:     sync.WaitGroup{},
-	}
-	tg.wg.Add(1)
-	return tg
-}
-
-func (tg *taskGroup) do(name string, f0 func(context.Context)) {
-	tg.wg.Add(1)
-	ctx, cancel := context.WithCancel(tg.ctx)
-	f1 := func() {
-		defer tg.wg.Done()
-		defer cancel()
-		defer dbg("task %q ended", name)
-		f0(ctx)
-	}
-	dbg("task %q started", name)
-	go f1()
-}
-
-func (tg *taskGroup) stop() {
-	tg.wg.Done()
-	tg.cancel()
-	tg.wg.Wait()
-}
-
-type testDriver struct {
-	tg        *taskGroup
-	address   string
-	nextPubid int
-	nextMonid int
-}
-
-func (td *testDriver) pubid() int {
-	td.nextPubid++
-	return td.nextPubid
-}
-
-func (td *testDriver) monid() int {
-	td.nextMonid++
-	return td.nextMonid
-}
-
-func newTestDriver(ctx context.Context, address string) *testDriver {
-	td := &testDriver{
-		tg:      newTaskGroup(ctx),
-		address: address,
+		time.Sleep(30 * time.Second)
 	}
 
-	return td
+	tp.stop()
 }
 
-func (td *testDriver) spawnMonitors(n int, topic uint16, interval time.Duration) {
-	in("monitors n=%v topic=%v intervalMs=%v", n, topic, interval.Milliseconds())
-	for range n {
-		id := td.monid()
-		name := fmt.Sprintf("m%d", id)
-		td.tg.do(name, func(ctx context.Context) {
-			conn, err := net.Dial("tcp", td.address)
-			if err != nil {
-				dbg("%v failed to connect: %v", name, err)
-				return
-			}
-			defer conn.Close()
+func test0(address string) {
+	// just for collecting some delay data from different implementations
+	const nconn = 100
+	const topic = 123
 
-			runMonitor(id, ctx.Done(), conn, topic, interval)
-		})
+	tp := newTestconnPool(nconn, context.Background())
+	tp.start(address)
+
+	for range nconn {
+		tc := tp.choose()
+		tc.subscribe(topic)
+		go runPublisher(tc, topic, 2*time.Second, func() string { return "hello" })
+		time.Sleep(100 * time.Millisecond)
 	}
-}
 
-func (td *testDriver) spawnSubs(n int, topic uint16) {
-	in("subs n=%d topic=%d", n, topic)
-	for range n {
-		td.tg.do("subscriber", func(ctx context.Context) {
-			conn, err := net.Dial("tcp", td.address)
-			if err != nil {
-				dbg("subscriber failed to connect: %v", err)
-				return
-			}
-			defer conn.Close()
-
-			runSubscriber(ctx.Done(), conn, topic)
-		})
-	}
-}
-
-type payloadGenerator struct {
-	name string
-	f    func() string
-}
-
-func (td *testDriver) spawnPubs(n int, topic uint16, interval time.Duration, gen payloadGenerator) {
-	in("pubs n=%v topic=%v intervalMs=%v payload=%v", n, topic, interval.Milliseconds(), gen.name)
-
-	for range n {
-		name := fmt.Sprintf("p%d", td.pubid())
-		td.tg.do(name, func(ctx context.Context) {
-			conn, err := net.Dial("tcp", td.address)
-			if err != nil {
-				dbg("%v failed to connect: %v", name, err)
-				return
-			}
-			defer conn.Close()
-
-			runPublisher(ctx.Done(), conn, topic, interval, gen.f)
-		})
-	}
-}
-
-// @tests
-
-func test0(ctx context.Context, address string) {
-	td := newTestDriver(ctx, address)
-
-	td.spawnMonitors(10, 15, 5*time.Second)
 	time.Sleep(30 * time.Second)
-	td.spawnMonitors(100, 15, 5*time.Second)
-	time.Sleep(30 * time.Second)
-	td.spawnMonitors(100, 15, 5*time.Second)
-	time.Sleep(30 * time.Second)
-
-	td.tg.stop()
+	tp.stop()
 }
 
-var (
-	fixedPayload = payloadGenerator{
-		name: "fixed",
-		f: func() string {
-			return "hello world"
-		},
-	}
-)
+func testIncreasingTopics(address string) {
+	// TODO: change connection pool size, see if performance changes much
+	const nconn = 4096
+	tp := newTestconnPool(nconn, context.Background())
+	tp.start(address)
 
-func testIncreasingSubs(ctx context.Context, address string) {
-	td := newTestDriver(ctx, address)
-
-	const (
-		topic = uint16(765)
-	)
-
-	prevSubcount := 0
-	subcounts := []int{10, 80, 640, 5120}
-
-	for range 10 {
-		td.spawnPubs(1, topic, 7*time.Second, fixedPayload)
-		td.spawnMonitors(2, topic, 10*time.Second)
-		time.Sleep(1 * time.Second)
+	topic := uint16(0)
+	nextTopic := func() uint16 {
+		t := topic
+		topic++
+		return t
 	}
 
-	for _, subcount := range subcounts {
-		newSubcount := subcount - prevSubcount
+	prevTopcount := 0
+	topcounts := []int{10, 80, 320, 640, 1280, 2560, 5120}
+	for _, topcount := range topcounts {
+		newtopCount := topcount - prevTopcount
+		for range newtopCount {
+			topic := nextTopic()
+			for range 30 {
+				tp.choose().subscribe(topic)
+			}
+			for range 10 {
+				tc := tp.choose()
+				tc.subscribe(topic)
+				go runPublisher(tc, topic, 10*time.Second, func() string { return "hello world" })
+			}
+		}
+		prevTopcount = topcount
 
-		td.spawnSubs(newSubcount, topic)
-
-		time.Sleep(1 * time.Minute)
-
-		prevSubcount = subcount
+		time.Sleep(61 * time.Second)
 	}
 
-	td.tg.stop()
+	tp.stop()
 }

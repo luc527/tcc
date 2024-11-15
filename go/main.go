@@ -1,12 +1,12 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net"
 	"os"
-	"time"
+	"os/signal"
+	"runtime/pprof"
 )
 
 func main() {
@@ -31,11 +31,37 @@ func main() {
 	}
 }
 
+func prof() {
+	f, err := os.Create("cpu.prof")
+	if err != nil {
+		fmt.Printf("unable to create cpu profile file: %v\n", err)
+		return
+	}
+	if err := pprof.StartCPUProfile(f); err != nil {
+		fmt.Printf("unable to start cpu profiling: %v\n", err)
+		return
+	}
+	fmt.Printf("started cpu profiling\n")
+
+	c := make(chan os.Signal, 1)
+	go func() {
+		<-c
+		pprof.StopCPUProfile()
+		fmt.Println("bye")
+		os.Exit(1)
+	}()
+
+	signal.Notify(c, os.Interrupt)
+}
+
 func serverMain(args []string) {
 	if len(args) == 0 {
 		fmt.Println("address?")
 		return
 	}
+
+	// prof()
+
 	l, err := net.Listen("tcp", args[0])
 	if err != nil {
 		log.Fatal(err)
@@ -68,8 +94,7 @@ func testMain(args []string) {
 	address, args := args[0], args[1:]
 	_ = args
 
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(5*time.Minute))
-	defer cancel()
-	// test0(ctx, address)
-	testIncreasingSubs(ctx, address)
+	// testTest(address)
+	// testIncreasingTopics(address)
+	test0(address)
 }

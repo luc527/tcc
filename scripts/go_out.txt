@@ -1,0 +1,1897 @@
+dbg: 1731693854 testconn 0 started
+dbg: 1731693854 testconn 2 started
+dbg: 1731693854 testconn 1 started
+dbg: 1731693854 testconn 18 started
+dbg: 1731693854 testconn 11 started
+dbg: 1731693854 testconn 19 started
+dbg: 1731693854 testconn 10 started
+dbg: 1731693854 testconn 3 started
+dbg: 1731693854 testconn 4 started
+dbg: 1731693854 testconn 23 started
+dbg: 1731693854 testconn 22 started
+dbg: 1731693854 testconn 5 started
+dbg: 1731693854 testconn 6 started
+dbg: 1731693854 testconn 20 started
+dbg: 1731693854 testconn 17 started
+dbg: 1731693854 testconn 7 started
+dbg: 1731693854 testconn 21 started
+dbg: 1731693854 testconn 16 started
+dbg: 1731693854 testconn 8 started
+dbg: 1731693854 testconn 9 started
+dbg: 1731693854 testconn 13 started
+dbg: 1731693854 testconn 14 started
+dbg: 1731693854 testconn 12 started
+dbg: 1731693854 testconn 30 started
+dbg: 1731693854 testconn 26 started
+dbg: 1731693854 testconn 15 started
+dbg: 1731693854 testconn 27 started
+dbg: 1731693854 testconn 29 started
+dbg: 1731693854 testconn 28 started
+dbg: 1731693854 testconn 25 started
+dbg: 1731693854 testconn 24 started
+dbg: 1731693854 testconn 31 started
+dbg: 1731693854 testconn 32 started
+dbg: 1731693854 testconn 33 started
+dbg: 1731693854 testconn 35 started
+dbg: 1731693854 testconn 34 started
+dbg: 1731693854 testconn 36 started
+dbg: 1731693854 testconn 44 started
+dbg: 1731693854 testconn 50 started
+dbg: 1731693854 testconn 46 started
+dbg: 1731693854 testconn 49 started
+dbg: 1731693854 testconn 37 started
+dbg: 1731693854 testconn 45 started
+dbg: 1731693854 testconn 38 started
+dbg: 1731693854 testconn 63 started
+dbg: 1731693854 testconn 51 started
+dbg: 1731693854 testconn 52 started
+dbg: 1731693854 testconn 53 started
+dbg: 1731693854 testconn 62 started
+dbg: 1731693854 testconn 47 started
+dbg: 1731693854 testconn 59 started
+dbg: 1731693854 testconn 60 started
+dbg: 1731693854 testconn 54 started
+dbg: 1731693854 testconn 57 started
+dbg: 1731693854 testconn 39 started
+dbg: 1731693854 testconn 58 started
+dbg: 1731693854 testconn 56 started
+dbg: 1731693854 testconn 40 started
+dbg: 1731693854 testconn 48 started
+dbg: 1731693854 testconn 41 started
+dbg: 1731693854 testconn 42 started
+dbg: 1731693854 testconn 61 started
+dbg: 1731693854 testconn 55 started
+dbg: 1731693854 testconn 43 started
+dbg: 1731693854 testconn 64 started
+dbg: 1731693854 testconn 66 started
+dbg: 1731693854 testconn 65 started
+dbg: 1731693854 testconn 67 started
+dbg: 1731693854 testconn 74 started
+dbg: 1731693854 testconn 70 started
+dbg: 1731693854 testconn 71 started
+dbg: 1731693854 testconn 68 started
+dbg: 1731693854 testconn 69 started
+dbg: 1731693854 testconn 73 started
+dbg: 1731693854 testconn 72 started
+dbg: 1731693854 testconn 75 started
+dbg: 1731693854 testconn 76 started
+dbg: 1731693854 testconn 78 started
+dbg: 1731693854 testconn 77 started
+dbg: 1731693854 testconn 79 started
+dbg: 1731693854 testconn 80 started
+dbg: 1731693854 testconn 82 started
+dbg: 1731693854 testconn 88 started
+dbg: 1731693854 testconn 85 started
+dbg: 1731693854 testconn 83 started
+dbg: 1731693854 testconn 81 started
+dbg: 1731693854 testconn 87 started
+dbg: 1731693854 testconn 84 started
+dbg: 1731693854 testconn 86 started
+dbg: 1731693855 testconn 89 started
+dbg: 1731693855 testconn 92 started
+dbg: 1731693855 testconn 90 started
+dbg: 1731693855 testconn 91 started
+dbg: 1731693855 testconn 93 started
+dbg: 1731693855 testconn 96 started
+dbg: 1731693855 testconn 95 started
+dbg: 1731693855 testconn 94 started
+dbg: 1731693855 testconn 97 started
+dbg: 1731693855 testconn 99 started
+dbg: 1731693855 test conn pool started
+dbg: 1731693855 testconn 98 started
+observation: 1731693857 topic=123 delayMs=143
+observation: 1731693857 topic=123 delayMs=138
+observation: 1731693857 topic=123 delayMs=137
+observation: 1731693857 topic=123 delayMs=137
+observation: 1731693857 topic=123 delayMs=135
+observation: 1731693857 topic=123 delayMs=138
+observation: 1731693858 topic=123 delayMs=136
+observation: 1731693858 topic=123 delayMs=138
+observation: 1731693858 topic=123 delayMs=137
+observation: 1731693858 topic=123 delayMs=137
+observation: 1731693858 topic=123 delayMs=140
+observation: 1731693858 topic=123 delayMs=136
+observation: 1731693858 topic=123 delayMs=137
+observation: 1731693858 topic=123 delayMs=136
+observation: 1731693858 topic=123 delayMs=139
+observation: 1731693858 topic=123 delayMs=139
+observation: 1731693859 topic=123 delayMs=137
+observation: 1731693859 topic=123 delayMs=138
+observation: 1731693859 topic=123 delayMs=138
+observation: 1731693859 topic=123 delayMs=228
+observation: 1731693859 topic=123 delayMs=137
+observation: 1731693859 topic=123 delayMs=139
+observation: 1731693859 topic=123 delayMs=138
+observation: 1731693859 topic=123 delayMs=136
+observation: 1731693859 topic=123 delayMs=139
+observation: 1731693859 topic=123 delayMs=139
+observation: 1731693859 topic=123 delayMs=136
+observation: 1731693859 topic=123 delayMs=138
+observation: 1731693859 topic=123 delayMs=136
+observation: 1731693859 topic=123 delayMs=140
+observation: 1731693859 topic=123 delayMs=138
+observation: 1731693859 topic=123 delayMs=137
+observation: 1731693860 topic=123 delayMs=138
+observation: 1731693860 topic=123 delayMs=138
+observation: 1731693860 topic=123 delayMs=136
+observation: 1731693860 topic=123 delayMs=138
+observation: 1731693860 topic=123 delayMs=138
+observation: 1731693860 topic=123 delayMs=139
+observation: 1731693860 topic=123 delayMs=139
+observation: 1731693860 topic=123 delayMs=139
+observation: 1731693860 topic=123 delayMs=142
+observation: 1731693860 topic=123 delayMs=136
+observation: 1731693860 topic=123 delayMs=138
+observation: 1731693860 topic=123 delayMs=137
+observation: 1731693860 topic=123 delayMs=136
+observation: 1731693860 topic=123 delayMs=143
+observation: 1731693860 topic=123 delayMs=138
+observation: 1731693860 topic=123 delayMs=138
+observation: 1731693860 topic=123 delayMs=141
+observation: 1731693860 topic=123 delayMs=140
+observation: 1731693860 topic=123 delayMs=139
+observation: 1731693860 topic=123 delayMs=139
+observation: 1731693861 topic=123 delayMs=141
+observation: 1731693861 topic=123 delayMs=138
+observation: 1731693861 topic=123 delayMs=139
+observation: 1731693861 topic=123 delayMs=138
+observation: 1731693861 topic=123 delayMs=141
+observation: 1731693861 topic=123 delayMs=135
+observation: 1731693861 topic=123 delayMs=138
+observation: 1731693861 topic=123 delayMs=140
+observation: 1731693861 topic=123 delayMs=138
+observation: 1731693861 topic=123 delayMs=140
+observation: 1731693861 topic=123 delayMs=136
+observation: 1731693861 topic=123 delayMs=139
+observation: 1731693861 topic=123 delayMs=139
+observation: 1731693861 topic=123 delayMs=137
+observation: 1731693861 topic=123 delayMs=141
+observation: 1731693861 topic=123 delayMs=140
+observation: 1731693861 topic=123 delayMs=139
+observation: 1731693861 topic=123 delayMs=138
+observation: 1731693861 topic=123 delayMs=138
+observation: 1731693861 topic=123 delayMs=137
+observation: 1731693861 topic=123 delayMs=140
+observation: 1731693861 topic=123 delayMs=310
+observation: 1731693861 topic=123 delayMs=139
+observation: 1731693861 topic=123 delayMs=215
+observation: 1731693861 topic=123 delayMs=136
+observation: 1731693862 topic=123 delayMs=137
+observation: 1731693862 topic=123 delayMs=138
+observation: 1731693862 topic=123 delayMs=143
+observation: 1731693862 topic=123 delayMs=141
+observation: 1731693862 topic=123 delayMs=138
+observation: 1731693862 topic=123 delayMs=149
+observation: 1731693862 topic=123 delayMs=137
+observation: 1731693862 topic=123 delayMs=137
+observation: 1731693862 topic=123 delayMs=139
+observation: 1731693862 topic=123 delayMs=138
+observation: 1731693862 topic=123 delayMs=138
+observation: 1731693862 topic=123 delayMs=142
+observation: 1731693862 topic=123 delayMs=139
+observation: 1731693862 topic=123 delayMs=140
+observation: 1731693862 topic=123 delayMs=137
+observation: 1731693862 topic=123 delayMs=137
+observation: 1731693862 topic=123 delayMs=139
+observation: 1731693862 topic=123 delayMs=136
+observation: 1731693862 topic=123 delayMs=140
+observation: 1731693862 topic=123 delayMs=136
+observation: 1731693862 topic=123 delayMs=137
+observation: 1731693862 topic=123 delayMs=139
+observation: 1731693862 topic=123 delayMs=140
+observation: 1731693862 topic=123 delayMs=141
+observation: 1731693862 topic=123 delayMs=136
+observation: 1731693862 topic=123 delayMs=148
+observation: 1731693862 topic=123 delayMs=142
+observation: 1731693862 topic=123 delayMs=142
+observation: 1731693862 topic=123 delayMs=139
+observation: 1731693862 topic=123 delayMs=138
+observation: 1731693863 topic=123 delayMs=138
+observation: 1731693863 topic=123 delayMs=143
+observation: 1731693863 topic=123 delayMs=139
+observation: 1731693863 topic=123 delayMs=141
+observation: 1731693863 topic=123 delayMs=137
+observation: 1731693863 topic=123 delayMs=139
+observation: 1731693863 topic=123 delayMs=138
+observation: 1731693863 topic=123 delayMs=202
+observation: 1731693863 topic=123 delayMs=318
+observation: 1731693863 topic=123 delayMs=205
+observation: 1731693863 topic=123 delayMs=178
+observation: 1731693863 topic=123 delayMs=163
+observation: 1731693863 topic=123 delayMs=160
+observation: 1731693863 topic=123 delayMs=137
+observation: 1731693863 topic=123 delayMs=143
+observation: 1731693863 topic=123 delayMs=139
+observation: 1731693863 topic=123 delayMs=147
+observation: 1731693863 topic=123 delayMs=139
+observation: 1731693863 topic=123 delayMs=142
+observation: 1731693863 topic=123 delayMs=139
+observation: 1731693863 topic=123 delayMs=138
+observation: 1731693863 topic=123 delayMs=141
+observation: 1731693863 topic=123 delayMs=143
+observation: 1731693863 topic=123 delayMs=139
+observation: 1731693863 topic=123 delayMs=203
+observation: 1731693863 topic=123 delayMs=142
+observation: 1731693863 topic=123 delayMs=139
+observation: 1731693863 topic=123 delayMs=138
+observation: 1731693863 topic=123 delayMs=189
+observation: 1731693863 topic=123 delayMs=142
+observation: 1731693863 topic=123 delayMs=137
+observation: 1731693863 topic=123 delayMs=141
+observation: 1731693863 topic=123 delayMs=139
+observation: 1731693863 topic=123 delayMs=138
+observation: 1731693864 topic=123 delayMs=137
+observation: 1731693864 topic=123 delayMs=142
+observation: 1731693863 topic=123 delayMs=213
+observation: 1731693864 topic=123 delayMs=148
+observation: 1731693864 topic=123 delayMs=137
+observation: 1731693864 topic=123 delayMs=141
+observation: 1731693864 topic=123 delayMs=138
+observation: 1731693864 topic=123 delayMs=234
+observation: 1731693864 topic=123 delayMs=143
+observation: 1731693864 topic=123 delayMs=306
+observation: 1731693864 topic=123 delayMs=140
+observation: 1731693864 topic=123 delayMs=137
+observation: 1731693864 topic=123 delayMs=141
+observation: 1731693864 topic=123 delayMs=171
+observation: 1731693864 topic=123 delayMs=259
+observation: 1731693864 topic=123 delayMs=147
+observation: 1731693864 topic=123 delayMs=167
+observation: 1731693864 topic=123 delayMs=150
+observation: 1731693864 topic=123 delayMs=160
+observation: 1731693864 topic=123 delayMs=138
+observation: 1731693864 topic=123 delayMs=137
+observation: 1731693864 topic=123 delayMs=136
+observation: 1731693864 topic=123 delayMs=144
+observation: 1731693864 topic=123 delayMs=141
+observation: 1731693864 topic=123 delayMs=144
+observation: 1731693864 topic=123 delayMs=138
+observation: 1731693864 topic=123 delayMs=140
+observation: 1731693864 topic=123 delayMs=140
+observation: 1731693864 topic=123 delayMs=155
+observation: 1731693864 topic=123 delayMs=142
+observation: 1731693864 topic=123 delayMs=142
+observation: 1731693864 topic=123 delayMs=141
+observation: 1731693864 topic=123 delayMs=141
+observation: 1731693864 topic=123 delayMs=213
+observation: 1731693864 topic=123 delayMs=151
+observation: 1731693864 topic=123 delayMs=140
+observation: 1731693864 topic=123 delayMs=148
+observation: 1731693864 topic=123 delayMs=184
+observation: 1731693864 topic=123 delayMs=265
+observation: 1731693865 topic=123 delayMs=139
+observation: 1731693865 topic=123 delayMs=139
+observation: 1731693864 topic=123 delayMs=228
+observation: 1731693864 topic=123 delayMs=216
+observation: 1731693865 topic=123 delayMs=142
+observation: 1731693865 topic=123 delayMs=140
+observation: 1731693865 topic=123 delayMs=214
+observation: 1731693865 topic=123 delayMs=141
+observation: 1731693865 topic=123 delayMs=143
+observation: 1731693865 topic=123 delayMs=180
+observation: 1731693865 topic=123 delayMs=172
+observation: 1731693865 topic=123 delayMs=276
+observation: 1731693865 topic=123 delayMs=142
+observation: 1731693865 topic=123 delayMs=140
+observation: 1731693865 topic=123 delayMs=138
+observation: 1731693865 topic=123 delayMs=145
+observation: 1731693865 topic=123 delayMs=139
+observation: 1731693865 topic=123 delayMs=140
+observation: 1731693865 topic=123 delayMs=140
+observation: 1731693865 topic=123 delayMs=145
+observation: 1731693865 topic=123 delayMs=142
+observation: 1731693865 topic=123 delayMs=139
+observation: 1731693865 topic=123 delayMs=141
+observation: 1731693865 topic=123 delayMs=138
+observation: 1731693865 topic=123 delayMs=140
+observation: 1731693865 topic=123 delayMs=138
+observation: 1731693865 topic=123 delayMs=138
+observation: 1731693865 topic=123 delayMs=142
+observation: 1731693865 topic=123 delayMs=141
+observation: 1731693865 topic=123 delayMs=141
+observation: 1731693865 topic=123 delayMs=160
+observation: 1731693865 topic=123 delayMs=153
+observation: 1731693865 topic=123 delayMs=147
+observation: 1731693865 topic=123 delayMs=159
+observation: 1731693865 topic=123 delayMs=155
+observation: 1731693865 topic=123 delayMs=150
+observation: 1731693865 topic=123 delayMs=144
+observation: 1731693865 topic=123 delayMs=139
+observation: 1731693865 topic=123 delayMs=150
+observation: 1731693865 topic=123 delayMs=146
+observation: 1731693865 topic=123 delayMs=140
+observation: 1731693865 topic=123 delayMs=139
+observation: 1731693865 topic=123 delayMs=323
+observation: 1731693865 topic=123 delayMs=141
+observation: 1731693865 topic=123 delayMs=140
+observation: 1731693866 topic=123 delayMs=157
+observation: 1731693866 topic=123 delayMs=149
+observation: 1731693865 topic=123 delayMs=269
+observation: 1731693866 topic=123 delayMs=199
+observation: 1731693866 topic=123 delayMs=143
+observation: 1731693865 topic=123 delayMs=336
+observation: 1731693866 topic=123 delayMs=156
+observation: 1731693866 topic=123 delayMs=142
+observation: 1731693866 topic=123 delayMs=207
+observation: 1731693866 topic=123 delayMs=203
+observation: 1731693866 topic=123 delayMs=144
+observation: 1731693866 topic=123 delayMs=140
+observation: 1731693866 topic=123 delayMs=168
+observation: 1731693866 topic=123 delayMs=194
+observation: 1731693866 topic=123 delayMs=136
+observation: 1731693866 topic=123 delayMs=140
+observation: 1731693866 topic=123 delayMs=163
+observation: 1731693866 topic=123 delayMs=155
+observation: 1731693866 topic=123 delayMs=282
+observation: 1731693866 topic=123 delayMs=144
+observation: 1731693866 topic=123 delayMs=167
+observation: 1731693866 topic=123 delayMs=313
+observation: 1731693866 topic=123 delayMs=154
+observation: 1731693866 topic=123 delayMs=214
+observation: 1731693866 topic=123 delayMs=264
+observation: 1731693866 topic=123 delayMs=139
+observation: 1731693866 topic=123 delayMs=137
+observation: 1731693866 topic=123 delayMs=246
+observation: 1731693866 topic=123 delayMs=149
+observation: 1731693866 topic=123 delayMs=193
+observation: 1731693866 topic=123 delayMs=143
+observation: 1731693866 topic=123 delayMs=139
+observation: 1731693866 topic=123 delayMs=137
+observation: 1731693866 topic=123 delayMs=165
+observation: 1731693866 topic=123 delayMs=136
+observation: 1731693866 topic=123 delayMs=237
+observation: 1731693866 topic=123 delayMs=141
+observation: 1731693866 topic=123 delayMs=137
+observation: 1731693866 topic=123 delayMs=138
+observation: 1731693866 topic=123 delayMs=149
+observation: 1731693866 topic=123 delayMs=144
+observation: 1731693866 topic=123 delayMs=139
+observation: 1731693866 topic=123 delayMs=165
+observation: 1731693866 topic=123 delayMs=143
+observation: 1731693866 topic=123 delayMs=140
+observation: 1731693866 topic=123 delayMs=137
+observation: 1731693866 topic=123 delayMs=147
+observation: 1731693866 topic=123 delayMs=145
+observation: 1731693866 topic=123 delayMs=276
+observation: 1731693866 topic=123 delayMs=270
+observation: 1731693866 topic=123 delayMs=138
+observation: 1731693867 topic=123 delayMs=140
+observation: 1731693867 topic=123 delayMs=140
+observation: 1731693867 topic=123 delayMs=139
+observation: 1731693867 topic=123 delayMs=139
+observation: 1731693867 topic=123 delayMs=139
+observation: 1731693866 topic=123 delayMs=269
+observation: 1731693867 topic=123 delayMs=144
+observation: 1731693867 topic=123 delayMs=251
+observation: 1731693867 topic=123 delayMs=185
+observation: 1731693867 topic=123 delayMs=141
+observation: 1731693867 topic=123 delayMs=136
+observation: 1731693867 topic=123 delayMs=143
+observation: 1731693867 topic=123 delayMs=155
+observation: 1731693867 topic=123 delayMs=144
+observation: 1731693867 topic=123 delayMs=137
+observation: 1731693867 topic=123 delayMs=142
+observation: 1731693867 topic=123 delayMs=139
+observation: 1731693867 topic=123 delayMs=145
+observation: 1731693867 topic=123 delayMs=142
+observation: 1731693867 topic=123 delayMs=137
+observation: 1731693867 topic=123 delayMs=142
+observation: 1731693867 topic=123 delayMs=140
+observation: 1731693867 topic=123 delayMs=142
+observation: 1731693867 topic=123 delayMs=177
+observation: 1731693867 topic=123 delayMs=139
+observation: 1731693867 topic=123 delayMs=149
+observation: 1731693867 topic=123 delayMs=142
+observation: 1731693867 topic=123 delayMs=142
+observation: 1731693867 topic=123 delayMs=173
+observation: 1731693867 topic=123 delayMs=141
+observation: 1731693867 topic=123 delayMs=142
+observation: 1731693867 topic=123 delayMs=138
+observation: 1731693867 topic=123 delayMs=142
+observation: 1731693867 topic=123 delayMs=207
+observation: 1731693867 topic=123 delayMs=143
+observation: 1731693867 topic=123 delayMs=140
+observation: 1731693867 topic=123 delayMs=142
+observation: 1731693867 topic=123 delayMs=188
+observation: 1731693867 topic=123 delayMs=187
+observation: 1731693867 topic=123 delayMs=137
+observation: 1731693867 topic=123 delayMs=138
+observation: 1731693867 topic=123 delayMs=139
+observation: 1731693867 topic=123 delayMs=138
+observation: 1731693867 topic=123 delayMs=146
+observation: 1731693867 topic=123 delayMs=135
+observation: 1731693867 topic=123 delayMs=138
+observation: 1731693867 topic=123 delayMs=137
+observation: 1731693867 topic=123 delayMs=157
+observation: 1731693867 topic=123 delayMs=156
+observation: 1731693867 topic=123 delayMs=139
+observation: 1731693867 topic=123 delayMs=141
+observation: 1731693868 topic=123 delayMs=141
+observation: 1731693868 topic=123 delayMs=146
+observation: 1731693868 topic=123 delayMs=144
+observation: 1731693868 topic=123 delayMs=141
+observation: 1731693868 topic=123 delayMs=144
+observation: 1731693868 topic=123 delayMs=139
+observation: 1731693868 topic=123 delayMs=141
+observation: 1731693868 topic=123 delayMs=144
+observation: 1731693868 topic=123 delayMs=137
+observation: 1731693868 topic=123 delayMs=137
+observation: 1731693868 topic=123 delayMs=138
+observation: 1731693868 topic=123 delayMs=157
+observation: 1731693868 topic=123 delayMs=146
+observation: 1731693868 topic=123 delayMs=144
+observation: 1731693868 topic=123 delayMs=142
+observation: 1731693868 topic=123 delayMs=138
+observation: 1731693868 topic=123 delayMs=139
+observation: 1731693868 topic=123 delayMs=149
+observation: 1731693868 topic=123 delayMs=138
+observation: 1731693868 topic=123 delayMs=137
+observation: 1731693868 topic=123 delayMs=172
+observation: 1731693868 topic=123 delayMs=166
+observation: 1731693868 topic=123 delayMs=187
+observation: 1731693868 topic=123 delayMs=146
+observation: 1731693868 topic=123 delayMs=137
+observation: 1731693868 topic=123 delayMs=138
+observation: 1731693868 topic=123 delayMs=141
+observation: 1731693868 topic=123 delayMs=178
+observation: 1731693868 topic=123 delayMs=144
+observation: 1731693868 topic=123 delayMs=154
+observation: 1731693868 topic=123 delayMs=146
+observation: 1731693868 topic=123 delayMs=144
+observation: 1731693868 topic=123 delayMs=147
+observation: 1731693868 topic=123 delayMs=140
+observation: 1731693868 topic=123 delayMs=138
+observation: 1731693868 topic=123 delayMs=140
+observation: 1731693868 topic=123 delayMs=175
+observation: 1731693868 topic=123 delayMs=195
+observation: 1731693868 topic=123 delayMs=146
+observation: 1731693868 topic=123 delayMs=145
+observation: 1731693868 topic=123 delayMs=137
+observation: 1731693868 topic=123 delayMs=145
+observation: 1731693868 topic=123 delayMs=141
+observation: 1731693868 topic=123 delayMs=142
+observation: 1731693868 topic=123 delayMs=138
+observation: 1731693868 topic=123 delayMs=142
+observation: 1731693868 topic=123 delayMs=138
+observation: 1731693868 topic=123 delayMs=145
+observation: 1731693868 topic=123 delayMs=142
+observation: 1731693868 topic=123 delayMs=138
+observation: 1731693869 topic=123 delayMs=137
+observation: 1731693869 topic=123 delayMs=142
+observation: 1731693869 topic=123 delayMs=167
+observation: 1731693869 topic=123 delayMs=139
+observation: 1731693869 topic=123 delayMs=138
+observation: 1731693869 topic=123 delayMs=137
+observation: 1731693869 topic=123 delayMs=141
+observation: 1731693869 topic=123 delayMs=159
+observation: 1731693869 topic=123 delayMs=147
+observation: 1731693869 topic=123 delayMs=138
+observation: 1731693869 topic=123 delayMs=138
+observation: 1731693869 topic=123 delayMs=139
+observation: 1731693869 topic=123 delayMs=162
+observation: 1731693869 topic=123 delayMs=138
+observation: 1731693869 topic=123 delayMs=136
+observation: 1731693869 topic=123 delayMs=141
+observation: 1731693869 topic=123 delayMs=145
+observation: 1731693869 topic=123 delayMs=139
+observation: 1731693869 topic=123 delayMs=137
+observation: 1731693869 topic=123 delayMs=139
+observation: 1731693869 topic=123 delayMs=140
+observation: 1731693869 topic=123 delayMs=142
+observation: 1731693869 topic=123 delayMs=146
+observation: 1731693869 topic=123 delayMs=143
+observation: 1731693869 topic=123 delayMs=140
+observation: 1731693869 topic=123 delayMs=139
+observation: 1731693869 topic=123 delayMs=144
+observation: 1731693869 topic=123 delayMs=145
+observation: 1731693869 topic=123 delayMs=145
+observation: 1731693869 topic=123 delayMs=141
+observation: 1731693869 topic=123 delayMs=142
+observation: 1731693869 topic=123 delayMs=141
+observation: 1731693869 topic=123 delayMs=145
+observation: 1731693869 topic=123 delayMs=142
+observation: 1731693869 topic=123 delayMs=141
+observation: 1731693869 topic=123 delayMs=143
+observation: 1731693869 topic=123 delayMs=140
+observation: 1731693869 topic=123 delayMs=160
+observation: 1731693869 topic=123 delayMs=137
+observation: 1731693869 topic=123 delayMs=139
+observation: 1731693869 topic=123 delayMs=142
+observation: 1731693869 topic=123 delayMs=139
+observation: 1731693869 topic=123 delayMs=174
+observation: 1731693869 topic=123 delayMs=139
+observation: 1731693869 topic=123 delayMs=138
+observation: 1731693869 topic=123 delayMs=143
+observation: 1731693869 topic=123 delayMs=146
+observation: 1731693869 topic=123 delayMs=147
+observation: 1731693869 topic=123 delayMs=141
+observation: 1731693869 topic=123 delayMs=141
+observation: 1731693870 topic=123 delayMs=135
+observation: 1731693870 topic=123 delayMs=145
+observation: 1731693870 topic=123 delayMs=147
+observation: 1731693870 topic=123 delayMs=137
+observation: 1731693870 topic=123 delayMs=138
+observation: 1731693870 topic=123 delayMs=140
+observation: 1731693870 topic=123 delayMs=140
+observation: 1731693870 topic=123 delayMs=143
+observation: 1731693870 topic=123 delayMs=142
+observation: 1731693870 topic=123 delayMs=142
+observation: 1731693870 topic=123 delayMs=136
+observation: 1731693870 topic=123 delayMs=144
+observation: 1731693870 topic=123 delayMs=144
+observation: 1731693870 topic=123 delayMs=141
+observation: 1731693870 topic=123 delayMs=139
+observation: 1731693870 topic=123 delayMs=144
+observation: 1731693870 topic=123 delayMs=172
+observation: 1731693870 topic=123 delayMs=148
+observation: 1731693870 topic=123 delayMs=136
+observation: 1731693870 topic=123 delayMs=143
+observation: 1731693870 topic=123 delayMs=140
+observation: 1731693870 topic=123 delayMs=192
+observation: 1731693870 topic=123 delayMs=140
+observation: 1731693870 topic=123 delayMs=145
+observation: 1731693870 topic=123 delayMs=146
+observation: 1731693870 topic=123 delayMs=298
+observation: 1731693870 topic=123 delayMs=226
+observation: 1731693870 topic=123 delayMs=202
+observation: 1731693870 topic=123 delayMs=144
+observation: 1731693870 topic=123 delayMs=139
+observation: 1731693870 topic=123 delayMs=137
+observation: 1731693870 topic=123 delayMs=140
+observation: 1731693870 topic=123 delayMs=149
+observation: 1731693870 topic=123 delayMs=138
+observation: 1731693870 topic=123 delayMs=137
+observation: 1731693870 topic=123 delayMs=141
+observation: 1731693870 topic=123 delayMs=143
+observation: 1731693870 topic=123 delayMs=146
+observation: 1731693870 topic=123 delayMs=142
+observation: 1731693870 topic=123 delayMs=145
+observation: 1731693870 topic=123 delayMs=142
+observation: 1731693870 topic=123 delayMs=139
+observation: 1731693870 topic=123 delayMs=141
+observation: 1731693870 topic=123 delayMs=144
+observation: 1731693870 topic=123 delayMs=139
+observation: 1731693870 topic=123 delayMs=139
+observation: 1731693870 topic=123 delayMs=143
+observation: 1731693870 topic=123 delayMs=141
+observation: 1731693870 topic=123 delayMs=139
+observation: 1731693870 topic=123 delayMs=142
+observation: 1731693871 topic=123 delayMs=139
+observation: 1731693871 topic=123 delayMs=154
+observation: 1731693871 topic=123 delayMs=140
+observation: 1731693871 topic=123 delayMs=138
+observation: 1731693871 topic=123 delayMs=138
+observation: 1731693871 topic=123 delayMs=148
+observation: 1731693871 topic=123 delayMs=141
+observation: 1731693871 topic=123 delayMs=142
+observation: 1731693871 topic=123 delayMs=141
+observation: 1731693871 topic=123 delayMs=138
+observation: 1731693871 topic=123 delayMs=148
+observation: 1731693871 topic=123 delayMs=144
+observation: 1731693871 topic=123 delayMs=138
+observation: 1731693871 topic=123 delayMs=237
+observation: 1731693871 topic=123 delayMs=140
+observation: 1731693871 topic=123 delayMs=160
+observation: 1731693871 topic=123 delayMs=138
+observation: 1731693871 topic=123 delayMs=150
+observation: 1731693871 topic=123 delayMs=144
+observation: 1731693871 topic=123 delayMs=186
+observation: 1731693871 topic=123 delayMs=290
+observation: 1731693871 topic=123 delayMs=145
+observation: 1731693871 topic=123 delayMs=142
+observation: 1731693871 topic=123 delayMs=150
+observation: 1731693871 topic=123 delayMs=198
+observation: 1731693871 topic=123 delayMs=223
+observation: 1731693871 topic=123 delayMs=147
+observation: 1731693871 topic=123 delayMs=320
+observation: 1731693871 topic=123 delayMs=299
+observation: 1731693871 topic=123 delayMs=180
+observation: 1731693871 topic=123 delayMs=155
+observation: 1731693871 topic=123 delayMs=166
+observation: 1731693871 topic=123 delayMs=199
+observation: 1731693871 topic=123 delayMs=140
+observation: 1731693871 topic=123 delayMs=138
+observation: 1731693871 topic=123 delayMs=138
+observation: 1731693871 topic=123 delayMs=152
+observation: 1731693871 topic=123 delayMs=142
+observation: 1731693871 topic=123 delayMs=200
+observation: 1731693871 topic=123 delayMs=142
+observation: 1731693871 topic=123 delayMs=141
+observation: 1731693871 topic=123 delayMs=137
+observation: 1731693871 topic=123 delayMs=144
+observation: 1731693871 topic=123 delayMs=137
+observation: 1731693871 topic=123 delayMs=151
+observation: 1731693871 topic=123 delayMs=142
+observation: 1731693871 topic=123 delayMs=155
+observation: 1731693871 topic=123 delayMs=181
+observation: 1731693871 topic=123 delayMs=136
+observation: 1731693871 topic=123 delayMs=139
+observation: 1731693872 topic=123 delayMs=139
+observation: 1731693872 topic=123 delayMs=137
+observation: 1731693872 topic=123 delayMs=149
+observation: 1731693872 topic=123 delayMs=143
+observation: 1731693872 topic=123 delayMs=145
+observation: 1731693872 topic=123 delayMs=137
+observation: 1731693872 topic=123 delayMs=144
+observation: 1731693872 topic=123 delayMs=138
+observation: 1731693872 topic=123 delayMs=137
+observation: 1731693872 topic=123 delayMs=323
+observation: 1731693872 topic=123 delayMs=138
+observation: 1731693872 topic=123 delayMs=265
+observation: 1731693872 topic=123 delayMs=150
+observation: 1731693872 topic=123 delayMs=161
+observation: 1731693872 topic=123 delayMs=186
+observation: 1731693872 topic=123 delayMs=283
+observation: 1731693872 topic=123 delayMs=304
+observation: 1731693872 topic=123 delayMs=140
+observation: 1731693872 topic=123 delayMs=297
+observation: 1731693872 topic=123 delayMs=139
+observation: 1731693872 topic=123 delayMs=137
+observation: 1731693872 topic=123 delayMs=161
+observation: 1731693872 topic=123 delayMs=151
+observation: 1731693872 topic=123 delayMs=139
+observation: 1731693872 topic=123 delayMs=144
+observation: 1731693872 topic=123 delayMs=139
+observation: 1731693872 topic=123 delayMs=140
+observation: 1731693872 topic=123 delayMs=140
+observation: 1731693872 topic=123 delayMs=147
+observation: 1731693872 topic=123 delayMs=160
+observation: 1731693872 topic=123 delayMs=283
+observation: 1731693872 topic=123 delayMs=310
+observation: 1731693872 topic=123 delayMs=282
+observation: 1731693872 topic=123 delayMs=136
+observation: 1731693872 topic=123 delayMs=171
+observation: 1731693872 topic=123 delayMs=160
+observation: 1731693872 topic=123 delayMs=166
+observation: 1731693872 topic=123 delayMs=161
+observation: 1731693872 topic=123 delayMs=139
+observation: 1731693872 topic=123 delayMs=138
+observation: 1731693872 topic=123 delayMs=139
+observation: 1731693872 topic=123 delayMs=191
+observation: 1731693872 topic=123 delayMs=151
+observation: 1731693872 topic=123 delayMs=141
+observation: 1731693872 topic=123 delayMs=141
+observation: 1731693872 topic=123 delayMs=225
+observation: 1731693872 topic=123 delayMs=162
+observation: 1731693872 topic=123 delayMs=162
+observation: 1731693872 topic=123 delayMs=139
+observation: 1731693872 topic=123 delayMs=138
+observation: 1731693873 topic=123 delayMs=140
+observation: 1731693873 topic=123 delayMs=149
+observation: 1731693873 topic=123 delayMs=158
+observation: 1731693873 topic=123 delayMs=145
+observation: 1731693873 topic=123 delayMs=141
+observation: 1731693873 topic=123 delayMs=138
+observation: 1731693873 topic=123 delayMs=139
+observation: 1731693873 topic=123 delayMs=140
+observation: 1731693873 topic=123 delayMs=144
+observation: 1731693873 topic=123 delayMs=136
+observation: 1731693873 topic=123 delayMs=143
+observation: 1731693873 topic=123 delayMs=176
+observation: 1731693873 topic=123 delayMs=144
+observation: 1731693873 topic=123 delayMs=143
+observation: 1731693873 topic=123 delayMs=143
+observation: 1731693873 topic=123 delayMs=139
+observation: 1731693873 topic=123 delayMs=143
+observation: 1731693873 topic=123 delayMs=179
+observation: 1731693873 topic=123 delayMs=140
+observation: 1731693873 topic=123 delayMs=136
+observation: 1731693873 topic=123 delayMs=139
+observation: 1731693873 topic=123 delayMs=137
+observation: 1731693873 topic=123 delayMs=148
+observation: 1731693873 topic=123 delayMs=143
+observation: 1731693873 topic=123 delayMs=148
+observation: 1731693873 topic=123 delayMs=139
+observation: 1731693873 topic=123 delayMs=140
+observation: 1731693873 topic=123 delayMs=138
+observation: 1731693873 topic=123 delayMs=142
+observation: 1731693873 topic=123 delayMs=144
+observation: 1731693873 topic=123 delayMs=137
+observation: 1731693873 topic=123 delayMs=144
+observation: 1731693873 topic=123 delayMs=143
+observation: 1731693873 topic=123 delayMs=138
+observation: 1731693873 topic=123 delayMs=143
+observation: 1731693873 topic=123 delayMs=330
+observation: 1731693873 topic=123 delayMs=229
+observation: 1731693873 topic=123 delayMs=254
+observation: 1731693873 topic=123 delayMs=170
+observation: 1731693873 topic=123 delayMs=170
+observation: 1731693873 topic=123 delayMs=160
+observation: 1731693873 topic=123 delayMs=165
+observation: 1731693873 topic=123 delayMs=181
+observation: 1731693873 topic=123 delayMs=203
+observation: 1731693873 topic=123 delayMs=198
+observation: 1731693873 topic=123 delayMs=214
+observation: 1731693873 topic=123 delayMs=215
+observation: 1731693873 topic=123 delayMs=317
+observation: 1731693873 topic=123 delayMs=312
+observation: 1731693874 topic=123 delayMs=278
+observation: 1731693874 topic=123 delayMs=219
+observation: 1731693873 topic=123 delayMs=329
+observation: 1731693874 topic=123 delayMs=327
+observation: 1731693874 topic=123 delayMs=216
+observation: 1731693874 topic=123 delayMs=241
+observation: 1731693874 topic=123 delayMs=330
+observation: 1731693874 topic=123 delayMs=256
+observation: 1731693874 topic=123 delayMs=189
+observation: 1731693874 topic=123 delayMs=285
+observation: 1731693874 topic=123 delayMs=184
+observation: 1731693874 topic=123 delayMs=205
+observation: 1731693874 topic=123 delayMs=183
+observation: 1731693874 topic=123 delayMs=174
+observation: 1731693874 topic=123 delayMs=151
+observation: 1731693874 topic=123 delayMs=174
+observation: 1731693874 topic=123 delayMs=167
+observation: 1731693874 topic=123 delayMs=163
+observation: 1731693874 topic=123 delayMs=170
+observation: 1731693874 topic=123 delayMs=145
+observation: 1731693874 topic=123 delayMs=145
+observation: 1731693874 topic=123 delayMs=140
+observation: 1731693874 topic=123 delayMs=145
+observation: 1731693874 topic=123 delayMs=144
+observation: 1731693874 topic=123 delayMs=143
+observation: 1731693874 topic=123 delayMs=141
+observation: 1731693874 topic=123 delayMs=140
+observation: 1731693874 topic=123 delayMs=139
+observation: 1731693874 topic=123 delayMs=142
+observation: 1731693874 topic=123 delayMs=143
+observation: 1731693874 topic=123 delayMs=140
+observation: 1731693874 topic=123 delayMs=137
+observation: 1731693874 topic=123 delayMs=138
+observation: 1731693874 topic=123 delayMs=151
+observation: 1731693874 topic=123 delayMs=139
+observation: 1731693874 topic=123 delayMs=143
+observation: 1731693874 topic=123 delayMs=143
+observation: 1731693874 topic=123 delayMs=140
+observation: 1731693874 topic=123 delayMs=148
+observation: 1731693874 topic=123 delayMs=143
+observation: 1731693874 topic=123 delayMs=140
+observation: 1731693874 topic=123 delayMs=138
+observation: 1731693874 topic=123 delayMs=145
+observation: 1731693874 topic=123 delayMs=140
+observation: 1731693874 topic=123 delayMs=137
+observation: 1731693874 topic=123 delayMs=138
+observation: 1731693874 topic=123 delayMs=147
+observation: 1731693874 topic=123 delayMs=142
+observation: 1731693874 topic=123 delayMs=156
+observation: 1731693875 topic=123 delayMs=138
+observation: 1731693874 topic=123 delayMs=265
+observation: 1731693874 topic=123 delayMs=280
+observation: 1731693875 topic=123 delayMs=157
+observation: 1731693875 topic=123 delayMs=192
+observation: 1731693875 topic=123 delayMs=140
+observation: 1731693875 topic=123 delayMs=142
+observation: 1731693875 topic=123 delayMs=139
+observation: 1731693875 topic=123 delayMs=147
+observation: 1731693875 topic=123 delayMs=146
+observation: 1731693875 topic=123 delayMs=137
+observation: 1731693875 topic=123 delayMs=144
+observation: 1731693875 topic=123 delayMs=138
+observation: 1731693875 topic=123 delayMs=140
+observation: 1731693875 topic=123 delayMs=141
+observation: 1731693875 topic=123 delayMs=141
+observation: 1731693875 topic=123 delayMs=139
+observation: 1731693875 topic=123 delayMs=138
+observation: 1731693875 topic=123 delayMs=145
+observation: 1731693875 topic=123 delayMs=144
+observation: 1731693875 topic=123 delayMs=138
+observation: 1731693875 topic=123 delayMs=140
+observation: 1731693875 topic=123 delayMs=143
+observation: 1731693875 topic=123 delayMs=142
+observation: 1731693875 topic=123 delayMs=141
+observation: 1731693875 topic=123 delayMs=142
+observation: 1731693875 topic=123 delayMs=141
+observation: 1731693875 topic=123 delayMs=147
+observation: 1731693875 topic=123 delayMs=143
+observation: 1731693875 topic=123 delayMs=254
+observation: 1731693875 topic=123 delayMs=277
+observation: 1731693875 topic=123 delayMs=152
+observation: 1731693875 topic=123 delayMs=163
+observation: 1731693875 topic=123 delayMs=178
+observation: 1731693875 topic=123 delayMs=151
+observation: 1731693875 topic=123 delayMs=138
+observation: 1731693875 topic=123 delayMs=143
+observation: 1731693875 topic=123 delayMs=141
+observation: 1731693875 topic=123 delayMs=162
+observation: 1731693875 topic=123 delayMs=144
+observation: 1731693875 topic=123 delayMs=142
+observation: 1731693875 topic=123 delayMs=140
+observation: 1731693875 topic=123 delayMs=146
+observation: 1731693875 topic=123 delayMs=143
+observation: 1731693875 topic=123 delayMs=140
+observation: 1731693875 topic=123 delayMs=142
+observation: 1731693875 topic=123 delayMs=139
+observation: 1731693875 topic=123 delayMs=136
+observation: 1731693875 topic=123 delayMs=140
+observation: 1731693875 topic=123 delayMs=146
+observation: 1731693875 topic=123 delayMs=137
+observation: 1731693875 topic=123 delayMs=140
+observation: 1731693876 topic=123 delayMs=143
+observation: 1731693876 topic=123 delayMs=146
+observation: 1731693876 topic=123 delayMs=182
+observation: 1731693876 topic=123 delayMs=138
+observation: 1731693876 topic=123 delayMs=141
+observation: 1731693876 topic=123 delayMs=139
+observation: 1731693876 topic=123 delayMs=141
+observation: 1731693876 topic=123 delayMs=145
+observation: 1731693876 topic=123 delayMs=137
+observation: 1731693876 topic=123 delayMs=138
+observation: 1731693876 topic=123 delayMs=137
+observation: 1731693876 topic=123 delayMs=146
+observation: 1731693876 topic=123 delayMs=147
+observation: 1731693876 topic=123 delayMs=141
+observation: 1731693876 topic=123 delayMs=139
+observation: 1731693876 topic=123 delayMs=140
+observation: 1731693876 topic=123 delayMs=146
+observation: 1731693876 topic=123 delayMs=142
+observation: 1731693876 topic=123 delayMs=138
+observation: 1731693876 topic=123 delayMs=141
+observation: 1731693876 topic=123 delayMs=136
+observation: 1731693876 topic=123 delayMs=139
+observation: 1731693876 topic=123 delayMs=143
+observation: 1731693876 topic=123 delayMs=140
+observation: 1731693876 topic=123 delayMs=138
+observation: 1731693876 topic=123 delayMs=139
+observation: 1731693876 topic=123 delayMs=141
+observation: 1731693876 topic=123 delayMs=144
+observation: 1731693876 topic=123 delayMs=140
+observation: 1731693876 topic=123 delayMs=136
+observation: 1731693876 topic=123 delayMs=143
+observation: 1731693876 topic=123 delayMs=142
+observation: 1731693876 topic=123 delayMs=145
+observation: 1731693876 topic=123 delayMs=139
+observation: 1731693876 topic=123 delayMs=138
+observation: 1731693876 topic=123 delayMs=138
+observation: 1731693876 topic=123 delayMs=145
+observation: 1731693876 topic=123 delayMs=144
+observation: 1731693876 topic=123 delayMs=138
+observation: 1731693876 topic=123 delayMs=138
+observation: 1731693876 topic=123 delayMs=140
+observation: 1731693876 topic=123 delayMs=137
+observation: 1731693876 topic=123 delayMs=143
+observation: 1731693876 topic=123 delayMs=143
+observation: 1731693876 topic=123 delayMs=141
+observation: 1731693876 topic=123 delayMs=142
+observation: 1731693876 topic=123 delayMs=140
+observation: 1731693876 topic=123 delayMs=141
+observation: 1731693876 topic=123 delayMs=144
+observation: 1731693876 topic=123 delayMs=143
+observation: 1731693877 topic=123 delayMs=141
+observation: 1731693877 topic=123 delayMs=140
+observation: 1731693877 topic=123 delayMs=140
+observation: 1731693877 topic=123 delayMs=144
+observation: 1731693877 topic=123 delayMs=139
+observation: 1731693877 topic=123 delayMs=136
+observation: 1731693877 topic=123 delayMs=142
+observation: 1731693877 topic=123 delayMs=140
+observation: 1731693877 topic=123 delayMs=141
+observation: 1731693877 topic=123 delayMs=138
+observation: 1731693877 topic=123 delayMs=138
+observation: 1731693877 topic=123 delayMs=139
+observation: 1731693877 topic=123 delayMs=150
+observation: 1731693877 topic=123 delayMs=141
+observation: 1731693877 topic=123 delayMs=138
+observation: 1731693877 topic=123 delayMs=138
+observation: 1731693877 topic=123 delayMs=147
+observation: 1731693877 topic=123 delayMs=143
+observation: 1731693877 topic=123 delayMs=145
+observation: 1731693877 topic=123 delayMs=151
+observation: 1731693877 topic=123 delayMs=147
+observation: 1731693877 topic=123 delayMs=148
+observation: 1731693877 topic=123 delayMs=143
+observation: 1731693877 topic=123 delayMs=156
+observation: 1731693877 topic=123 delayMs=156
+observation: 1731693877 topic=123 delayMs=151
+observation: 1731693877 topic=123 delayMs=146
+observation: 1731693877 topic=123 delayMs=146
+observation: 1731693877 topic=123 delayMs=145
+observation: 1731693877 topic=123 delayMs=138
+observation: 1731693877 topic=123 delayMs=138
+observation: 1731693877 topic=123 delayMs=145
+observation: 1731693877 topic=123 delayMs=315
+observation: 1731693877 topic=123 delayMs=143
+observation: 1731693877 topic=123 delayMs=150
+observation: 1731693877 topic=123 delayMs=167
+observation: 1731693877 topic=123 delayMs=148
+observation: 1731693877 topic=123 delayMs=187
+observation: 1731693877 topic=123 delayMs=140
+observation: 1731693877 topic=123 delayMs=141
+observation: 1731693877 topic=123 delayMs=141
+observation: 1731693877 topic=123 delayMs=141
+observation: 1731693877 topic=123 delayMs=170
+observation: 1731693877 topic=123 delayMs=141
+observation: 1731693877 topic=123 delayMs=143
+observation: 1731693877 topic=123 delayMs=137
+observation: 1731693877 topic=123 delayMs=137
+observation: 1731693877 topic=123 delayMs=144
+observation: 1731693877 topic=123 delayMs=138
+observation: 1731693877 topic=123 delayMs=137
+observation: 1731693878 topic=123 delayMs=142
+observation: 1731693878 topic=123 delayMs=148
+observation: 1731693878 topic=123 delayMs=163
+observation: 1731693878 topic=123 delayMs=141
+observation: 1731693878 topic=123 delayMs=142
+observation: 1731693878 topic=123 delayMs=140
+observation: 1731693878 topic=123 delayMs=142
+observation: 1731693878 topic=123 delayMs=145
+observation: 1731693878 topic=123 delayMs=139
+observation: 1731693878 topic=123 delayMs=140
+observation: 1731693878 topic=123 delayMs=139
+observation: 1731693878 topic=123 delayMs=142
+observation: 1731693878 topic=123 delayMs=156
+observation: 1731693878 topic=123 delayMs=138
+observation: 1731693878 topic=123 delayMs=139
+observation: 1731693878 topic=123 delayMs=144
+observation: 1731693878 topic=123 delayMs=139
+observation: 1731693878 topic=123 delayMs=161
+observation: 1731693878 topic=123 delayMs=138
+observation: 1731693878 topic=123 delayMs=143
+observation: 1731693878 topic=123 delayMs=143
+observation: 1731693878 topic=123 delayMs=150
+observation: 1731693878 topic=123 delayMs=142
+observation: 1731693878 topic=123 delayMs=139
+observation: 1731693878 topic=123 delayMs=141
+observation: 1731693878 topic=123 delayMs=137
+observation: 1731693878 topic=123 delayMs=143
+observation: 1731693878 topic=123 delayMs=139
+observation: 1731693878 topic=123 delayMs=137
+observation: 1731693878 topic=123 delayMs=136
+observation: 1731693878 topic=123 delayMs=171
+observation: 1731693878 topic=123 delayMs=170
+observation: 1731693878 topic=123 delayMs=162
+observation: 1731693878 topic=123 delayMs=139
+observation: 1731693878 topic=123 delayMs=140
+observation: 1731693878 topic=123 delayMs=137
+observation: 1731693878 topic=123 delayMs=141
+observation: 1731693878 topic=123 delayMs=142
+observation: 1731693878 topic=123 delayMs=149
+observation: 1731693878 topic=123 delayMs=141
+observation: 1731693878 topic=123 delayMs=154
+observation: 1731693878 topic=123 delayMs=144
+observation: 1731693878 topic=123 delayMs=144
+observation: 1731693878 topic=123 delayMs=147
+observation: 1731693878 topic=123 delayMs=141
+observation: 1731693878 topic=123 delayMs=140
+observation: 1731693878 topic=123 delayMs=141
+observation: 1731693878 topic=123 delayMs=156
+observation: 1731693878 topic=123 delayMs=140
+observation: 1731693879 topic=123 delayMs=141
+observation: 1731693879 topic=123 delayMs=140
+observation: 1731693879 topic=123 delayMs=145
+observation: 1731693879 topic=123 delayMs=143
+observation: 1731693879 topic=123 delayMs=155
+observation: 1731693879 topic=123 delayMs=140
+observation: 1731693878 topic=123 delayMs=259
+observation: 1731693879 topic=123 delayMs=138
+observation: 1731693879 topic=123 delayMs=148
+observation: 1731693879 topic=123 delayMs=145
+observation: 1731693879 topic=123 delayMs=137
+observation: 1731693879 topic=123 delayMs=141
+observation: 1731693879 topic=123 delayMs=150
+observation: 1731693879 topic=123 delayMs=218
+observation: 1731693879 topic=123 delayMs=137
+observation: 1731693879 topic=123 delayMs=140
+observation: 1731693879 topic=123 delayMs=162
+observation: 1731693879 topic=123 delayMs=159
+observation: 1731693879 topic=123 delayMs=138
+observation: 1731693879 topic=123 delayMs=140
+observation: 1731693879 topic=123 delayMs=140
+observation: 1731693879 topic=123 delayMs=169
+observation: 1731693879 topic=123 delayMs=270
+observation: 1731693879 topic=123 delayMs=141
+observation: 1731693879 topic=123 delayMs=141
+observation: 1731693879 topic=123 delayMs=152
+observation: 1731693879 topic=123 delayMs=202
+observation: 1731693879 topic=123 delayMs=144
+observation: 1731693879 topic=123 delayMs=138
+observation: 1731693879 topic=123 delayMs=237
+observation: 1731693879 topic=123 delayMs=138
+observation: 1731693879 topic=123 delayMs=311
+observation: 1731693879 topic=123 delayMs=143
+observation: 1731693879 topic=123 delayMs=148
+observation: 1731693879 topic=123 delayMs=142
+observation: 1731693879 topic=123 delayMs=140
+observation: 1731693879 topic=123 delayMs=140
+observation: 1731693879 topic=123 delayMs=138
+observation: 1731693879 topic=123 delayMs=147
+observation: 1731693879 topic=123 delayMs=141
+observation: 1731693879 topic=123 delayMs=146
+observation: 1731693879 topic=123 delayMs=143
+observation: 1731693879 topic=123 delayMs=186
+observation: 1731693879 topic=123 delayMs=137
+observation: 1731693879 topic=123 delayMs=141
+observation: 1731693879 topic=123 delayMs=137
+observation: 1731693879 topic=123 delayMs=189
+observation: 1731693879 topic=123 delayMs=138
+observation: 1731693879 topic=123 delayMs=141
+observation: 1731693879 topic=123 delayMs=220
+observation: 1731693880 topic=123 delayMs=136
+observation: 1731693879 topic=123 delayMs=336
+observation: 1731693880 topic=123 delayMs=141
+observation: 1731693880 topic=123 delayMs=157
+observation: 1731693880 topic=123 delayMs=139
+observation: 1731693880 topic=123 delayMs=142
+observation: 1731693880 topic=123 delayMs=144
+observation: 1731693880 topic=123 delayMs=165
+observation: 1731693880 topic=123 delayMs=156
+observation: 1731693880 topic=123 delayMs=144
+observation: 1731693880 topic=123 delayMs=140
+observation: 1731693880 topic=123 delayMs=137
+observation: 1731693880 topic=123 delayMs=146
+observation: 1731693880 topic=123 delayMs=142
+observation: 1731693880 topic=123 delayMs=140
+observation: 1731693880 topic=123 delayMs=139
+observation: 1731693880 topic=123 delayMs=141
+observation: 1731693880 topic=123 delayMs=139
+observation: 1731693880 topic=123 delayMs=147
+observation: 1731693880 topic=123 delayMs=139
+observation: 1731693880 topic=123 delayMs=137
+observation: 1731693880 topic=123 delayMs=138
+observation: 1731693880 topic=123 delayMs=148
+observation: 1731693880 topic=123 delayMs=154
+observation: 1731693880 topic=123 delayMs=142
+observation: 1731693880 topic=123 delayMs=135
+observation: 1731693880 topic=123 delayMs=139
+observation: 1731693880 topic=123 delayMs=144
+observation: 1731693880 topic=123 delayMs=144
+observation: 1731693880 topic=123 delayMs=137
+observation: 1731693880 topic=123 delayMs=143
+observation: 1731693880 topic=123 delayMs=141
+observation: 1731693880 topic=123 delayMs=139
+observation: 1731693880 topic=123 delayMs=148
+observation: 1731693880 topic=123 delayMs=136
+observation: 1731693880 topic=123 delayMs=137
+observation: 1731693880 topic=123 delayMs=138
+observation: 1731693880 topic=123 delayMs=159
+observation: 1731693880 topic=123 delayMs=214
+observation: 1731693880 topic=123 delayMs=141
+observation: 1731693880 topic=123 delayMs=137
+observation: 1731693880 topic=123 delayMs=140
+observation: 1731693880 topic=123 delayMs=138
+observation: 1731693880 topic=123 delayMs=139
+observation: 1731693880 topic=123 delayMs=145
+observation: 1731693880 topic=123 delayMs=139
+observation: 1731693880 topic=123 delayMs=140
+observation: 1731693880 topic=123 delayMs=139
+observation: 1731693880 topic=123 delayMs=144
+observation: 1731693880 topic=123 delayMs=142
+observation: 1731693880 topic=123 delayMs=139
+observation: 1731693881 topic=123 delayMs=137
+observation: 1731693881 topic=123 delayMs=142
+observation: 1731693881 topic=123 delayMs=142
+observation: 1731693881 topic=123 delayMs=142
+observation: 1731693881 topic=123 delayMs=139
+observation: 1731693881 topic=123 delayMs=144
+observation: 1731693881 topic=123 delayMs=137
+observation: 1731693881 topic=123 delayMs=145
+observation: 1731693881 topic=123 delayMs=138
+observation: 1731693881 topic=123 delayMs=138
+observation: 1731693881 topic=123 delayMs=140
+observation: 1731693881 topic=123 delayMs=143
+observation: 1731693881 topic=123 delayMs=146
+observation: 1731693881 topic=123 delayMs=138
+observation: 1731693881 topic=123 delayMs=142
+observation: 1731693881 topic=123 delayMs=140
+observation: 1731693881 topic=123 delayMs=145
+observation: 1731693881 topic=123 delayMs=147
+observation: 1731693881 topic=123 delayMs=141
+observation: 1731693881 topic=123 delayMs=141
+observation: 1731693881 topic=123 delayMs=141
+observation: 1731693881 topic=123 delayMs=139
+observation: 1731693881 topic=123 delayMs=147
+observation: 1731693881 topic=123 delayMs=140
+observation: 1731693881 topic=123 delayMs=139
+observation: 1731693881 topic=123 delayMs=138
+observation: 1731693881 topic=123 delayMs=141
+observation: 1731693881 topic=123 delayMs=174
+observation: 1731693881 topic=123 delayMs=137
+observation: 1731693881 topic=123 delayMs=138
+observation: 1731693881 topic=123 delayMs=141
+observation: 1731693881 topic=123 delayMs=142
+observation: 1731693881 topic=123 delayMs=145
+observation: 1731693881 topic=123 delayMs=141
+observation: 1731693881 topic=123 delayMs=142
+observation: 1731693881 topic=123 delayMs=140
+observation: 1731693881 topic=123 delayMs=139
+observation: 1731693881 topic=123 delayMs=146
+observation: 1731693881 topic=123 delayMs=141
+observation: 1731693881 topic=123 delayMs=143
+observation: 1731693881 topic=123 delayMs=142
+observation: 1731693881 topic=123 delayMs=138
+observation: 1731693881 topic=123 delayMs=141
+observation: 1731693881 topic=123 delayMs=141
+observation: 1731693881 topic=123 delayMs=140
+observation: 1731693881 topic=123 delayMs=139
+observation: 1731693881 topic=123 delayMs=143
+observation: 1731693881 topic=123 delayMs=142
+observation: 1731693881 topic=123 delayMs=147
+observation: 1731693881 topic=123 delayMs=142
+observation: 1731693882 topic=123 delayMs=169
+observation: 1731693882 topic=123 delayMs=147
+observation: 1731693882 topic=123 delayMs=137
+observation: 1731693882 topic=123 delayMs=147
+observation: 1731693882 topic=123 delayMs=300
+observation: 1731693882 topic=123 delayMs=289
+observation: 1731693882 topic=123 delayMs=201
+observation: 1731693882 topic=123 delayMs=141
+observation: 1731693882 topic=123 delayMs=136
+observation: 1731693882 topic=123 delayMs=244
+observation: 1731693882 topic=123 delayMs=143
+observation: 1731693882 topic=123 delayMs=181
+observation: 1731693882 topic=123 delayMs=145
+observation: 1731693882 topic=123 delayMs=142
+observation: 1731693882 topic=123 delayMs=138
+observation: 1731693882 topic=123 delayMs=140
+observation: 1731693882 topic=123 delayMs=140
+observation: 1731693882 topic=123 delayMs=140
+observation: 1731693882 topic=123 delayMs=141
+observation: 1731693882 topic=123 delayMs=137
+observation: 1731693882 topic=123 delayMs=138
+observation: 1731693882 topic=123 delayMs=141
+observation: 1731693882 topic=123 delayMs=144
+observation: 1731693882 topic=123 delayMs=138
+observation: 1731693882 topic=123 delayMs=138
+observation: 1731693882 topic=123 delayMs=143
+observation: 1731693882 topic=123 delayMs=140
+observation: 1731693882 topic=123 delayMs=143
+observation: 1731693882 topic=123 delayMs=142
+observation: 1731693882 topic=123 delayMs=138
+observation: 1731693882 topic=123 delayMs=141
+observation: 1731693882 topic=123 delayMs=145
+observation: 1731693882 topic=123 delayMs=143
+observation: 1731693882 topic=123 delayMs=142
+observation: 1731693882 topic=123 delayMs=144
+observation: 1731693882 topic=123 delayMs=141
+observation: 1731693882 topic=123 delayMs=139
+observation: 1731693882 topic=123 delayMs=286
+observation: 1731693882 topic=123 delayMs=277
+observation: 1731693882 topic=123 delayMs=199
+observation: 1731693882 topic=123 delayMs=315
+observation: 1731693882 topic=123 delayMs=270
+observation: 1731693882 topic=123 delayMs=218
+observation: 1731693882 topic=123 delayMs=152
+observation: 1731693882 topic=123 delayMs=137
+observation: 1731693882 topic=123 delayMs=166
+observation: 1731693882 topic=123 delayMs=160
+observation: 1731693882 topic=123 delayMs=151
+observation: 1731693882 topic=123 delayMs=143
+observation: 1731693882 topic=123 delayMs=145
+observation: 1731693883 topic=123 delayMs=138
+observation: 1731693883 topic=123 delayMs=143
+observation: 1731693883 topic=123 delayMs=140
+observation: 1731693883 topic=123 delayMs=142
+observation: 1731693883 topic=123 delayMs=137
+observation: 1731693883 topic=123 delayMs=141
+observation: 1731693883 topic=123 delayMs=142
+observation: 1731693883 topic=123 delayMs=166
+observation: 1731693883 topic=123 delayMs=148
+observation: 1731693883 topic=123 delayMs=137
+observation: 1731693883 topic=123 delayMs=141
+observation: 1731693883 topic=123 delayMs=137
+observation: 1731693883 topic=123 delayMs=144
+observation: 1731693883 topic=123 delayMs=149
+observation: 1731693883 topic=123 delayMs=139
+observation: 1731693883 topic=123 delayMs=144
+observation: 1731693883 topic=123 delayMs=143
+observation: 1731693883 topic=123 delayMs=157
+observation: 1731693883 topic=123 delayMs=143
+observation: 1731693883 topic=123 delayMs=138
+observation: 1731693883 topic=123 delayMs=139
+observation: 1731693883 topic=123 delayMs=139
+observation: 1731693883 topic=123 delayMs=146
+observation: 1731693883 topic=123 delayMs=142
+observation: 1731693883 topic=123 delayMs=143
+observation: 1731693883 topic=123 delayMs=140
+observation: 1731693883 topic=123 delayMs=142
+observation: 1731693883 topic=123 delayMs=175
+observation: 1731693883 topic=123 delayMs=143
+observation: 1731693883 topic=123 delayMs=154
+observation: 1731693883 topic=123 delayMs=140
+observation: 1731693883 topic=123 delayMs=138
+observation: 1731693883 topic=123 delayMs=146
+observation: 1731693883 topic=123 delayMs=139
+observation: 1731693883 topic=123 delayMs=155
+observation: 1731693883 topic=123 delayMs=142
+observation: 1731693883 topic=123 delayMs=147
+observation: 1731693883 topic=123 delayMs=181
+observation: 1731693883 topic=123 delayMs=136
+observation: 1731693883 topic=123 delayMs=142
+observation: 1731693883 topic=123 delayMs=141
+observation: 1731693883 topic=123 delayMs=158
+observation: 1731693883 topic=123 delayMs=137
+observation: 1731693883 topic=123 delayMs=138
+observation: 1731693883 topic=123 delayMs=136
+observation: 1731693883 topic=123 delayMs=273
+observation: 1731693883 topic=123 delayMs=157
+observation: 1731693883 topic=123 delayMs=156
+observation: 1731693883 topic=123 delayMs=140
+observation: 1731693883 topic=123 delayMs=141
+observation: 1731693884 topic=123 delayMs=138
+observation: 1731693884 topic=123 delayMs=145
+observation: 1731693884 topic=123 delayMs=159
+observation: 1731693884 topic=123 delayMs=140
+observation: 1731693884 topic=123 delayMs=144
+observation: 1731693884 topic=123 delayMs=139
+observation: 1731693884 topic=123 delayMs=141
+observation: 1731693884 topic=123 delayMs=146
+observation: 1731693884 topic=123 delayMs=141
+observation: 1731693884 topic=123 delayMs=140
+observation: 1731693884 topic=123 delayMs=140
+observation: 1731693884 topic=123 delayMs=136
+observation: 1731693884 topic=123 delayMs=138
+observation: 1731693884 topic=123 delayMs=147
+observation: 1731693884 topic=123 delayMs=206
+observation: 1731693884 topic=123 delayMs=314
+observation: 1731693884 topic=123 delayMs=280
+observation: 1731693884 topic=123 delayMs=194
+observation: 1731693884 topic=123 delayMs=140
+observation: 1731693884 topic=123 delayMs=139
+observation: 1731693884 topic=123 delayMs=159
+observation: 1731693884 topic=123 delayMs=142
+observation: 1731693884 topic=123 delayMs=157
+observation: 1731693884 topic=123 delayMs=137
+observation: 1731693884 topic=123 delayMs=139
+observation: 1731693884 topic=123 delayMs=147
+observation: 1731693884 topic=123 delayMs=144
+observation: 1731693884 topic=123 delayMs=141
+observation: 1731693884 topic=123 delayMs=137
+observation: 1731693884 topic=123 delayMs=143
+observation: 1731693884 topic=123 delayMs=136
+observation: 1731693884 topic=123 delayMs=148
+observation: 1731693884 topic=123 delayMs=145
+observation: 1731693884 topic=123 delayMs=140
+observation: 1731693884 topic=123 delayMs=137
+observation: 1731693884 topic=123 delayMs=141
+observation: 1731693884 topic=123 delayMs=170
+observation: 1731693884 topic=123 delayMs=142
+observation: 1731693884 topic=123 delayMs=135
+observation: 1731693884 topic=123 delayMs=137
+observation: 1731693884 topic=123 delayMs=139
+observation: 1731693884 topic=123 delayMs=147
+observation: 1731693884 topic=123 delayMs=147
+observation: 1731693884 topic=123 delayMs=143
+observation: 1731693884 topic=123 delayMs=137
+observation: 1731693884 topic=123 delayMs=187
+observation: 1731693884 topic=123 delayMs=188
+observation: 1731693884 topic=123 delayMs=140
+observation: 1731693884 topic=123 delayMs=140
+observation: 1731693885 topic=123 delayMs=137
+observation: 1731693884 topic=123 delayMs=269
+observation: 1731693885 topic=123 delayMs=140
+observation: 1731693885 topic=123 delayMs=159
+observation: 1731693885 topic=123 delayMs=141
+observation: 1731693885 topic=123 delayMs=139
+observation: 1731693885 topic=123 delayMs=140
+observation: 1731693885 topic=123 delayMs=144
+observation: 1731693885 topic=123 delayMs=145
+observation: 1731693885 topic=123 delayMs=141
+observation: 1731693885 topic=123 delayMs=139
+observation: 1731693885 topic=123 delayMs=138
+observation: 1731693885 topic=123 delayMs=143
+observation: 1731693885 topic=123 delayMs=143
+observation: 1731693885 topic=123 delayMs=141
+observation: 1731693885 topic=123 delayMs=139
+observation: 1731693885 topic=123 delayMs=135
+observation: 1731693885 topic=123 delayMs=143
+observation: 1731693885 topic=123 delayMs=145
+observation: 1731693885 topic=123 delayMs=138
+observation: 1731693885 topic=123 delayMs=139
+observation: 1731693885 topic=123 delayMs=141
+observation: 1731693885 topic=123 delayMs=146
+observation: 1731693885 topic=123 delayMs=148
+observation: 1731693885 topic=123 delayMs=143
+observation: 1731693885 topic=123 delayMs=137
+observation: 1731693885 topic=123 delayMs=142
+observation: 1731693885 topic=123 delayMs=146
+observation: 1731693885 topic=123 delayMs=143
+observation: 1731693885 topic=123 delayMs=213
+observation: 1731693885 topic=123 delayMs=279
+observation: 1731693885 topic=123 delayMs=319
+observation: 1731693885 topic=123 delayMs=193
+observation: 1731693885 topic=123 delayMs=182
+observation: 1731693885 topic=123 delayMs=162
+observation: 1731693885 topic=123 delayMs=191
+observation: 1731693885 topic=123 delayMs=148
+observation: 1731693885 topic=123 delayMs=160
+observation: 1731693885 topic=123 delayMs=142
+observation: 1731693885 topic=123 delayMs=147
+observation: 1731693885 topic=123 delayMs=247
+observation: 1731693885 topic=123 delayMs=143
+observation: 1731693885 topic=123 delayMs=143
+observation: 1731693885 topic=123 delayMs=141
+observation: 1731693885 topic=123 delayMs=142
+observation: 1731693885 topic=123 delayMs=143
+observation: 1731693885 topic=123 delayMs=144
+observation: 1731693885 topic=123 delayMs=158
+observation: 1731693885 topic=123 delayMs=175
+observation: 1731693885 topic=123 delayMs=143
+observation: 1731693885 topic=123 delayMs=140
+observation: 1731693886 topic=123 delayMs=135
+observation: 1731693886 topic=123 delayMs=143
+observation: 1731693886 topic=123 delayMs=160
+observation: 1731693886 topic=123 delayMs=143
+observation: 1731693886 topic=123 delayMs=148
+observation: 1731693886 topic=123 delayMs=141
+observation: 1731693886 topic=123 delayMs=138
+observation: 1731693886 topic=123 delayMs=145
+observation: 1731693886 topic=123 delayMs=140
+observation: 1731693886 topic=123 delayMs=139
+observation: 1731693886 topic=123 delayMs=142
+observation: 1731693886 topic=123 delayMs=141
+observation: 1731693886 topic=123 delayMs=141
+observation: 1731693886 topic=123 delayMs=140
+observation: 1731693886 topic=123 delayMs=140
+observation: 1731693886 topic=123 delayMs=141
+observation: 1731693886 topic=123 delayMs=141
+observation: 1731693886 topic=123 delayMs=142
+observation: 1731693886 topic=123 delayMs=143
+observation: 1731693886 topic=123 delayMs=143
+observation: 1731693886 topic=123 delayMs=136
+observation: 1731693886 topic=123 delayMs=149
+observation: 1731693886 topic=123 delayMs=143
+observation: 1731693886 topic=123 delayMs=143
+observation: 1731693886 topic=123 delayMs=141
+observation: 1731693886 topic=123 delayMs=139
+observation: 1731693886 topic=123 delayMs=145
+observation: 1731693886 topic=123 delayMs=151
+observation: 1731693886 topic=123 delayMs=139
+observation: 1731693886 topic=123 delayMs=137
+observation: 1731693886 topic=123 delayMs=142
+observation: 1731693886 topic=123 delayMs=146
+observation: 1731693886 topic=123 delayMs=144
+observation: 1731693886 topic=123 delayMs=138
+observation: 1731693886 topic=123 delayMs=143
+observation: 1731693886 topic=123 delayMs=143
+observation: 1731693886 topic=123 delayMs=142
+observation: 1731693886 topic=123 delayMs=141
+observation: 1731693886 topic=123 delayMs=147
+observation: 1731693886 topic=123 delayMs=141
+observation: 1731693886 topic=123 delayMs=136
+observation: 1731693886 topic=123 delayMs=142
+observation: 1731693886 topic=123 delayMs=155
+observation: 1731693886 topic=123 delayMs=145
+observation: 1731693886 topic=123 delayMs=147
+observation: 1731693886 topic=123 delayMs=144
+observation: 1731693886 topic=123 delayMs=151
+observation: 1731693886 topic=123 delayMs=154
+observation: 1731693886 topic=123 delayMs=139
+observation: 1731693886 topic=123 delayMs=140
+observation: 1731693887 topic=123 delayMs=142
+observation: 1731693887 topic=123 delayMs=144
+observation: 1731693887 topic=123 delayMs=147
+observation: 1731693887 topic=123 delayMs=145
+observation: 1731693887 topic=123 delayMs=143
+observation: 1731693887 topic=123 delayMs=155
+observation: 1731693887 topic=123 delayMs=139
+observation: 1731693887 topic=123 delayMs=141
+observation: 1731693887 topic=123 delayMs=140
+observation: 1731693887 topic=123 delayMs=290
+observation: 1731693887 topic=123 delayMs=285
+observation: 1731693887 topic=123 delayMs=212
+observation: 1731693887 topic=123 delayMs=138
+observation: 1731693887 topic=123 delayMs=192
+observation: 1731693887 topic=123 delayMs=140
+observation: 1731693887 topic=123 delayMs=166
+observation: 1731693887 topic=123 delayMs=147
+observation: 1731693887 topic=123 delayMs=136
+observation: 1731693887 topic=123 delayMs=139
+observation: 1731693887 topic=123 delayMs=137
+observation: 1731693887 topic=123 delayMs=139
+observation: 1731693887 topic=123 delayMs=143
+observation: 1731693887 topic=123 delayMs=310
+observation: 1731693887 topic=123 delayMs=147
+observation: 1731693887 topic=123 delayMs=165
+observation: 1731693887 topic=123 delayMs=180
+observation: 1731693887 topic=123 delayMs=142
+observation: 1731693887 topic=123 delayMs=169
+observation: 1731693887 topic=123 delayMs=165
+observation: 1731693887 topic=123 delayMs=202
+observation: 1731693887 topic=123 delayMs=303
+observation: 1731693887 topic=123 delayMs=271
+observation: 1731693887 topic=123 delayMs=194
+observation: 1731693887 topic=123 delayMs=144
+observation: 1731693887 topic=123 delayMs=141
+observation: 1731693887 topic=123 delayMs=138
+observation: 1731693887 topic=123 delayMs=189
+observation: 1731693887 topic=123 delayMs=169
+observation: 1731693887 topic=123 delayMs=142
+observation: 1731693887 topic=123 delayMs=141
+observation: 1731693887 topic=123 delayMs=140
+observation: 1731693887 topic=123 delayMs=139
+observation: 1731693887 topic=123 delayMs=144
+observation: 1731693887 topic=123 delayMs=141
+observation: 1731693887 topic=123 delayMs=138
+observation: 1731693887 topic=123 delayMs=163
+observation: 1731693887 topic=123 delayMs=158
+observation: 1731693887 topic=123 delayMs=184
+observation: 1731693887 topic=123 delayMs=141
+observation: 1731693887 topic=123 delayMs=145
+observation: 1731693888 topic=123 delayMs=137
+observation: 1731693888 topic=123 delayMs=137
+observation: 1731693888 topic=123 delayMs=155
+observation: 1731693888 topic=123 delayMs=137
+observation: 1731693888 topic=123 delayMs=141
+observation: 1731693888 topic=123 delayMs=142
+observation: 1731693888 topic=123 delayMs=142
+observation: 1731693888 topic=123 delayMs=198
+observation: 1731693888 topic=123 delayMs=140
+observation: 1731693888 topic=123 delayMs=142
+observation: 1731693888 topic=123 delayMs=151
+observation: 1731693888 topic=123 delayMs=160
+observation: 1731693888 topic=123 delayMs=313
+observation: 1731693888 topic=123 delayMs=141
+observation: 1731693888 topic=123 delayMs=137
+observation: 1731693888 topic=123 delayMs=142
+observation: 1731693888 topic=123 delayMs=144
+observation: 1731693888 topic=123 delayMs=158
+observation: 1731693888 topic=123 delayMs=138
+observation: 1731693888 topic=123 delayMs=143
+observation: 1731693888 topic=123 delayMs=143
+observation: 1731693888 topic=123 delayMs=152
+observation: 1731693888 topic=123 delayMs=141
+observation: 1731693888 topic=123 delayMs=146
+observation: 1731693888 topic=123 delayMs=140
+observation: 1731693888 topic=123 delayMs=145
+observation: 1731693888 topic=123 delayMs=143
+observation: 1731693888 topic=123 delayMs=172
+observation: 1731693888 topic=123 delayMs=137
+observation: 1731693888 topic=123 delayMs=152
+observation: 1731693888 topic=123 delayMs=142
+observation: 1731693888 topic=123 delayMs=144
+observation: 1731693888 topic=123 delayMs=209
+observation: 1731693888 topic=123 delayMs=140
+observation: 1731693888 topic=123 delayMs=143
+observation: 1731693888 topic=123 delayMs=207
+observation: 1731693888 topic=123 delayMs=199
+observation: 1731693888 topic=123 delayMs=139
+observation: 1731693888 topic=123 delayMs=298
+observation: 1731693888 topic=123 delayMs=139
+observation: 1731693888 topic=123 delayMs=153
+observation: 1731693888 topic=123 delayMs=171
+observation: 1731693888 topic=123 delayMs=172
+observation: 1731693888 topic=123 delayMs=144
+observation: 1731693888 topic=123 delayMs=139
+observation: 1731693888 topic=123 delayMs=146
+observation: 1731693888 topic=123 delayMs=138
+observation: 1731693888 topic=123 delayMs=143
+observation: 1731693888 topic=123 delayMs=140
+observation: 1731693888 topic=123 delayMs=145
+observation: 1731693889 topic=123 delayMs=140
+observation: 1731693889 topic=123 delayMs=148
+observation: 1731693889 topic=123 delayMs=140
+observation: 1731693889 topic=123 delayMs=138
+observation: 1731693889 topic=123 delayMs=140
+observation: 1731693889 topic=123 delayMs=143
+observation: 1731693889 topic=123 delayMs=141
+observation: 1731693889 topic=123 delayMs=142
+observation: 1731693889 topic=123 delayMs=141
+observation: 1731693889 topic=123 delayMs=145
+observation: 1731693889 topic=123 delayMs=170
+observation: 1731693889 topic=123 delayMs=212
+observation: 1731693889 topic=123 delayMs=149
+observation: 1731693889 topic=123 delayMs=136
+observation: 1731693889 topic=123 delayMs=137
+observation: 1731693889 topic=123 delayMs=146
+observation: 1731693889 topic=123 delayMs=146
+observation: 1731693889 topic=123 delayMs=269
+observation: 1731693889 topic=123 delayMs=138
+observation: 1731693889 topic=123 delayMs=137
+observation: 1731693889 topic=123 delayMs=140
+observation: 1731693889 topic=123 delayMs=141
+observation: 1731693889 topic=123 delayMs=140
+observation: 1731693889 topic=123 delayMs=148
+observation: 1731693889 topic=123 delayMs=149
+observation: 1731693889 topic=123 delayMs=140
+observation: 1731693889 topic=123 delayMs=140
+observation: 1731693889 topic=123 delayMs=142
+observation: 1731693889 topic=123 delayMs=145
+observation: 1731693889 topic=123 delayMs=148
+observation: 1731693889 topic=123 delayMs=139
+observation: 1731693889 topic=123 delayMs=188
+observation: 1731693889 topic=123 delayMs=137
+observation: 1731693889 topic=123 delayMs=139
+observation: 1731693889 topic=123 delayMs=138
+observation: 1731693889 topic=123 delayMs=150
+observation: 1731693889 topic=123 delayMs=264
+observation: 1731693889 topic=123 delayMs=194
+observation: 1731693889 topic=123 delayMs=148
+observation: 1731693889 topic=123 delayMs=139
+observation: 1731693889 topic=123 delayMs=143
+observation: 1731693889 topic=123 delayMs=141
+observation: 1731693889 topic=123 delayMs=142
+observation: 1731693889 topic=123 delayMs=145
+observation: 1731693889 topic=123 delayMs=142
+observation: 1731693889 topic=123 delayMs=139
+observation: 1731693889 topic=123 delayMs=166
+observation: 1731693889 topic=123 delayMs=141
+observation: 1731693889 topic=123 delayMs=320
+observation: 1731693890 topic=123 delayMs=142
+observation: 1731693890 topic=123 delayMs=140
+observation: 1731693889 topic=123 delayMs=171
+observation: 1731693890 topic=123 delayMs=150
+observation: 1731693890 topic=123 delayMs=141
+observation: 1731693890 topic=123 delayMs=143
+observation: 1731693890 topic=123 delayMs=140
+observation: 1731693890 topic=123 delayMs=139
+observation: 1731693890 topic=123 delayMs=145
+observation: 1731693890 topic=123 delayMs=140
+observation: 1731693890 topic=123 delayMs=146
+observation: 1731693890 topic=123 delayMs=135
+observation: 1731693890 topic=123 delayMs=139
+observation: 1731693890 topic=123 delayMs=143
+observation: 1731693890 topic=123 delayMs=143
+observation: 1731693890 topic=123 delayMs=280
+observation: 1731693890 topic=123 delayMs=290
+observation: 1731693890 topic=123 delayMs=169
+observation: 1731693890 topic=123 delayMs=316
+observation: 1731693890 topic=123 delayMs=144
+observation: 1731693890 topic=123 delayMs=139
+observation: 1731693890 topic=123 delayMs=140
+observation: 1731693890 topic=123 delayMs=149
+observation: 1731693890 topic=123 delayMs=139
+observation: 1731693890 topic=123 delayMs=140
+observation: 1731693890 topic=123 delayMs=139
+observation: 1731693890 topic=123 delayMs=141
+observation: 1731693890 topic=123 delayMs=147
+observation: 1731693890 topic=123 delayMs=144
+observation: 1731693890 topic=123 delayMs=137
+observation: 1731693890 topic=123 delayMs=137
+observation: 1731693890 topic=123 delayMs=138
+observation: 1731693890 topic=123 delayMs=140
+observation: 1731693890 topic=123 delayMs=146
+observation: 1731693890 topic=123 delayMs=142
+observation: 1731693890 topic=123 delayMs=143
+observation: 1731693890 topic=123 delayMs=137
+observation: 1731693890 topic=123 delayMs=141
+observation: 1731693890 topic=123 delayMs=141
+observation: 1731693890 topic=123 delayMs=242
+observation: 1731693890 topic=123 delayMs=137
+observation: 1731693890 topic=123 delayMs=164
+observation: 1731693890 topic=123 delayMs=283
+observation: 1731693890 topic=123 delayMs=237
+observation: 1731693890 topic=123 delayMs=250
+observation: 1731693890 topic=123 delayMs=339
+observation: 1731693890 topic=123 delayMs=157
+observation: 1731693890 topic=123 delayMs=185
+observation: 1731693890 topic=123 delayMs=150
+observation: 1731693890 topic=123 delayMs=139
+observation: 1731693890 topic=123 delayMs=139
+observation: 1731693891 topic=123 delayMs=143
+observation: 1731693891 topic=123 delayMs=137
+observation: 1731693891 topic=123 delayMs=170
+observation: 1731693891 topic=123 delayMs=139
+observation: 1731693891 topic=123 delayMs=143
+observation: 1731693891 topic=123 delayMs=140
+observation: 1731693891 topic=123 delayMs=149
+observation: 1731693891 topic=123 delayMs=190
+observation: 1731693891 topic=123 delayMs=142
+observation: 1731693891 topic=123 delayMs=139
+observation: 1731693891 topic=123 delayMs=137
+observation: 1731693891 topic=123 delayMs=175
+observation: 1731693891 topic=123 delayMs=144
+observation: 1731693891 topic=123 delayMs=138
+observation: 1731693891 topic=123 delayMs=145
+observation: 1731693891 topic=123 delayMs=146
+observation: 1731693891 topic=123 delayMs=200
+observation: 1731693891 topic=123 delayMs=138
+observation: 1731693891 topic=123 delayMs=154
+observation: 1731693891 topic=123 delayMs=169
+observation: 1731693891 topic=123 delayMs=140
+observation: 1731693891 topic=123 delayMs=190
+observation: 1731693891 topic=123 delayMs=238
+observation: 1731693891 topic=123 delayMs=147
+observation: 1731693891 topic=123 delayMs=154
+observation: 1731693891 topic=123 delayMs=137
+observation: 1731693891 topic=123 delayMs=164
+observation: 1731693891 topic=123 delayMs=447
+observation: 1731693891 topic=123 delayMs=140
+observation: 1731693891 topic=123 delayMs=167
+observation: 1731693891 topic=123 delayMs=152
+observation: 1731693891 topic=123 delayMs=164
+observation: 1731693891 topic=123 delayMs=137
+observation: 1731693891 topic=123 delayMs=148
+observation: 1731693891 topic=123 delayMs=141
+observation: 1731693891 topic=123 delayMs=222
+observation: 1731693891 topic=123 delayMs=138
+observation: 1731693891 topic=123 delayMs=182
+observation: 1731693891 topic=123 delayMs=145
+observation: 1731693891 topic=123 delayMs=139
+observation: 1731693891 topic=123 delayMs=145
+observation: 1731693891 topic=123 delayMs=212
+observation: 1731693891 topic=123 delayMs=200
+observation: 1731693891 topic=123 delayMs=140
+observation: 1731693891 topic=123 delayMs=136
+observation: 1731693891 topic=123 delayMs=155
+observation: 1731693891 topic=123 delayMs=137
+observation: 1731693891 topic=123 delayMs=144
+observation: 1731693891 topic=123 delayMs=140
+observation: 1731693891 topic=123 delayMs=140
+observation: 1731693892 topic=123 delayMs=136
+observation: 1731693892 topic=123 delayMs=138
+observation: 1731693892 topic=123 delayMs=140
+observation: 1731693892 topic=123 delayMs=141
+observation: 1731693892 topic=123 delayMs=154
+observation: 1731693892 topic=123 delayMs=142
+observation: 1731693892 topic=123 delayMs=156
+observation: 1731693892 topic=123 delayMs=138
+observation: 1731693892 topic=123 delayMs=197
+observation: 1731693892 topic=123 delayMs=137
+observation: 1731693892 topic=123 delayMs=137
+observation: 1731693892 topic=123 delayMs=146
+observation: 1731693892 topic=123 delayMs=163
+observation: 1731693892 topic=123 delayMs=140
+observation: 1731693892 topic=123 delayMs=136
+observation: 1731693892 topic=123 delayMs=140
+observation: 1731693892 topic=123 delayMs=161
+observation: 1731693892 topic=123 delayMs=214
+observation: 1731693892 topic=123 delayMs=141
+observation: 1731693892 topic=123 delayMs=138
+observation: 1731693892 topic=123 delayMs=154
+observation: 1731693892 topic=123 delayMs=146
+observation: 1731693892 topic=123 delayMs=139
+observation: 1731693892 topic=123 delayMs=144
+observation: 1731693892 topic=123 delayMs=137
+observation: 1731693892 topic=123 delayMs=140
+observation: 1731693892 topic=123 delayMs=142
+observation: 1731693892 topic=123 delayMs=142
+observation: 1731693892 topic=123 delayMs=152
+observation: 1731693892 topic=123 delayMs=143
+observation: 1731693892 topic=123 delayMs=155
+observation: 1731693892 topic=123 delayMs=145
+observation: 1731693892 topic=123 delayMs=183
+observation: 1731693892 topic=123 delayMs=141
+observation: 1731693892 topic=123 delayMs=141
+observation: 1731693892 topic=123 delayMs=147
+observation: 1731693892 topic=123 delayMs=140
+observation: 1731693892 topic=123 delayMs=143
+observation: 1731693892 topic=123 delayMs=140
+observation: 1731693892 topic=123 delayMs=137
+observation: 1731693892 topic=123 delayMs=224
+observation: 1731693892 topic=123 delayMs=144
+observation: 1731693892 topic=123 delayMs=199
+observation: 1731693892 topic=123 delayMs=210
+observation: 1731693892 topic=123 delayMs=139
+observation: 1731693892 topic=123 delayMs=141
+observation: 1731693892 topic=123 delayMs=137
+observation: 1731693892 topic=123 delayMs=150
+observation: 1731693892 topic=123 delayMs=147
+observation: 1731693892 topic=123 delayMs=167
+observation: 1731693893 topic=123 delayMs=148
+observation: 1731693893 topic=123 delayMs=151
+observation: 1731693893 topic=123 delayMs=166
+observation: 1731693893 topic=123 delayMs=141
+observation: 1731693893 topic=123 delayMs=139
+observation: 1731693893 topic=123 delayMs=138
+observation: 1731693893 topic=123 delayMs=140
+observation: 1731693893 topic=123 delayMs=152
+observation: 1731693893 topic=123 delayMs=151
+observation: 1731693893 topic=123 delayMs=139
+observation: 1731693893 topic=123 delayMs=151
+observation: 1731693893 topic=123 delayMs=146
+observation: 1731693893 topic=123 delayMs=156
+observation: 1731693893 topic=123 delayMs=144
+observation: 1731693893 topic=123 delayMs=136
+observation: 1731693893 topic=123 delayMs=138
+observation: 1731693893 topic=123 delayMs=138
+observation: 1731693893 topic=123 delayMs=151
+observation: 1731693893 topic=123 delayMs=143
+observation: 1731693893 topic=123 delayMs=141
+observation: 1731693893 topic=123 delayMs=141
+observation: 1731693893 topic=123 delayMs=139
+observation: 1731693893 topic=123 delayMs=139
+observation: 1731693893 topic=123 delayMs=143
+observation: 1731693893 topic=123 delayMs=145
+observation: 1731693893 topic=123 delayMs=136
+observation: 1731693893 topic=123 delayMs=138
+observation: 1731693893 topic=123 delayMs=144
+observation: 1731693893 topic=123 delayMs=142
+observation: 1731693893 topic=123 delayMs=138
+observation: 1731693893 topic=123 delayMs=143
+observation: 1731693893 topic=123 delayMs=138
+observation: 1731693893 topic=123 delayMs=142
+observation: 1731693893 topic=123 delayMs=143
+observation: 1731693893 topic=123 delayMs=136
+observation: 1731693893 topic=123 delayMs=139
+observation: 1731693893 topic=123 delayMs=138
+observation: 1731693893 topic=123 delayMs=156
+observation: 1731693893 topic=123 delayMs=142
+observation: 1731693893 topic=123 delayMs=141
+observation: 1731693893 topic=123 delayMs=142
+observation: 1731693893 topic=123 delayMs=141
+observation: 1731693893 topic=123 delayMs=143
+observation: 1731693893 topic=123 delayMs=138
+observation: 1731693893 topic=123 delayMs=142
+observation: 1731693893 topic=123 delayMs=139
+observation: 1731693893 topic=123 delayMs=138
+observation: 1731693893 topic=123 delayMs=139
+observation: 1731693893 topic=123 delayMs=138
+observation: 1731693893 topic=123 delayMs=141
+observation: 1731693894 topic=123 delayMs=136
+observation: 1731693894 topic=123 delayMs=142
+observation: 1731693894 topic=123 delayMs=139
+observation: 1731693894 topic=123 delayMs=140
+observation: 1731693894 topic=123 delayMs=139
+observation: 1731693894 topic=123 delayMs=139
+observation: 1731693894 topic=123 delayMs=142
+observation: 1731693894 topic=123 delayMs=141
+observation: 1731693894 topic=123 delayMs=138
+observation: 1731693894 topic=123 delayMs=140
+observation: 1731693894 topic=123 delayMs=136
+observation: 1731693894 topic=123 delayMs=141
+observation: 1731693894 topic=123 delayMs=144
+observation: 1731693894 topic=123 delayMs=141
+observation: 1731693894 topic=123 delayMs=143
+observation: 1731693894 topic=123 delayMs=140
+observation: 1731693894 topic=123 delayMs=142
+observation: 1731693894 topic=123 delayMs=143
+observation: 1731693894 topic=123 delayMs=139
+observation: 1731693894 topic=123 delayMs=139
+observation: 1731693894 topic=123 delayMs=137
+observation: 1731693894 topic=123 delayMs=141
+observation: 1731693894 topic=123 delayMs=143
+observation: 1731693894 topic=123 delayMs=141
+observation: 1731693894 topic=123 delayMs=144
+observation: 1731693894 topic=123 delayMs=138
+observation: 1731693894 topic=123 delayMs=139
+observation: 1731693894 topic=123 delayMs=143
+observation: 1731693894 topic=123 delayMs=140
+observation: 1731693894 topic=123 delayMs=137
+observation: 1731693894 topic=123 delayMs=143
+observation: 1731693894 topic=123 delayMs=168
+observation: 1731693894 topic=123 delayMs=143
+observation: 1731693894 topic=123 delayMs=138
+observation: 1731693894 topic=123 delayMs=140
+observation: 1731693894 topic=123 delayMs=140
+observation: 1731693894 topic=123 delayMs=142
+observation: 1731693894 topic=123 delayMs=143
+observation: 1731693894 topic=123 delayMs=141
+observation: 1731693894 topic=123 delayMs=140
+observation: 1731693894 topic=123 delayMs=136
+observation: 1731693894 topic=123 delayMs=140
+observation: 1731693894 topic=123 delayMs=140
+observation: 1731693894 topic=123 delayMs=150
+observation: 1731693894 topic=123 delayMs=141
+observation: 1731693894 topic=123 delayMs=139
+observation: 1731693894 topic=123 delayMs=142
+observation: 1731693894 topic=123 delayMs=140
+observation: 1731693894 topic=123 delayMs=142
+observation: 1731693894 topic=123 delayMs=144
+observation: 1731693895 topic=123 delayMs=140
+observation: 1731693895 topic=123 delayMs=142
+observation: 1731693895 topic=123 delayMs=139
+observation: 1731693895 topic=123 delayMs=142
+observation: 1731693895 topic=123 delayMs=177
+observation: 1731693895 topic=123 delayMs=214
+observation: 1731693895 topic=123 delayMs=138
+observation: 1731693895 topic=123 delayMs=310
+observation: 1731693895 topic=123 delayMs=209
+observation: 1731693895 topic=123 delayMs=139
+observation: 1731693895 topic=123 delayMs=140
+observation: 1731693895 topic=123 delayMs=169
+observation: 1731693895 topic=123 delayMs=148
+observation: 1731693895 topic=123 delayMs=142
+observation: 1731693895 topic=123 delayMs=138
+observation: 1731693895 topic=123 delayMs=139
+observation: 1731693895 topic=123 delayMs=143
+observation: 1731693895 topic=123 delayMs=145
+observation: 1731693895 topic=123 delayMs=139
+dbg: 1731693895 testconn 16 closed
+dbg: 1731693895 testconn 98 closed
+dbg: 1731693895 testconn 46 closed
+dbg: 1731693895 testconn 9 closed
+dbg: 1731693895 testconn 65 closed
+dbg: 1731693895 testconn 26 closed
+dbg: 1731693895 testconn 76 closed
+dbg: 1731693895 testconn 60 closed
+dbg: 1731693895 testconn 78 closed
+dbg: 1731693895 testconn 42 closed
+dbg: 1731693895 testconn 86 closed
+dbg: 1731693895 testconn 77 closed
+dbg: 1731693895 testconn 48 closed
+dbg: 1731693895 testconn 81 closed
+dbg: 1731693895 testconn 92 closed
+dbg: 1731693895 testconn 80 closed
+dbg: 1731693895 testconn 24 closed
+dbg: 1731693895 testconn 3 closed
+dbg: 1731693895 testconn 8 closed
+dbg: 1731693895 testconn 21 closed
+dbg: 1731693895 testconn 89 closed
+dbg: 1731693895 testconn 19 closed
+dbg: 1731693895 testconn 95 closed
+dbg: 1731693895 testconn 18 closed
+dbg: 1731693895 testconn 2 closed
+dbg: 1731693895 testconn 37 closed
+dbg: 1731693895 testconn 13 closed
+dbg: 1731693895 testconn 44 closed
+dbg: 1731693895 testconn 99 closed
+dbg: 1731693895 testconn 41 closed
+dbg: 1731693895 testconn 49 closed
+dbg: 1731693895 testconn 51 closed
+dbg: 1731693895 testconn 28 closed
+dbg: 1731693895 testconn 12 closed
+dbg: 1731693895 testconn 1 closed
+dbg: 1731693895 testconn 31 closed
+dbg: 1731693895 testconn 10 closed
+dbg: 1731693895 testconn 93 closed
+dbg: 1731693895 testconn 45 closed
+dbg: 1731693895 testconn 66 closed
+dbg: 1731693895 testconn 67 closed
+dbg: 1731693895 testconn 71 closed
+dbg: 1731693895 testconn 15 closed
+dbg: 1731693895 testconn 55 closed
+dbg: 1731693895 testconn 22 closed
+dbg: 1731693895 testconn 74 closed
+dbg: 1731693895 testconn 83 closed
+dbg: 1731693895 testconn 90 closed
+dbg: 1731693895 testconn 34 closed
+dbg: 1731693895 testconn 72 closed
+dbg: 1731693895 testconn 30 closed
+dbg: 1731693895 testconn 27 closed
+dbg: 1731693895 testconn 6 closed
+dbg: 1731693895 testconn 47 closed
+dbg: 1731693895 testconn 56 closed
+dbg: 1731693895 testconn 85 closed
+dbg: 1731693895 testconn 79 closed
+dbg: 1731693895 testconn 38 closed
+dbg: 1731693895 testconn 40 closed
+dbg: 1731693895 testconn 32 closed
+dbg: 1731693895 testconn 43 closed
+dbg: 1731693895 testconn 5 closed
+dbg: 1731693895 testconn 82 closed
+dbg: 1731693895 testconn 4 closed
+dbg: 1731693895 testconn 73 closed
+dbg: 1731693895 testconn 29 closed
+dbg: 1731693895 testconn 84 closed
+dbg: 1731693895 testconn 7 closed
+dbg: 1731693895 testconn 50 closed
+dbg: 1731693895 testconn 97 closed
+dbg: 1731693895 testconn 20 closed
+dbg: 1731693895 testconn 75 closed
+dbg: 1731693895 testconn 70 closed
+dbg: 1731693895 testconn 64 closed
+dbg: 1731693895 testconn 23 closed
+dbg: 1731693895 testconn 35 closed
+dbg: 1731693895 testconn 14 closed
+dbg: 1731693895 testconn 17 closed
+dbg: 1731693895 testconn 91 closed
+dbg: 1731693895 testconn 33 closed
+dbg: 1731693895 testconn 61 closed
+dbg: 1731693895 testconn 62 closed
+dbg: 1731693895 testconn 59 closed
+dbg: 1731693895 testconn 88 closed
+dbg: 1731693895 testconn 11 closed
+dbg: 1731693895 testconn 25 closed
+dbg: 1731693895 testconn 57 closed
+dbg: 1731693895 testconn 94 closed
+dbg: 1731693895 testconn 68 closed
+dbg: 1731693895 testconn 36 closed
+dbg: 1731693895 testconn 96 closed
+dbg: 1731693895 testconn 53 closed
+dbg: 1731693895 testconn 63 closed
+dbg: 1731693895 testconn 52 closed
+dbg: 1731693895 testconn 69 closed
+dbg: 1731693895 testconn 87 closed
+dbg: 1731693895 testconn 58 closed
+dbg: 1731693895 testconn 39 closed
+dbg: 1731693895 testconn 0 closed
+dbg: 1731693895 testconn 54 closed
