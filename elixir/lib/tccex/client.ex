@@ -1,70 +1,76 @@
 defmodule Tccex.Client do
-  require Logger
-  alias Tccex.{Message, Topic}
-  use GenServer, restart: :transient
+  use GenServer, restart: :temporary
 
-  def start_link(init_arg) do
-    GenServer.start_link(__MODULE__, init_arg)
+  require Logger
+
+  alias Tccex.Message
+
+  def start_link(sock) do
+    GenServer.start_link(__MODULE__, sock)
   end
 
   def init(sock) do
-    {:ok, sock}
+    {:ok, sock, {:continue, :turn_active}}
   end
 
-  def handle_continue({:response, msg}, sock) do
-    send_back(msg, sock)
-  end
-
-  def handle_cast({:pub, _topic, _payload} = msg, sock) do
-    send_back(msg, sock)
-  end
-
-  defp send_back(msg, sock) do
-    Logger.info("sending msg #{inspect(msg)}")
+  defp tcp_send(msg, sock) do
     packet = Message.encode(msg)
-
     with :ok <- :gen_tcp.send(sock, packet) do
       {:noreply, sock}
     else
       {:error, reason} ->
-        Logger.warning("client: send failed with reason #{inspect(reason)}, stopping")
-        {:stop, :normal, sock}
+        Logger.warning("send failed: #{inspect(reason)}")
+        {:stop, reason, sock}
     end
   end
 
-  def handle_call({:conn_msg, msg}, _from, sock) do
-    handle_conn_msg(msg, sock)
+
+  def handle_continue(:turn_active, sock) do
+    :inet.setopts(sock, active: true)
+    {:noreply, sock}
   end
 
-  defp handle_conn_msg(:ping, sock) do
-    Logger.info("received ping, responding ping")
-    {:reply, :ok, sock, {:continue, {:response, :ping}}}
+  def handle_info({:tcp_closed, _sock}, sock) do
+    {:stop, :normal, sock}
   end
 
-  defp handle_conn_msg({:sub, topic, b}, sock) do
-    Logger.info("received sub #{topic} (#{inspect(b)})")
-    handle_sub(topic, b)
-    {:reply, :ok, sock, {:continue, {:response, {:sub, topic, b}}}}
+  def handle_info({:tcp_error, _sock, reason}, sock) do
+    {:stop, {:tcp_error, reason}, sock}
   end
 
-  defp handle_conn_msg({:pub, topic, payload}, sock) do
-    Logger.info("received pub #{topic};#{payload}, publishing")
-    handle_pub(topic, payload)
-    {:reply, :ok, sock}
+  def handle_info({:tcp, _sock, data}, sock) do
+    with {:ok, msg} <- Message.decode(data) do
+      handle_msg(msg, sock)
+    else
+      {:error, error} ->
+        {:stop, error, sock}
+    end
   end
 
-  defp handle_sub(topic, true), do: Registry.register(Topic.Registry, topic, nil)
-  defp handle_sub(topic, false), do: Registry.unregister(Topic.Registry, topic)
+  def handle_info({:pub, topic, payload}, sock) do
+    tcp_send({:pub, topic, payload}, sock)
+  end
 
-  defp handle_pub(topic, payload) do
-    Registry.dispatch(Topic.Registry, topic, fn clients ->
-      Enum.each(clients, fn {pid, _value} ->
-        GenServer.cast(pid, {:pub, topic, payload})
+  defp handle_msg(:ping, sock) do
+    tcp_send(:ping, sock)
+  end
+
+  defp handle_msg({:sub, topic}, sock) do
+    Registry.register(Tccex.Topic.Registry, topic, nil)
+    tcp_send({:sub, topic}, sock)
+  end
+
+  defp handle_msg({:unsub, topic}, sock) do
+    Registry.unregister(Tccex.Topic.Registry, topic)
+    tcp_send({:unsub, topic}, sock)
+  end
+
+  defp handle_msg({:pub, topic, _payload}=msg, sock) do
+    Registry.dispatch(Tccex.Topic.Registry, topic, fn entries ->
+      Enum.each(entries, fn {pid, _value} ->
+        send(pid, msg)
       end)
     end)
+    {:noreply, sock}
   end
-
-  def ping(pid), do: GenServer.call(pid, {:conn_msg, :ping})
-  def sub(pid, topic, b), do: GenServer.call(pid, {:conn_msg, {:sub, topic, b}})
-  def pub(pid, topic, payload), do: GenServer.call(pid, {:conn_msg, {:pub, topic, payload}})
 end

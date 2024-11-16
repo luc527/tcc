@@ -10,15 +10,15 @@ import (
 type msgType uint8
 
 const (
-	pingMsg = msgType(0x01)
-	pubMsg  = msgType(0x02)
-	subMsg  = msgType(0x03)
+	pingMsg  = msgType(0)
+	pubMsg   = msgType(1)
+	subMsg   = msgType(2)
+	unsubMsg = msgType(4)
 )
 
 type msg struct {
 	t       msgType
 	topic   uint16
-	b       bool
 	payload string
 }
 
@@ -26,16 +26,37 @@ var _ io.WriterTo = msg{}
 var _ io.ReaderFrom = &msg{}
 var _ fmt.Stringer = msg{}
 
-func (m msg) WriteTo(w io.Writer) (int64, error) {
-	n := int64(0)
-	buf := [2]byte{}
+// ping is a 0-sized msg
 
+func (m msg) WriteTo(w io.Writer) (int64, error) {
 	var (
+		n   int64
 		nn  int
 		err error
+		buf [2]byte
 	)
 
-	// write type (1 byte)
+	size := uint16(0)
+	psize := uint16(len(m.payload))
+	if m.t != pingMsg {
+		size += 1 // type
+		size += 2 // topic
+		if m.t == pubMsg {
+			size += psize
+		}
+	}
+
+	binary.BigEndian.PutUint16(buf[:2], size)
+	nn, err = writefull(w, buf[:2])
+	if err != nil {
+		return n, err
+	}
+	n += int64(nn)
+
+	if m.t == pingMsg {
+		return n, nil
+	}
+
 	buf[0] = byte(m.t)
 	nn, err = writefull(w, buf[:1])
 	if err != nil {
@@ -43,39 +64,15 @@ func (m msg) WriteTo(w io.Writer) (int64, error) {
 	}
 	n += int64(nn)
 
-	// write topic (2 bytes)
-	if m.t == pubMsg || m.t == subMsg {
-		binary.LittleEndian.PutUint16(buf[:], m.topic)
-		nn, err = writefull(w, buf[:])
-		if err != nil {
-			return n, err
-		}
-		n += int64(nn)
+	binary.BigEndian.PutUint16(buf[:2], m.topic)
+	nn, err = writefull(w, buf[:2])
+	if err != nil {
+		return n, err
 	}
+	n += int64(nn)
 
-	// write bool (1 byte)
-	if m.t == subMsg {
-		buf[0] = 0
-		if m.b {
-			buf[0] = 1
-		}
-		nn, err = writefull(w, buf[:1])
-		if err != nil {
-			return n, err
-		}
-		n += int64(nn)
-	}
-
-	// write payload
 	if m.t == pubMsg {
-		binary.LittleEndian.PutUint16(buf[:], uint16(len(m.payload)))
-		nn, err = writefull(w, buf[:])
-		if err != nil {
-			return n, err
-		}
-		n += int64(nn)
-
-		nn, err = writefull(w, []byte(m.payload))
+		nn, err = writefull(w, []byte(m.payload)[:int(psize)])
 		if err != nil {
 			return n, err
 		}
@@ -86,58 +83,57 @@ func (m msg) WriteTo(w io.Writer) (int64, error) {
 }
 
 func (m *msg) ReadFrom(r io.Reader) (int64, error) {
-	buf := [2]byte{}
-
 	var (
 		n   int64
 		nn  int
 		err error
+		buf [2]byte
 	)
 
+	nn, err = readfull(r, buf[:])
+	if err != nil {
+		return n, err
+	}
+	n += int64(nn)
+
+	size := binary.BigEndian.Uint16(buf[:2])
+
+	if size == 0 {
+		m.t = pingMsg
+		return n, nil
+	}
+
 	nn, err = readfull(r, buf[:1])
+	if err != nil {
+		return n, err
+	}
+	n += int64(nn)
 	t := msgType(buf[0])
 	m.t = t
+
+	nn, err = readfull(r, buf[:2])
+	if err != nil {
+		return n, err
+	}
 	n += int64(nn)
+	topic := binary.BigEndian.Uint16(buf[:2])
+	m.topic = topic
 	if err != nil {
 		return n, err
 	}
 
-	if t == pubMsg || t == subMsg {
-		nn, err = readfull(r, buf[:2])
-		n += int64(nn)
-		topic := binary.LittleEndian.Uint16(buf[:])
-		m.topic = topic
-		if err != nil {
-			return n, err
-		}
-	}
-
-	if t == subMsg {
-		nn, err = readfull(r, buf[:1])
-		n += int64(nn)
-		m.b = buf[0] > 0
-		if err != nil {
-			return n, err
-		}
-	}
-
 	if t == pubMsg {
-		nn, err = readfull(r, buf[:2])
-		n += int64(nn)
+		psize := size - 1 - 2 // - type - topic
+		bb := new(bytes.Buffer)
+		bb.Grow(int(psize))
+		nn, err := bb.ReadFrom(io.LimitReader(r, int64(psize)))
 		if err != nil {
 			return n, err
 		}
-
-		length := int(binary.LittleEndian.Uint16(buf[:]))
-		bb := new(bytes.Buffer)
-		bb.Grow(length)
-		nn, err := bb.ReadFrom(io.LimitReader(r, int64(length)))
 		n += int64(nn)
+
 		payload := bb.String()
 		m.payload = payload
-		if err != nil {
-			return n, err
-		}
 	}
 
 	return n, nil
@@ -147,19 +143,14 @@ func (a msg) eq(b msg) bool {
 	if a.t != b.t {
 		return false
 	}
-	if a.t == pubMsg || a.t == subMsg {
+	if a.t != pingMsg {
 		if a.topic != b.topic {
 			return false
 		}
-	}
-	if a.t == subMsg {
-		if a.b != b.b {
-			return false
-		}
-	}
-	if a.t == pubMsg {
-		if a.payload != b.payload {
-			return false
+		if a.t == pubMsg {
+			if a.payload != b.payload {
+				return false
+			}
 		}
 	}
 	return true
@@ -170,11 +161,13 @@ func (m msg) String() string {
 	case pingMsg:
 		return "msg{ping}"
 	case subMsg:
-		return fmt.Sprintf("msg{sub, %d, %v}", m.topic, m.b)
+		return fmt.Sprintf("msg{sub, %d}", m.topic)
+	case unsubMsg:
+		return fmt.Sprintf("msg{unsub, %d}", m.topic)
 	case pubMsg:
 		return fmt.Sprintf("msg{pub, %d, %q}", m.topic, m.payload)
 	default:
-		return fmt.Sprintf("msg{<invalid %d>, %d, %v, %v}", m.t, m.topic, m.b, m.payload)
+		return fmt.Sprintf("msg{<invalid %d>, %d, %v}", m.t, m.topic, m.payload)
 	}
 }
 

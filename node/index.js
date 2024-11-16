@@ -1,7 +1,7 @@
 import * as net from 'net';
 import MessageFSM from './MessageFSM.js';
-import Type from './Type.js';
 import PubSubServer from './PubSubServer.js';
+import BigEndianUint16 from './BigEndianUint16.js';
 
 let netsvOpts = {
     noDelay: true,
@@ -14,18 +14,9 @@ netsv.on('error', err => {
 });
 
 netsv.on('connection', sock => {
-    sock.on('end', () => {
-        sv.disconnect(sock);
-    });
-
-    sock.on('timeout', () => {
-        sock.end();
-    });
-
-    sock.on('error', err => {
-        console.log('socket err:', err.code);
-        sock.end();
-    })
+    sock.on('end',     () => { sv.disconnect(sock); });
+    sock.on('timeout', () => { sock.end(); });
+    sock.on('error',   () => { sock.end(); }); // err ignored
 
     function resetTimeout() {
         sock.setTimeout(60_000);
@@ -34,18 +25,13 @@ netsv.on('connection', sock => {
 
     let fsm = new MessageFSM();
     fsm.onPing(() => {
-        sock.write(Buffer.of(Type.ping));
+        let z = new BigEndianUint16(0);
+        sock.write(Buffer.of(z.lo, z.hi));
     });
-    fsm.onSub((topic, b) => {
-        if (b) {
-            sv.subscribe(topic, sock);
-        } else {
-            sv.unsubscribe(topic, sock);
-        }
-    });
-    fsm.onPub((topic, buf) => {
-        sv.publish(topic, buf);
-    });
+    fsm.onSub    (topic        => { sv.subscribe(topic, sock); });
+    fsm.onUnsub  (topic        => { sv.unsubscribe(topic, sock); });
+    fsm.onPub    ((topic, buf) => { sv.publish(topic, buf); });
+    fsm.onUnknown(()           => sock.end());
 
     sock.on('data', data => {
         resetTimeout();
@@ -64,6 +50,6 @@ let listenOpts = {
     port,
 };
 netsv.listen(listenOpts, () => {
-    let {port} = netsv.address();
-    console.log(`listening on port ${port}`);
+    let {address, port} = netsv.address();
+    console.log(`listening on ${address}:${port}`);
 });

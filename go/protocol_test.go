@@ -10,8 +10,10 @@ func TestProtocol(t *testing.T) {
 	ms := []msg{
 		{t: pingMsg},
 		{t: pingMsg, topic: 123, payload: "abcba"},
-		{t: subMsg, topic: 120, payload: "lol ignored", b: false},
-		{t: subMsg, topic: 120, b: true},
+		{t: subMsg, topic: 120, payload: "lol ignored"},
+		{t: unsubMsg, topic: 120, payload: "lol ignored"},
+		{t: subMsg, topic: 120},
+		{t: unsubMsg, topic: 120},
 		{t: pubMsg, topic: 99, payload: "hello"},
 		{t: pubMsg, topic: 129, payload: "now this is a really really long message :) üỳʔ oo--"},
 		{t: pubMsg, topic: 0, payload: ""},
@@ -38,7 +40,7 @@ func TestProtocol(t *testing.T) {
 		}
 
 		if !m.eq(mm) {
-			t.Logf("wanted %v got %v", m, mm)
+			t.Logf("wanted %v (%#v) got %v", m, m, mm)
 			t.FailNow()
 		}
 	}

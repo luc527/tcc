@@ -78,7 +78,9 @@ func handleConn(sv server, conn net.Conn) {
 		case pubMsg:
 			sv.publish(m.topic, m.payload)
 		case subMsg:
-			sv.subscribe(m.topic, s, m.b)
+			sv.subscribe(m.topic, s, true)
+		case unsubMsg:
+			sv.subscribe(m.topic, s, false)
 		}
 	}
 }
@@ -131,10 +133,13 @@ func writeToConn(
 				return
 			}
 		case sx := <-s.sub:
+			t := subMsg
+			if !sx.subscribed {
+				t = unsubMsg
+			}
 			m := msg{
-				t:     subMsg,
+				t:     t,
 				topic: sx.topic,
-				b:     sx.subscribed,
 			}
 			if err := write(m); err != nil {
 				log.Println(err)

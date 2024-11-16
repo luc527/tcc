@@ -2,7 +2,7 @@ defmodule Tccex.Application do
   use Application
 
   # TODO: env
-  @ip :loopback
+  @ip {127,0,0,1}
   # ephemeral
   @port 0
 
@@ -12,7 +12,6 @@ defmodule Tccex.Application do
       {Registry,
        keys: :duplicate, partitions: System.schedulers_online(), name: Tccex.Topic.Registry},
       {DynamicSupervisor, strategy: :one_for_one, name: Tccex.Client.Supervisor},
-      {DynamicSupervisor, strategy: :one_for_one, name: Tccex.Receiver.Supervisor},
       {Tccex.Listener, {@ip, @port}}
     ]
 

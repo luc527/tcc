@@ -87,13 +87,14 @@ func extractMsgid(payload string, wantConnid int) (int, error) {
 }
 
 func (tc *testconn) runWriter() {
+	// TODO: unsubscribe too
 	msgi := 0
 	for {
 		select {
 		case <-tc.ctx.Done():
 			return
 		case sx := <-tc.subc:
-			m := msg{t: subMsg, topic: sx.topic, b: sx.subscribed}
+			m := msg{t: subMsg, topic: sx.topic}
 			if _, err := m.WriteTo(tc.conn); err != nil {
 				dbg("failed to subscribe: %v", err)
 				return

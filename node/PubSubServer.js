@@ -1,4 +1,4 @@
-import LittleEndianUint16 from "./LittleEndianUint16.js";
+import BigEndianUint16 from "./BigEndianUint16.js";
 import Type from "./Type.js";
 import {getid} from './id.js';
 
@@ -38,8 +38,9 @@ export default class PubSubServer {
         }
         topics.add(topic);
 
-        let topic16 = new LittleEndianUint16(topic);
-        let msgbuf = Buffer.of(Type.sub, topic16.lo, topic16.hi, 1);
+        let size16 = new BigEndianUint16(3); // type + topic
+        let topic16 = new BigEndianUint16(topic);
+        let msgbuf = Buffer.of(size16.lo, size16.hi, Type.sub, topic16.lo, topic16.hi);
         sock.write(msgbuf);
 
         // console.log(`pubsub> sub ${getid(sub)} subscribed to topic ${topic}`);
@@ -63,8 +64,9 @@ export default class PubSubServer {
             }
         }
 
-        let topic16 = new LittleEndianUint16(topic);
-        let msgbuf = Buffer.of(Type.sub, topic16.lo, topic16.hi, 0);
+        let size16 = new BigEndianUint16(3); // type + topic
+        let topic16 = new BigEndianUint16(topic);
+        let msgbuf = Buffer.of(size16.lo, size16.hi, Type.unsub, topic16.lo, topic16.hi);
         sock.write(msgbuf);
 
         // console.log(`pubsub> sub ${getid(sub)} unsubscribed from topic ${topic}`);
@@ -94,18 +96,19 @@ export default class PubSubServer {
         if (!subs) {
             return;
         }
-        let msgbuf = Buffer.alloc(1 + 2 + 2 + payloadbuf.length);
+        let size = 1 + 2 + payloadbuf.length;
+        let msgbuf = Buffer.alloc(2 + size);
         let i = 0;
+
+        let size16 = new BigEndianUint16(size);
+        msgbuf[i++] = size16.lo;
+        msgbuf[i++] = size16.hi;
 
         msgbuf[i++] = Type.pub;
 
-        let topic16 = new LittleEndianUint16(topic);
+        let topic16 = new BigEndianUint16(topic);
         msgbuf[i++] = topic16.lo;
         msgbuf[i++] = topic16.hi;
-
-        let length16 = new LittleEndianUint16(payloadbuf.length);
-        msgbuf[i++] = length16.lo;
-        msgbuf[i++] = length16.hi;
 
         for (let byte of payloadbuf) {
             msgbuf[i++] = byte;

@@ -1,6 +1,6 @@
 import Type from './Type.js';
 
-// little-endian
+// big-endian
 class Uint16FSM {
     constructor() {
         this.ok = false;
@@ -11,12 +11,12 @@ class Uint16FSM {
     handle(byte) {
         switch (this.read) {
         case 0:
-            this.value = byte;
+            this.value = byte << 8;
             this.read = 1;
             this.ok = false;
             break;
         case 1:
-            this.value = (byte << 8) | this.value;
+            this.value |= byte;
             this.read = 0;
             this.ok = true;
             break;
@@ -35,11 +35,11 @@ class PayloadFSM {
         this.ok = false;
     }
 
-    // XXX: possible bottleneck? this runs for *each byte* of the payload
     handle(byte) {
-        if (this.read < this.buffer.length) {
+        let d = this.buffer.length - this.read;
+        if (d > 0) {
             this.buffer[this.read++] = byte;
-            if (this.read == this.buffer.length) {
+            if (d - 1 == 0) {
                 this.ok = true;
             }
         }
@@ -48,35 +48,50 @@ class PayloadFSM {
 
 export default class MessageFSM {
     constructor() {
+        this.size = 0;
         this.uint = new Uint16FSM();
         this.payload = new PayloadFSM();
-        this.stateFn = this.start;
+        this.stateFn = this.preSize;
     }
 
     onUnknown(cb) { this.unknownCb = cb; }
     onPing(cb)    { this.pingCb = cb; }
     onPub(cb)     { this.pubCb = cb; }
     onSub(cb)     { this.subCb = cb; }
+    onUnsub(cb)   { this.unsubCb = cb; }
 
     handle(byte) {
         this.stateFn(byte);
     }
 
-    start(byte) {
+    preSize(byte) {
+        let uint = this.uint;
+        uint.handle(byte);
+        if (uint.ok) {
+            if (uint.value == 0) {
+                this.pingCb && this.pingCb();
+                this.stateFn = this.preSize;
+            } else {
+                this.size = uint.value;
+                this.stateFn = this.preType;
+            }
+        }
+    }
+
+    preType(byte) {
         switch (byte) {
-        case Type.ping:
-            this.pingCb && this.pingCb();
-            break;
         case Type.sub:
-            this.type = Type.sub;
             this.stateFn = this.subTopic;
             break;
+        case Type.unsub:
+            this.stateFn = this.unsubTopic;
+            break;
         case Type.pub:
-            this.type = Type.pub;
             this.stateFn = this.pubTopic;
             break;
         default:
             this.unknownCb && this.unknownCb(byte);
+            this.stateFn = this.preSize;
             break;
         }
     }
@@ -85,15 +100,20 @@ export default class MessageFSM {
         let uint = this.uint;
         uint.handle(byte);
         if (uint.ok) {
-            this.topic = uint.value;
-            this.stateFn = this.subBoolean;
+            let topic = uint.value;
+            this.subCb && this.subCb(topic);
+            this.stateFn = this.preSize;
         }
     }
 
-    subBoolean(byte) {
-        let b = byte != 0;
-        this.subCb && this.subCb(this.topic, b)
-        this.stateFn = this.start;
+    unsubTopic(byte) {
+        let uint = this.uint;
+        uint.handle(byte);
+        if (uint.ok) {
+            let topic = uint.value;
+            this.unsubCb && this.unsubCb(topic);
+            this.stateFn = this.preSize;
+        }
     }
 
     pubTopic(byte) {
@@ -101,16 +121,7 @@ export default class MessageFSM {
         uint.handle(byte);
         if (uint.ok) {
             this.topic = uint.value;
-            this.stateFn = this.pubLength;
-        }
-    }
-
-    pubLength(byte) {
-        let uint = this.uint;
-        uint.handle(byte);
-        if (uint.ok) {
-            let length = uint.value;
-            this.payload.reset(length);
+            this.payload.reset(this.size - 1 - 2); // - type - topic
             this.stateFn = this.pubPayload;
         }
     }
@@ -121,7 +132,7 @@ export default class MessageFSM {
         if (payload.ok) {
             let buffer = payload.buffer;
             this.pubCb && this.pubCb(this.topic, buffer);
-            this.stateFn = this.start;
+            this.stateFn = this.preSize;
         }
     }
 }
