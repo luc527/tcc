@@ -19,9 +19,7 @@ defmodule Tccex.Listener do
         _ ->
           128
       end
-
     backlog = max(128, backlog)
-    Logger.info("backlog: #{backlog}")
 
     opts = [
       nodelay: true,

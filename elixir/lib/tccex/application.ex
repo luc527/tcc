@@ -1,18 +1,20 @@
 defmodule Tccex.Application do
   use Application
-
-  # TODO: env
-  @ip {127,0,0,1}
-  # ephemeral
-  @port 0
+  require Logger
 
   @impl true
   def start(_type, _args) do
+    ip = System.get_env("HOST", "127.0.0.1")
+    port = System.get_env("PORT", "0")
+
+    {:ok, ip} = ip |> String.to_charlist |> :inet.parse_address
+    port = port |> String.to_integer
+
     children = [
       {Registry,
        keys: :duplicate, partitions: System.schedulers_online(), name: Tccex.Topic.Registry},
       {DynamicSupervisor, strategy: :one_for_one, name: Tccex.Client.Supervisor},
-      {Tccex.Listener, {@ip, @port}}
+      {Tccex.Listener, {ip, port}}
     ]
 
     opts = [strategy: :rest_for_one, name: Tccex.Supervisor]
