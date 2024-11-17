@@ -13,8 +13,7 @@ import (
 )
 
 const (
-	readTimeout  = 1 * time.Minute
-	writeTimeout = 10 * time.Second
+	readTimeout = 1 * time.Minute
 )
 
 var (
@@ -109,10 +108,6 @@ func writeToConn(
 		bb.Reset()
 		if _, err := m.WriteTo(bb); err != nil {
 			return fmt.Errorf("failed to write message to buffer: %w", err)
-		}
-		deadline := time.Now().Add(writeTimeout)
-		if err := conn.SetWriteDeadline(deadline); err != nil {
-			return fmt.Errorf("failed to set write deadline: %w", err)
 		}
 		if _, err := bb.WriteTo(conn); err != nil {
 			return fmt.Errorf("failed to write message to conn: %w", err)

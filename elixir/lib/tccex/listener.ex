@@ -5,8 +5,6 @@ defmodule Tccex.Listener do
 
   alias Tccex.Client
 
-  @send_timeout_ms 10_000
-
   def start_link(arg) do
     Task.start_link(fn -> run(arg) end)
   end
@@ -21,6 +19,8 @@ defmodule Tccex.Listener do
       end
     backlog = max(128, backlog)
 
+    Logger.info("backlog: #{backlog}")
+
     opts = [
       nodelay: true,
       active: false,
@@ -28,8 +28,6 @@ defmodule Tccex.Listener do
       mode: :binary,
       ip: ip,
       backlog: backlog,
-      send_timeout: @send_timeout_ms,
-      send_timeout_close: true
     ]
 
     with {:ok, lsock} <- :gen_tcp.listen(port, opts),
@@ -53,10 +51,15 @@ defmodule Tccex.Listener do
   end
 
   defp accept_loop(lsock) do
-    {:ok, sock} = :gen_tcp.accept(lsock)
-    {:ok, client_pid} = start_client(sock)
-    :ok = :gen_tcp.controlling_process(sock, client_pid)
-    accept_loop(lsock)
+    with {:ok, sock} <- :gen_tcp.accept(lsock),
+         {:ok, client_pid} = start_client(sock),
+         :ok = :gen_tcp.controlling_process(sock, client_pid)
+    do
+      accept_loop(lsock)
+    else
+      error ->
+        Logger.warning("failed to accept connection: #{inspect(error)}")
+    end
   end
 
   defp start_client(sock) do

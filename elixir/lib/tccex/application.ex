@@ -10,6 +10,8 @@ defmodule Tccex.Application do
     {:ok, ip} = ip |> String.to_charlist |> :inet.parse_address
     port = port |> String.to_integer
 
+    Logger.info("schedulers online: #{System.schedulers_online()}")
+
     children = [
       {Registry,
        keys: :duplicate, partitions: System.schedulers_online(), name: Tccex.Topic.Registry},
