@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"regexp"
 	"strconv"
@@ -15,50 +16,19 @@ var (
 	errNomatch = fmt.Errorf("no match")
 )
 
+func prf(pre string, f string, a ...any) {
+	t := time.Now().Unix()
+	fmt.Printf("%s: %d %s\n", pre, t, fmt.Sprintf(f, a...))
+}
+
 func dbg(f string, a ...any) {
-	fmt.Printf("dbg: %d %s\n", time.Now().Unix(), fmt.Sprintf(f, a...))
+	prf("dbg", f, a...)
 }
 
 func dbg2(f string, a ...any) {
 	// dbg(f, a...)
 	_ = f
 	_ = a
-}
-
-func observation(topic uint16, sendt time.Time, recvt time.Time) {
-	delayMs := recvt.Sub(sendt).Milliseconds()
-	fmt.Printf("observation: %d topic=%d delayMs=%d\n", sendt.Unix(), topic, delayMs)
-}
-
-type itime struct {
-	i     int
-	t     time.Time
-	topic uint16
-}
-
-type testconn struct {
-	id     int
-	ctx    context.Context
-	cancel context.CancelFunc
-	conn   net.Conn
-	subc   chan subscription
-	pubc   chan publication
-	sends  chan itime
-	recvs  chan itime
-}
-
-func newTestconn(id int, parent context.Context, conn net.Conn) *testconn {
-	ctx, cancel := context.WithCancel(parent)
-	return &testconn{
-		id:     id,
-		ctx:    ctx,
-		conn:   conn,
-		cancel: cancel,
-		subc:   make(chan subscription),
-		pubc:   make(chan publication),
-		sends:  make(chan itime),
-		recvs:  make(chan itime),
-	}
 }
 
 func prependMsgid(payload string, connid int, msgid int) string {
@@ -86,107 +56,24 @@ func extractMsgid(payload string, wantConnid int) (int, error) {
 	return msgid, nil
 }
 
-func (tc *testconn) runWriter() {
-	// TODO: unsubscribe too
-	msgi := 0
-	for {
-		select {
-		case <-tc.ctx.Done():
-			return
-		case sx := <-tc.subc:
-			m := msg{t: subMsg, topic: sx.topic}
-			if _, err := m.WriteTo(tc.conn); err != nil {
-				dbg("failed to subscribe: %v", err)
-				return
-			}
-			dbg2("testconn %d wrote: %v", tc.id, m)
-		case px := <-tc.pubc:
-			payload := prependMsgid(px.payload, tc.id, msgi)
-			m := msg{t: pubMsg, topic: px.topic, payload: payload}
-			if _, err := m.WriteTo(tc.conn); err != nil {
-				dbg("failed to publish: %v", err)
-				return
-			}
-			dbg2("testconn %d wrote: %v", tc.id, m)
-			select {
-			case <-tc.ctx.Done():
-			case tc.sends <- itime{i: msgi, t: time.Now(), topic: px.topic}:
-			}
-			msgi++
-		}
-	}
-}
-
-func (tc *testconn) runMeasurer() {
-	pending := make(map[int]time.Time)
-	for {
-		select {
-		case <-tc.ctx.Done():
-			return
-		case x := <-tc.sends:
-			pending[x.i] = x.t
-		case x := <-tc.recvs:
-			if sendt, ok := pending[x.i]; ok {
-				recvt := x.t
-				observation(x.topic, sendt, recvt)
-			} else {
-				dbg("recv without send?! connid: %d, msgid: %d", tc.id, x.i)
-			}
-		}
-	}
-}
-
-func (tc *testconn) runReader() {
-	for {
-		m := msg{}
-		if _, err := m.ReadFrom(tc.conn); err != nil {
-			dbg("failed to read: %v", err)
-			return
-		}
-		dbg2("testconn %d read: %v", tc.id, m)
-		if m.t == pubMsg {
-			msgid, err := extractMsgid(m.payload, tc.id)
-			if err != nil {
-				if err != errNomatch {
-					dbg("failed to extract msgid: %v", err)
-				}
-				continue
-			}
-			select {
-			case <-tc.ctx.Done():
-			case tc.recvs <- itime{i: msgid, t: time.Now(), topic: m.topic}:
-			}
-		}
-	}
-}
-
-func (tc *testconn) run(wg *sync.WaitGroup) {
-	defer tc.cancel()
-	defer wg.Done()
-
-	dbg("testconn %d started", tc.id)
-	defer dbg("testconn %d closed", tc.id)
-
-	go pingConn(tc.ctx, tc.conn)
-	go tc.runMeasurer()
-	go tc.runReader()
-
-	tc.runWriter()
-}
-
-func (tc *testconn) subscribe(topic uint16) {
-	select {
-	case <-tc.ctx.Done():
-	case tc.subc <- subscription{topic, true}:
-	}
-}
-
-func (tc *testconn) publish(topic uint16, payload string) {
-	select {
-	case <-tc.ctx.Done():
-	case tc.pubc <- publication{topic: topic, payload: payload}:
-	}
-}
+// func (tc *testconn) runMeasurer() {
+// 	pending := make(map[int]time.Time)
+// 	for {
+// 		select {
+// 		case <-tc.ctx.Done():
+// 			return
+// 		case x := <-tc.sends:
+// 			pending[x.i] = x.t
+// 		case x := <-tc.recvs:
+// 			if sendt, ok := pending[x.i]; ok {
+// 				recvt := x.t
+// 				observation(x.topic, sendt, recvt)
+// 			} else {
+// 				dbg("recv without send?! connid: %d, msgid: %d", tc.id, x.i)
+// 			}
+// 		}
+// 	}
+// }
 
 func pingConn(ctx context.Context, conn net.Conn) {
 	tick := time.Tick(50 * time.Second)
@@ -204,188 +91,282 @@ func pingConn(ctx context.Context, conn net.Conn) {
 	}
 }
 
-func multiConnect(n int, address string, p int) <-chan net.Conn {
-	work := make(chan zero)
-	go func() {
-		for range n {
-			work <- zero{}
-		}
-		close(work)
-	}()
+type connector struct {
+	p       int
+	address string
+	done    chan zero
+	work    chan zero
+	conn    chan net.Conn
+}
 
-	wg := new(sync.WaitGroup)
-	ret := make(chan net.Conn)
-	for range p {
-		wg.Add(1)
+func makeConnector(p int, address string) connector {
+	return connector{
+		p:       p,
+		address: address,
+		done:    make(chan zero),
+		work:    make(chan zero, p),
+		conn:    make(chan net.Conn),
+	}
+}
+
+func (c *connector) start() {
+	for range c.p {
 		go func() {
-			defer wg.Done()
-			for range work {
-				conn, err := net.Dial("tcp", address)
+			for range c.work {
+				conn, err := net.Dial("tcp", c.address)
 				if err != nil {
 					dbg("failed to connect: %v", err)
 				}
-				ret <- conn
+				select {
+				case <-c.done:
+				case c.conn <- conn:
+				}
 			}
 		}()
 	}
-
-	go func() {
-		wg.Wait()
-		close(ret)
-	}()
-
-	return ret
 }
 
-type testconnPool struct {
+func (c *connector) stop() {
+	close(c.done)
+	close(c.work)
+}
+
+type connpool struct {
+	ctor connector
+	n    int
+	i    int
+	a    []net.Conn
+}
+
+func newConnpool(n int, ctor connector) *connpool {
+	return &connpool{
+		ctor: ctor,
+		n:    n,
+		a:    nil,
+	}
+}
+
+// TODO: redo
+// func (cp *connpool) getConn() net.Conn {
+// 	if len(cp.a) < cp.n {
+// 		conn := cp.ctor.connect()
+// 		if conn == nil {
+// 			return nil
+// 		}
+// 		cp.a = append(cp.a)
+// 		return conn
+// 	} else {
+// 		j := cp.i
+// 		cp.i++
+// 		return cp.a[j]
+// 	}
+// }
+
+type testdriver struct {
 	ctx    context.Context
 	cancel context.CancelFunc
+	ctor   connector
 	wg     sync.WaitGroup
-	n      int
-	i      int
-	a      []*testconn
 }
 
-func newTestconnPool(n int, parent context.Context) *testconnPool {
+func newTestdriver(parent context.Context, address string) *testdriver {
 	ctx, cancel := context.WithCancel(parent)
-	tp := &testconnPool{
+
+	ctor := makeConnector(32, address)
+	ctor.start()
+	context.AfterFunc(ctx, ctor.stop)
+
+	tg := &testdriver{
 		ctx:    ctx,
 		cancel: cancel,
+		ctor:   ctor,
 		wg:     sync.WaitGroup{},
-		n:      n,
-		i:      0,
-		a:      make([]*testconn, n),
 	}
-	return tp
+	return tg
 }
 
-func (tp *testconnPool) start(address string) {
-	// TODO: instead of pre-creating all connections
-	// create connections only when asked, but stop creating and start reusing previous connections
-	// when n is reached
+type testconn struct {
+	c net.Conn
+}
 
-	// TODO: something about the observations' delayMs is fishy
-	// increases almost monotonically with every burst of publications -- on localhost, at least
-	// maybe that's expected?
-
-	// -- also happens with the node impl, so not a go impl specific thing
-
-	// TODO: maybe should be able to activate measurer for a single topic only?
-	// would that solve the other problem? cascading delay
-
-	const p = 32
-	i := 0
-	for conn := range multiConnect(tp.n, address, p) {
-		if conn == nil {
-			continue
-		}
-		tc := newTestconn(i, tp.ctx, conn)
-		tp.a[i] = tc
-		i++
-
-		tp.wg.Add(1)
-		go tc.run(&tp.wg)
+func (tc testconn) subscribe(topic uint16) bool {
+	c := tc.c
+	m := msg{t: subMsg, topic: topic}
+	if _, err := m.WriteTo(c); err != nil {
+		dbg("failed to subscribe: %v", err)
+		return false
 	}
-	dbg("test conn pool started")
+	return true
 }
 
-func (tp *testconnPool) choose() *testconn {
-	i := tp.i
-	tp.i = (i + 1) % len(tp.a)
-	return tp.a[i]
+func (tc testconn) publish(topic uint16, payload string) bool {
+	c := tc.c
+	m := msg{t: pubMsg, topic: topic, payload: payload}
+	if _, err := m.WriteTo(c); err != nil {
+		dbg("failed to publish: %v", err)
+		return false
+	}
+	return true
 }
 
-func (tp *testconnPool) stop() {
-	tp.cancel()
-	tp.wg.Wait()
-}
+func (tc testconn) waitPublication(topic uint16, payload string, timeout time.Duration) bool {
+	c := tc.c
 
-func runPublisher(tc *testconn, topic uint16, interval time.Duration, msgf func() string) {
-	tick := time.Tick(interval)
-	done := tc.ctx.Done()
+	d := make(chan zero)
+	time.AfterFunc(timeout, func() { close(d) })
+
+	m := msg{}
 	for {
 		select {
-		case <-done:
+		case <-d:
+			return false
+		default:
+		}
+		if _, err := m.ReadFrom(c); err != nil {
+			if err != io.EOF {
+				dbg("failed to read, waiting for publication: %v", err)
+			}
+			return false
+		}
+		if m.t == pubMsg && m.topic == topic && m.payload == payload {
+			select {
+			case <-d:
+				return false
+			default:
+				return true
+			}
+		}
+	}
+}
+
+func throughputPublisher(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	conn net.Conn,
+	wg *sync.WaitGroup,
+	topic uint16,
+	id int,
+) {
+	defer func() {
+		conn.Close()
+		cancel()
+		wg.Done()
+	}()
+
+	done := func() bool {
+		select {
+		case <-ctx.Done():
+			return true
+		default:
+			return false
+		}
+	}
+
+	tc := testconn{conn}
+
+	if !tc.subscribe(topic) {
+		return
+	}
+
+	start := time.Now()
+	sent := 0
+
+	for {
+		if done() {
 			return
-		case <-tick:
-			tc.publish(topic, msgf())
 		}
+
+		pl := fmt.Sprintf("%d-%d", id, sent)
+		if !tc.publish(topic, pl) || done() {
+			return
+		}
+		sentt := time.Now()
+		sent++
+
+		timeout := 1 * time.Minute
+		if !tc.waitPublication(topic, pl, timeout) {
+			prf("pub", "timed out waiting (timeout %ds)", int(timeout.Seconds()))
+			return
+		}
+		if done() {
+			return
+		}
+
+		elapsed := sentt.Sub(start)
+		delay := time.Since(sentt)
+
+		elapsedSec := elapsed.Seconds()
+		throughput := float64(0)
+		if elapsedSec > 0 {
+			throughput = float64(sent) / elapsed.Seconds()
+		}
+
+		prf(
+			"pub",
+			"throughput topic=%d pubid=%d sent=%d elapsed_ms=%d throughput_persec=%.4f delay_ms=%d",
+			topic,
+			id,
+			sent,
+			elapsed.Milliseconds(),
+			throughput,
+			delay.Milliseconds(),
+		)
 	}
 }
 
-func testTest(address string) {
-	const nconn = 10
-	tp := newTestconnPool(nconn, context.Background())
-	tp.start(address)
+func testThroughput(address string) {
+	ctx0, cancel0 := context.WithCancel(context.Background())
+	defer cancel0()
 
-	topics := []uint16{1, 10, 100}
-	for _, topic := range topics {
-		for range 3 {
-			tc := tp.choose()
-			tc.subscribe(topic)
-			go runPublisher(tc, topic, 7*time.Second, func() string { return "hello world" })
+	wg0 := new(sync.WaitGroup)
+
+	ctor := makeConnector(50, address)
+	ctor.start()
+	context.AfterFunc(ctx0, ctor.stop)
+
+	const (
+		ntopic = uint16(50)
+		npub   = 10
+	)
+
+	go func() {
+		for range npub * ntopic {
+			ctor.work <- zero{}
 		}
-		for range 5 {
-			tp.choose().subscribe(topic)
-		}
+	}()
 
-		time.Sleep(30 * time.Second)
-	}
-
-	tp.stop()
-}
-
-func test0(address string) {
-	// just for collecting some delay data from different implementations
-	const nconn = 100
-	const topic = 123
-
-	tp := newTestconnPool(nconn, context.Background())
-	tp.start(address)
-
-	for range nconn {
-		tc := tp.choose()
-		tc.subscribe(topic)
-		go runPublisher(tc, topic, 2*time.Second, func() string { return "hello" })
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	time.Sleep(30 * time.Second)
-	tp.stop()
-}
-
-func testIncreasingTopics(address string) {
-	// TODO: change connection pool size, see if performance changes much
-	const nconn = 4096
-	tp := newTestconnPool(nconn, context.Background())
-	tp.start(address)
-
-	topic := uint16(0)
-	nextTopic := func() uint16 {
-		t := topic
-		topic++
-		return t
-	}
-
-	prevTopcount := 0
-	topcounts := []int{10, 80, 320, 640, 1280, 2560, 5120}
-	for _, topcount := range topcounts {
-		newtopCount := topcount - prevTopcount
-		for range newtopCount {
-			topic := nextTopic()
-			for range 30 {
-				tp.choose().subscribe(topic)
+	for topic := range ntopic {
+		for id := range npub {
+			c := <-ctor.conn
+			if c == nil {
+				dbg("failed to connect publisher")
+				continue
 			}
-			for range 10 {
-				tc := tp.choose()
-				tc.subscribe(topic)
-				go runPublisher(tc, topic, 10*time.Second, func() string { return "hello world" })
-			}
+			dbg("connected publisher %d of topic %d", id, topic)
+			ctx, cancel := context.WithCancel(ctx0)
+			wg0.Add(1)
+			go throughputPublisher(ctx, cancel, c, wg0, topic, id)
 		}
-		prevTopcount = topcount
-
-		time.Sleep(61 * time.Second)
+		dbg("connected topic %d", topic)
 	}
 
-	tp.stop()
+	dbg("finished connecting")
+	time.Sleep(1 * time.Minute)
+
+	// throughputnosub has this segment commented {
+	// cpool := newConnpool(4000, ctor)
+
+	// prevNsubs := 0
+	// incNsubs := []int{10, 100, 1000, 2000, 4000, 8000, 16000, 32000}
+
+	// for _, nsubs := range incNsubs {
+	// 	nNewsubs := nsubs - prevNsubs
+
+	// 	prevNsubs = nsubs
+	// }
+	// }
+
+	dbg("finishing throughput test")
+	cancel0()
+	wg0.Wait()
 }

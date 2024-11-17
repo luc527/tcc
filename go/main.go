@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"runtime"
 	"runtime/pprof"
 )
 
@@ -60,6 +61,8 @@ func serverMain(args []string) {
 		return
 	}
 
+	dbg("GOMAXPROCS = %d", runtime.GOMAXPROCS(-1))
+
 	// prof()
 
 	l, err := net.Listen("tcp", args[0])
@@ -88,13 +91,23 @@ func clientMain(args []string) {
 
 func testMain(args []string) {
 	if len(args) == 0 {
+		fmt.Println("which test?")
+		return
+	}
+	test, args := args[0], args[1:]
+
+	if len(args) == 0 {
 		fmt.Println("address?")
 		return
 	}
 	address, args := args[0], args[1:]
 	_ = args
 
-	// testTest(address)
-	// testIncreasingTopics(address)
-	test0(address)
+	switch test {
+	case "throughput":
+		testThroughput(address)
+	default:
+		fmt.Printf("unknown test %q\n", test)
+	}
+
 }

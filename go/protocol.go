@@ -118,9 +118,6 @@ func (m *msg) ReadFrom(r io.Reader) (int64, error) {
 	n += int64(nn)
 	topic := binary.BigEndian.Uint16(buf[:2])
 	m.topic = topic
-	if err != nil {
-		return n, err
-	}
 
 	if t == pubMsg {
 		psize := size - 1 - 2 // - type - topic
