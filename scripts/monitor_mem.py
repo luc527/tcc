@@ -10,11 +10,7 @@ p = psutil.Process(pid)
 sep = ','
 header = [
     'timestamp',
-    'rss',
-    'vms',
     'uss',
-    'pss',
-    'swap',
 ]
 print(sep.join(header))
 
@@ -24,11 +20,7 @@ while True:
     timestamp = int(time.time())
     row = map(str, [
         timestamp,
-        info.rss,
-        info.vms,
         info.uss,
-        info.pss,
-        info.swap,
     ])
     print(sep.join(row))
 

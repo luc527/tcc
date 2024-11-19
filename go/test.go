@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"regexp"
+	"sync"
 	"time"
 )
 
@@ -95,15 +96,136 @@ func (tc testconn) waitPublication(topic uint16, payload string, timeout time.Du
 	}
 }
 
-// go impl is actually the one with worst throughput
-// strace shows lots of futex, so... channels
-// (btw, the node strace is the cleanest one! just a lot of write() calls)
+func throughputPublisher(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup, conn net.Conn, topic uint16, id int) {
+	defer func() {
+		cancel()
+		conn.Close()
+		wg.Done()
+	}()
+
+	tconn := testconn{conn}
+
+	if !tconn.subscribe(topic) {
+		dbg("publisher failed to subscribe")
+		return
+	}
+
+	done := func() bool {
+		select {
+		case <-ctx.Done():
+			return true
+		default:
+			return false
+		}
+	}
+
+	tframe := newThroughputFrame(10 * time.Second)
+
+	msgi := 0
+	for {
+		if done() {
+			return
+		}
+
+		pl := fmt.Sprintf("pub %d msg %d", id, msgi)
+		if !tconn.publish(topic, pl) {
+			return
+		}
+		sent := time.Now()
+		measurement := tframe.onsend()
+		msgi++
+
+		if !tconn.waitPublication(topic, pl, 1*time.Minute) {
+			dbg("publisher failed to wait for publication")
+			return
+		}
+		if done() {
+			return
+		}
+		delay := time.Since(sent)
+
+		delayMs := delay.Milliseconds()
+		prf("pub", "topic=%d pub=%d msg=%d delayMs=%d frame=%d throughputPsec=%.4f", topic, id, msgi, delayMs, measurement.i, measurement.v)
+	}
+}
+
+func throughputSubscriber(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup, conn net.Conn, topic uint16) {
+	defer func() {
+		cancel()
+		conn.Close()
+		wg.Done()
+	}()
+
+	go io.Copy(io.Discard, conn)
+
+	tconn := testconn{conn}
+	if !tconn.subscribe(topic) {
+		dbg("subscriber failed to subscribe")
+		return
+	}
+
+	<-ctx.Done()
+}
 
 func testThroughput(address string) {
-	// TODO: did a git checkout . on the whole go folder :-)
-	// so... reimplement this
+	ctx0, cancel0 := context.WithCancel(context.Background())
+	wg0 := new(sync.WaitGroup)
 
-	// 20 topics
-	// 5 publishers
-	// 10, 100, 1000, 2000, 3000 subscribers
+	const (
+		ntopic = 20
+		npubs  = 5
+		nconn  = 800
+	)
+
+	npubconns := npubs * ntopic
+	dbg("creating %d publisher connections", npubconns)
+	pubconns := multiconnect(nil, npubconns, 25, address)
+	for topic := range uint16(ntopic) {
+		for pubi := range npubs {
+			conn := pubconns[int(topic)*npubs+pubi]
+			ctx, cancel := context.WithCancel(ctx0)
+
+			wg0.Add(1)
+			go throughputPublisher(ctx, cancel, wg0, conn, topic, pubi)
+		}
+	}
+
+	dbg("creating %d subscriber connections", nconn)
+	subconni := 0
+	subconns := multiconnect(nil, nconn, 20, address)
+	subctxs := make([]context.Context, nconn)
+	subcancels := make([]context.CancelFunc, nconn)
+	for i, conn := range subconns {
+		ctx, cancel := context.WithCancel(ctx0)
+		subctxs[i] = ctx
+		subcancels[i] = cancel
+
+		go pingConn(ctx, conn)
+	}
+
+	prevNsubs := 0
+	incNsubs := []int{10, 100, 200, 400, 800, 1600, 3200, 6400}
+	for _, nsubs := range incNsubs {
+		dbg("subs: %d", nsubs)
+		newNsubs := nsubs - prevNsubs
+
+		tick := time.Tick(25 * time.Millisecond)
+		for topic := range uint16(ntopic) {
+			dbg("adding %d subs to %d", newNsubs, topic)
+			for range newNsubs {
+				conn, ctx, cancel := subconns[subconni], subctxs[subconni], subcancels[subconni]
+				wg0.Add(1)
+				go throughputSubscriber(ctx, cancel, wg0, conn, topic)
+				subconni = (subconni + 1) % len(subconns)
+			}
+			<-tick
+		}
+		time.Sleep(30 * time.Second)
+		prevNsubs = nsubs
+	}
+
+	dbg("finishing")
+	cancel0()
+	wg0.Wait()
+	dbg("finished")
 }
