@@ -1,5 +1,7 @@
 package main
 
+import "fmt"
+
 type zero = struct{}
 
 type publication struct {
@@ -57,7 +59,12 @@ func (sp serverPartition) handleSubscribe(t uint16, s subscriber) {
 		ss = make(map[subscriber]zero)
 		sp.subscribers[t] = ss
 	}
+	if _, ok := ss[s]; ok {
+		fmt.Printf("already subscribed to %d\n", t)
+		return
+	}
 	ss[s] = zero{}
+	fmt.Printf("topic %d has %d subscribers now\n", t, len(ss))
 
 	ts, ok := sp.topics[s]
 	if !ok {

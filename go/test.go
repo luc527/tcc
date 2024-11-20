@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"net"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
@@ -25,7 +28,7 @@ func dbg(f string, a ...any) {
 }
 
 func pingConn(ctx context.Context, conn net.Conn) {
-	tick := time.Tick(50 * time.Second)
+	tick := time.Tick(30 * time.Second)
 	for {
 		select {
 		case <-ctx.Done():
@@ -39,6 +42,10 @@ func pingConn(ctx context.Context, conn net.Conn) {
 		}
 	}
 }
+
+const (
+	bigpayload = true
+)
 
 // }
 
@@ -85,7 +92,7 @@ func (tc testconn) waitPublication(topic uint16, payload string, timeout time.Du
 			}
 			return false
 		}
-		if m.t == pubMsg && m.topic == topic && m.payload == payload {
+		if m.t == pubMsg && m.topic == topic && strings.Index(m.payload, payload) == 0 {
 			select {
 			case <-d:
 				return false
@@ -98,6 +105,7 @@ func (tc testconn) waitPublication(topic uint16, payload string, timeout time.Du
 
 func throughputPublisher(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup, conn net.Conn, topic uint16, id int) {
 	defer func() {
+		dbg("topic=%d pub=%d terminating", topic, id)
 		cancel()
 		conn.Close()
 		wg.Done()
@@ -119,6 +127,19 @@ func throughputPublisher(ctx context.Context, cancel context.CancelFunc, wg *syn
 		}
 	}
 
+	var bb *bytes.Buffer
+	var bs []byte
+	if bigpayload {
+		bb = new(bytes.Buffer)
+		bs = make([]byte, 2048)
+		if _, err := rand.Read(bs); err != nil {
+			dbg("topic=%d pub=%d failed to generate random bytes for big payload", topic, id)
+		}
+		for i := range bs {
+			bs[i] = 'a' + bs[i]%26
+		}
+	}
+
 	tframe := newThroughputFrame(10 * time.Second)
 
 	msgi := 0
@@ -127,15 +148,23 @@ func throughputPublisher(ctx context.Context, cancel context.CancelFunc, wg *syn
 			return
 		}
 
-		pl := fmt.Sprintf("pub %d msg %d", id, msgi)
-		if !tconn.publish(topic, pl) {
+		pl0 := fmt.Sprintf("pub %d msg %d", id, msgi)
+		pl1 := pl0
+		if bigpayload {
+			bb.Reset()
+			bb.WriteString(pl0)
+			bb.Write(bs)
+			bb.WriteString(pl0)
+			pl1 = bb.String()
+		}
+		if !tconn.publish(topic, pl1) {
 			return
 		}
 		sent := time.Now()
 		measurement := tframe.onsend()
 		msgi++
 
-		if !tconn.waitPublication(topic, pl, 1*time.Minute) {
+		if !tconn.waitPublication(topic, pl0, 1*time.Minute) {
 			dbg("publisher failed to wait for publication")
 			return
 		}
@@ -171,57 +200,64 @@ func testThroughput(address string) {
 	ctx0, cancel0 := context.WithCancel(context.Background())
 	wg0 := new(sync.WaitGroup)
 
+	primes := []int{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131}
+
 	const (
-		ntopic = 20
-		npubs  = 5
-		nconn  = 800
+		ntopic      = 28
+		npubs       = 5
+		nconn       = 800
+		subsPerIter = 4
 	)
 
 	npubconns := npubs * ntopic
 	dbg("creating %d publisher connections", npubconns)
 	pubconns := multiconnect(nil, npubconns, 25, address)
-	for topic := range uint16(ntopic) {
+	dbg("created %d publisher connections", npubconns)
+	for ti := range ntopic {
 		for pubi := range npubs {
-			conn := pubconns[int(topic)*npubs+pubi]
+			conn := pubconns[int(ti)*npubs+pubi]
 			ctx, cancel := context.WithCancel(ctx0)
 
 			wg0.Add(1)
+			topic := uint16(ti + primes[ti])
 			go throughputPublisher(ctx, cancel, wg0, conn, topic, pubi)
 		}
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	dbg("creating %d subscriber connections", nconn)
-	subconni := 0
-	subconns := multiconnect(nil, nconn, 20, address)
-	subctxs := make([]context.Context, nconn)
-	subcancels := make([]context.CancelFunc, nconn)
-	for i, conn := range subconns {
+	conns := multiconnect(nil, nconn, 32, address)
+	dbg("created %d subscriber connections", nconn)
+	for i, conn := range conns {
 		ctx, cancel := context.WithCancel(ctx0)
-		subctxs[i] = ctx
-		subcancels[i] = cancel
-
-		go pingConn(ctx, conn)
+		wg0.Add(1)
+		go io.Copy(io.Discard, conn)
+		go func() {
+			defer func() {
+				dbg("conn %d terminating", i)
+				conn.Close()
+				cancel()
+				wg0.Done()
+			}()
+			pingConn(ctx, conn)
+		}()
 	}
 
-	prevNsubs := 0
-	incNsubs := []int{10, 100, 200, 400, 800, 1600, 3200, 6400}
-	for _, nsubs := range incNsubs {
-		dbg("subs: %d", nsubs)
-		newNsubs := nsubs - prevNsubs
-
-		tick := time.Tick(25 * time.Millisecond)
-		for topic := range uint16(ntopic) {
-			dbg("adding %d subs to %d", newNsubs, topic)
-			for range newNsubs {
-				conn, ctx, cancel := subconns[subconni], subctxs[subconni], subcancels[subconni]
-				wg0.Add(1)
-				go throughputSubscriber(ctx, cancel, wg0, conn, topic)
-				subconni = (subconni + 1) % len(subconns)
+	for it := 0; it < ntopic/subsPerIter; it++ {
+		dbg("iteration %d, topics per conn %d", it, subsPerIter*(it+1))
+		for i, conn := range conns {
+			tconn := testconn{conn}
+			base := subsPerIter * (it + i) % ntopic
+			for j := range subsPerIter {
+				ti := base + j
+				topic := uint16(ti + primes[ti])
+				tconn.subscribe(topic)
 			}
-			<-tick
+			dbg("conn %d subscribed to %d through %d", i, base, base+subsPerIter-1)
 		}
+		dbg("iteration %d finished subscribing", it)
+
 		time.Sleep(30 * time.Second)
-		prevNsubs = nsubs
 	}
 
 	dbg("finishing")
