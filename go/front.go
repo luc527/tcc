@@ -159,6 +159,7 @@ func readFromConn(ctx context.Context, cancel context.CancelFunc, in chan<- msg,
 	for {
 		if err := conn.SetReadDeadline(time.Now().Add(readTimeout)); err != nil {
 			log.Printf("failed to set read deadline: %v", err)
+			return
 		}
 		var m msg
 		if _, err := m.ReadFrom(conn); err != nil {

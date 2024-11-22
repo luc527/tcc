@@ -24,19 +24,21 @@ export default class PubSubServer {
     }
 
     subscribe(topic, sock) {
-        let subs = this.subscribers.get(topic);
-        if (!subs) {
-            subs = new Set();
-            this.subscribers.set(topic, subs);
-        }
-        subs.add(sock);
-
         let topics = this.topics.get(sock);
         if (!topics) {
             topics = new Set();
             this.topics.set(sock, topics);
         }
-        topics.add(topic);
+        if (!topics.has(topic)) {
+            topics.add(topic);
+    
+            let subs = this.subscribers.get(topic);
+            if (!subs) {
+                subs = new Set();
+                this.subscribers.set(topic, subs);
+            }
+            subs.add(sock);
+        }
 
         let size16 = new BigEndianUint16(3); // type + topic
         let topic16 = new BigEndianUint16(topic);

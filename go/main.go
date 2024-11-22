@@ -106,6 +106,8 @@ func testMain(args []string) {
 	switch test {
 	case "throughput":
 		testThroughput(address)
+	case "latency":
+		testLatency(address)
 	default:
 		fmt.Printf("unknown test %q\n", test)
 	}

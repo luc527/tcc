@@ -7,15 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
-)
-
-var (
-	reMsgid    = regexp.MustCompile(`(\d+)-(\d+)`)
-	errNomatch = fmt.Errorf("no match")
 )
 
 func prf(pre string, f string, a ...any) {
@@ -134,6 +129,7 @@ func throughputPublisher(ctx context.Context, cancel context.CancelFunc, wg *syn
 		bs = make([]byte, 2048)
 		if _, err := rand.Read(bs); err != nil {
 			dbg("topic=%d pub=%d failed to generate random bytes for big payload", topic, id)
+			return
 		}
 		for i := range bs {
 			bs[i] = 'a' + bs[i]%26
@@ -200,8 +196,6 @@ func testThroughput(address string) {
 	ctx0, cancel0 := context.WithCancel(context.Background())
 	wg0 := new(sync.WaitGroup)
 
-	primes := []int{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131}
-
 	const (
 		ntopic      = 28
 		npubs       = 5
@@ -213,13 +207,12 @@ func testThroughput(address string) {
 	dbg("creating %d publisher connections", npubconns)
 	pubconns := multiconnect(nil, npubconns, 25, address)
 	dbg("created %d publisher connections", npubconns)
-	for ti := range ntopic {
+	for topic := range uint16(ntopic) {
 		for pubi := range npubs {
-			conn := pubconns[int(ti)*npubs+pubi]
+			conn := pubconns[int(topic)*npubs+pubi]
 			ctx, cancel := context.WithCancel(ctx0)
 
 			wg0.Add(1)
-			topic := uint16(ti + primes[ti])
 			go throughputPublisher(ctx, cancel, wg0, conn, topic, pubi)
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -249,8 +242,7 @@ func testThroughput(address string) {
 			tconn := testconn{conn}
 			base := subsPerIter * (it + i) % ntopic
 			for j := range subsPerIter {
-				ti := base + j
-				topic := uint16(ti + primes[ti])
+				topic := uint16(base + j)
 				tconn.subscribe(topic)
 			}
 			dbg("conn %d subscribed to %d through %d", i, base, base+subsPerIter-1)
@@ -265,3 +257,188 @@ func testThroughput(address string) {
 	wg0.Wait()
 	dbg("finished")
 }
+
+func latencyPublisher(ctx context.Context, wg *sync.WaitGroup, conn net.Conn, topic uint16, publisherIdx int, pubInterval time.Duration) {
+	go io.Copy(io.Discard, conn) // just a guarantee; unnecessary since publisher won't subscribe
+	defer func() {
+		dbg("publisher %3d of topic %3d terminating", publisherIdx, topic)
+		conn.Close()
+		wg.Done()
+	}()
+	dbg("publisher %3d of topic %3d started", publisherIdx, topic)
+
+	tick := time.Tick(pubInterval)
+	publicationIdx := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick:
+			tconn := testconn{conn}
+			payload := fmt.Sprintf("publisher %d, publication %d", publisherIdx, publicationIdx)
+			if !tconn.publish(topic, payload) {
+				return
+			}
+			prf("pub", "unix_usec=%d topic=%d payload=%s", time.Now().UnixMicro(), topic, payload)
+		}
+		publicationIdx++
+	}
+}
+
+func latencySubscriber(ctx context.Context, wg *sync.WaitGroup, conn net.Conn) {
+	// TODO: buffer prf
+	defer func() {
+		conn.Close()
+		wg.Done()
+	}()
+
+	go pingConn(ctx, conn)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		m := msg{}
+		if _, err := m.ReadFrom(conn); err != nil {
+			if err != io.EOF {
+				dbg("subscriber failed to read: %v", err)
+			}
+			return
+		}
+
+		if m.t == pubMsg {
+			prf("sub", "unix_usec=%d topic=%d payload=%s", time.Now().UnixMicro(), m.topic, m.payload)
+		}
+	}
+}
+
+func testLatency(address string) {
+	const (
+		numTopics             = 32
+		numPublishersPerTopic = 4
+		pubInterval           = 4 * time.Second
+	)
+
+	ctx0, cancel0 := context.WithCancel(context.Background())
+	wg0 := new(sync.WaitGroup)
+
+	// TODO: bigpayload version
+
+	numTotalPubConns := numTopics * numPublishersPerTopic
+	dbg("starting %d publisher connections", numTotalPubConns)
+
+	pubConns := multiconnect(nil, numTotalPubConns, 30, address)
+	for publisherIdx := range numPublishersPerTopic {
+		for topic := range uint16(numTopics) {
+			connIdx := int(topic)*numPublishersPerTopic + publisherIdx
+			conn := pubConns[connIdx]
+			if conn == nil {
+				dbg("skipping nil publisher")
+				continue
+			}
+			wg0.Add(1)
+			go latencyPublisher(ctx0, wg0, conn, topic, publisherIdx, pubInterval)
+			time.Sleep(137 * time.Millisecond)
+		}
+	}
+
+	// 1st part: each subscriber will be a new connection
+	// so in total incNumConnSubs[-1] * numTopics connections
+	incNumConnSubs := []int{60, 120}
+
+	topicsPerConn := make(map[net.Conn][]uint16)
+
+	prevNumSubs := 0
+	for _, numSubs := range incNumConnSubs {
+		numNewSubs := numSubs - prevNumSubs
+		numNewConns := numNewSubs * numTopics
+		dbg("%d subs per topic, %d new connections", numSubs, numNewConns)
+
+		conns := multiconnect(nil, numNewConns, 30, address)
+		for _, conn := range conns {
+			if conn == nil {
+				dbg("skipping nil subscriber (0)")
+				continue
+			}
+			wg0.Add(1)
+			go latencySubscriber(ctx0, wg0, conn)
+		}
+
+		connsToSubscribe := conns
+		for topic := range uint16(numTopics) {
+			for range numNewSubs {
+				var conn net.Conn
+				conn, connsToSubscribe = connsToSubscribe[0], connsToSubscribe[1:]
+				if conn == nil {
+					dbg("skipping nil subscriber (1)")
+					continue
+				}
+				tconn := testconn{conn}
+				go tconn.subscribe(topic)
+				topicsPerConn[conn] = append(topicsPerConn[conn], topic)
+			}
+		}
+
+		prevNumSubs = numSubs
+		time.Sleep(30 * time.Second)
+	}
+
+	// now we'll reuse connections for subscribers
+	incNumSubs := []int{240, 480, 960, 1920}
+
+	prevNumSubs = incNumConnSubs[len(incNumConnSubs)-1]
+	for _, numSubs := range incNumSubs {
+		numNewSubs := numSubs - prevNumSubs
+		dbg("%d subs per topic, reusing connections", numSubs)
+
+		for topic := range uint16(numTopics) {
+			wg := new(sync.WaitGroup)
+			for range numNewSubs {
+				// find a connection that hasn't subscribed to this topic yet
+				var conn net.Conn
+				found := false
+				for conn_, topics := range topicsPerConn {
+					if !slices.Contains(topics, topic) {
+						found = true
+						conn = conn_
+						break
+					}
+				}
+				if !found {
+					panic("no connections available")
+				}
+				if conn == nil {
+					dbg("skipping nil subscriber (2)")
+					continue
+				}
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					tconn := testconn{conn}
+					tconn.subscribe(topic)
+				}()
+				topicsPerConn[conn] = append(topicsPerConn[conn], topic)
+			}
+			wg.Wait()
+			time.Sleep(199 * time.Millisecond)
+		}
+
+		time.Sleep(30 * time.Second)
+		prevNumSubs = numSubs
+	}
+
+	dbg("finishing latency test")
+	cancel0()
+	wg0.Done()
+	dbg("finished latency test")
+}
+
+// next tests:
+// messages involving computation (what to measure?)
+// connections and subscribers coming ang going
+// ...
+
+// obs: ignore throughputbig
