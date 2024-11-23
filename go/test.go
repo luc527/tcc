@@ -39,7 +39,7 @@ func pingConn(ctx context.Context, conn net.Conn) {
 }
 
 const (
-	bigpayload = true
+	bigpayload = false
 )
 
 // }

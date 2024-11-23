@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func client(address string) {
+func runClient(address string) {
 	conn, err := net.Dial("tcp", address)
 	if err != nil {
 		log.Fatal(err)

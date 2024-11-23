@@ -182,6 +182,8 @@ func readfull(r io.Reader, buf []byte) (int, error) {
 	return n, nil
 }
 
+// NOTE: this function is actually useless
+// every io.Writer impl should return an error if it wasn't able to write all the given bytes
 func writefull(w io.Writer, buf []byte) (int, error) {
 	n := 0
 	rem := buf[:]

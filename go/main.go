@@ -86,7 +86,7 @@ func clientMain(args []string) {
 		return
 	}
 	address, _ := args[0], args[1:]
-	client(address)
+	runClient(address)
 }
 
 func testMain(args []string) {
