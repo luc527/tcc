@@ -1,4 +1,5 @@
 import re
+import pandas as pd
 from collections import defaultdict
 
 def parse_cpu_data(path):
@@ -45,11 +46,14 @@ def parse_throughput_data(path):
                         'throughput_psec': float(m.group(4)),
                     })
             elif line.startswith('dbg'):
-                pat = r'dbg: (\d+) subs: (\d+)'
+                pat = r'dbg: (\d+) iteration (\d+), topics per conn (\d+)'
                 m = re.match(pat, line)
                 if m:
                     timestamp = int(m.group(1))
-                    subs_data[timestamp] = int(m.group(2))
+                    subs_data[timestamp] = {
+                        'iteration': int(m.group(2)),
+                        'topics_per_conn': int(m.group(3)),
+                    }
             else:
                 print(f'unknown line: {line}')
     return throughput_data, subs_data
@@ -84,3 +88,7 @@ def to_y(dic, ran, f=None):
         else:
             lis.append(prev)
     return lis
+
+def to_df(dic):
+    lis = [{'timestamp': t, **v} for t, v in dic.items()]
+    return pd.DataFrame(lis)

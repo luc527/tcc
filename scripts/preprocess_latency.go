@@ -49,7 +49,7 @@ func mustParseInt(s string) int64 {
 func main() {
 	var (
 		reLine  = regexp.MustCompile(`(\w+): (\d+) (.*)`)
-		reEntry = regexp.MustCompile(`unix_usec=(\d+) topic=(\d+) payload=publisher (\d+), publication (\d+)`)
+		reEntry = regexp.MustCompile(`usec=(\d+) topic=(\d+) payload=pubsher (\d+), pubton (\d+)`)
 	)
 
 	pubEntries := timedEntries{}

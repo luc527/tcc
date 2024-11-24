@@ -2,3 +2,4 @@ env2
 scripts/*_out.txt
 data
 __pycache__
+erl_crash.dump

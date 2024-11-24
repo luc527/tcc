@@ -314,7 +314,7 @@ func latencySubscriber(ctx context.Context, wg *sync.WaitGroup, conn net.Conn) {
 		}
 
 		if m.t == pubMsg {
-			prf("sub", "unix_usec=%d topic=%d payload=%s", time.Now().UnixMicro(), m.topic, m.payload)
+			prf("sub", "usec=%d topic=%d payload=%s", time.Now().UnixMicro(), m.topic, m.payload)
 		}
 	}
 }
