@@ -52,8 +52,8 @@ defmodule Tccex.Listener do
 
   defp accept_loop(lsock) do
     with {:ok, sock} <- :gen_tcp.accept(lsock),
-         {:ok, client_pid} = start_client(sock),
-         :ok = :gen_tcp.controlling_process(sock, client_pid)
+         {:ok, client_pid} <- start_client(sock),
+         :ok <- :gen_tcp.controlling_process(sock, client_pid)
     do
       accept_loop(lsock)
     else
