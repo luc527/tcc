@@ -1,30 +1,39 @@
 package main
 
-import (
-	"bytes"
-)
+type subscriber struct {
+	done <-chan zero
+	mc   chan<- msg
+}
+
+func (s subscriber) send(m msg) {
+	select {
+	case <-s.done:
+	case s.mc <- m:
+	}
+}
+
+func (s subscriber) isDone() bool {
+	select {
+	case <-s.done:
+		return true
+	default:
+		return false
+	}
+}
 
 type serverPartition struct {
-	subscribers map[uint16]map[*clientconn]zero
-	topics      map[*clientconn]map[uint16]zero
-	buf         *bytes.Buffer
+	subscribers map[uint16]map[subscriber]zero
+	topics      map[subscriber]map[uint16]zero
 }
 
 func makeServerPartition() serverPartition {
 	return serverPartition{
-		buf:         new(bytes.Buffer),
-		subscribers: make(map[uint16]map[*clientconn]zero),
-		topics:      make(map[*clientconn]map[uint16]zero),
+		subscribers: make(map[uint16]map[subscriber]zero),
+		topics:      make(map[subscriber]map[uint16]zero),
 	}
 }
 
-func (sp serverPartition) sendTo(m msg, cc *clientconn) {
-	// NOTE: buf is initially empty and every buf.WriteTo resets the buf, so we don't need to Reset
-	// it before calling send.
-	cc.send(m, sp.buf)
-}
-
-func (sp serverPartition) handleDisconnect(s *clientconn) {
+func (sp serverPartition) handleDisconnect(s subscriber) {
 	ts, ok := sp.topics[s]
 	if !ok {
 		return
@@ -40,7 +49,7 @@ func (sp serverPartition) handleDisconnect(s *clientconn) {
 	delete(sp.topics, s)
 }
 
-func (sp serverPartition) handleSubscribe(t uint16, s *clientconn) {
+func (sp serverPartition) handleSubscribe(t uint16, s subscriber) {
 	ts, ok := sp.topics[s]
 	if !ok {
 		ts = make(map[uint16]zero)
@@ -50,17 +59,17 @@ func (sp serverPartition) handleSubscribe(t uint16, s *clientconn) {
 		ts[t] = zero{}
 		ss, ok := sp.subscribers[t]
 		if !ok {
-			ss = make(map[*clientconn]zero)
+			ss = make(map[subscriber]zero)
 			sp.subscribers[t] = ss
 		}
 		ss[s] = zero{}
 	}
 
 	m := msg{t: subMsg, topic: t}
-	sp.sendTo(m, s)
+	s.send(m)
 }
 
-func (sp serverPartition) handleUnsubscribe(t uint16, s *clientconn) {
+func (sp serverPartition) handleUnsubscribe(t uint16, s subscriber) {
 	ss, ok := sp.subscribers[t]
 	if ok {
 		delete(ss, s)
@@ -78,7 +87,7 @@ func (sp serverPartition) handleUnsubscribe(t uint16, s *clientconn) {
 	}
 
 	m := msg{t: unsubMsg, topic: t}
-	sp.sendTo(m, s)
+	s.send(m)
 }
 
 func (sp serverPartition) handlePublish(t uint16, p string) {
@@ -88,14 +97,14 @@ func (sp serverPartition) handlePublish(t uint16, p string) {
 	}
 	m := msg{t: pubMsg, topic: t, payload: p}
 	for s := range ss {
-		sp.sendTo(m, s)
+		s.send(m)
 	}
 }
 
 type subscriptionRequest struct {
 	topic uint16
 	b     bool
-	cc    *clientconn
+	s     subscriber
 }
 
 type publication struct {
@@ -104,14 +113,14 @@ type publication struct {
 }
 
 type serverPartitionChannels struct {
-	disconnect chan *clientconn
+	disconnect chan subscriber
 	subscribe  chan subscriptionRequest
 	publish    chan publication
 }
 
 func makeServerPartitionChannels() serverPartitionChannels {
 	return serverPartitionChannels{
-		disconnect: make(chan *clientconn),
+		disconnect: make(chan subscriber),
 		subscribe:  make(chan subscriptionRequest),
 		publish:    make(chan publication),
 	}
@@ -124,9 +133,9 @@ func (spc serverPartitionChannels) main(sp serverPartition) {
 			sp.handleDisconnect(s)
 		case sx := <-spc.subscribe:
 			if sx.b {
-				sp.handleSubscribe(sx.topic, sx.cc)
+				sp.handleSubscribe(sx.topic, sx.s)
 			} else {
-				sp.handleUnsubscribe(sx.topic, sx.cc)
+				sp.handleUnsubscribe(sx.topic, sx.s)
 			}
 		case px := <-spc.publish:
 			sp.handlePublish(px.topic, px.payload)
@@ -163,13 +172,13 @@ func (sv server) partitionChannels(t uint16) serverPartitionChannels {
 	return sv.chans[i]
 }
 
-func (sv server) disconnect(s *clientconn) {
+func (sv server) disconnect(s subscriber) {
 	for _, spc := range sv.chans {
 		spc.disconnect <- s
 	}
 }
 
-func (sv server) subscribe(t uint16, s *clientconn, b bool) {
+func (sv server) subscribe(t uint16, s subscriber, b bool) {
 	sx := subscriptionRequest{t, b, s}
 	sv.partitionChannels(t).subscribe <- sx
 }

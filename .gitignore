@@ -1,3 +1,4 @@
 env2
 scripts/*_out.txt
 data
+__pycache__

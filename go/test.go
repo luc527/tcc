@@ -7,15 +7,20 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 )
 
-func prf(pre string, f string, a ...any) {
+func fprf(w io.Writer, pre string, f string, a ...any) {
 	t := time.Now().Unix()
-	fmt.Printf("%s: %d %s\n", pre, t, fmt.Sprintf(f, a...))
+	fmt.Fprintf(w, "%s: %d %s\n", pre, t, fmt.Sprintf(f, a...))
+}
+
+func prf(pre string, f string, a ...any) {
+	fprf(os.Stdout, pre, f, a...)
 }
 
 func dbg(f string, a ...any) {
@@ -275,18 +280,17 @@ func latencyPublisher(ctx context.Context, wg *sync.WaitGroup, conn net.Conn, to
 			return
 		case <-tick:
 			tconn := testconn{conn}
-			payload := fmt.Sprintf("publisher %d, publication %d", publisherIdx, publicationIdx)
+			payload := fmt.Sprintf("pubsher %d, pubton %d", publisherIdx, publicationIdx)
 			if !tconn.publish(topic, payload) {
 				return
 			}
-			prf("pub", "unix_usec=%d topic=%d payload=%s", time.Now().UnixMicro(), topic, payload)
+			prf("pub", "usec=%d topic=%d payload=%s", time.Now().UnixMicro(), topic, payload)
 		}
 		publicationIdx++
 	}
 }
 
 func latencySubscriber(ctx context.Context, wg *sync.WaitGroup, conn net.Conn) {
-	// TODO: buffer prf
 	defer func() {
 		conn.Close()
 		wg.Done()
@@ -324,8 +328,6 @@ func testLatency(address string) {
 
 	ctx0, cancel0 := context.WithCancel(context.Background())
 	wg0 := new(sync.WaitGroup)
-
-	// TODO: bigpayload version
 
 	numTotalPubConns := numTopics * numPublishersPerTopic
 	dbg("starting %d publisher connections", numTotalPubConns)

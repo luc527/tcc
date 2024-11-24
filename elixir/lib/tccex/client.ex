@@ -5,6 +5,8 @@ defmodule Tccex.Client do
 
   alias Tccex.Message
 
+  # XXX: could've just used the sock given by the tcp messages instead of storing it as the GenServer state
+
   def start_link(sock) do
     GenServer.start_link(__MODULE__, sock)
   end
@@ -23,7 +25,6 @@ defmodule Tccex.Client do
         {:stop, reason, sock}
     end
   end
-
 
   def handle_continue(:turn_active, sock) do
     :inet.setopts(sock, active: true)

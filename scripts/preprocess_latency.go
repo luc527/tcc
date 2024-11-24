@@ -10,6 +10,8 @@ import (
 	"strconv"
 )
 
+// TODO: also check for missing messages
+
 type entry struct {
 	topic       uint16
 	publisher   uint16

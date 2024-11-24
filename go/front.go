@@ -20,49 +20,6 @@ var (
 	numPartitions = runtime.NumCPU()
 )
 
-type clientconn struct {
-	done <-chan zero
-	conn net.Conn
-}
-
-func (cc *clientconn) isDone() bool {
-	select {
-	case <-cc.done:
-		return true
-	default:
-		return false
-	}
-}
-
-func (cc *clientconn) sendUnbuffered(m msg) {
-	select {
-	case <-cc.done:
-		return
-	default:
-	}
-	if _, err := m.WriteTo(cc.conn); err != nil {
-		log.Printf("failed to send message %v to client: %v", m, err)
-		return
-	}
-}
-
-func (cc *clientconn) send(m msg, buf *bytes.Buffer) {
-	select {
-	case <-cc.done:
-		return
-	default:
-	}
-	buf.Reset()
-	if _, err := m.WriteTo(buf); err != nil {
-		log.Printf("failed to write message %v to given buffer: %v", m, err)
-		return
-	}
-	if _, err := buf.WriteTo(cc.conn); err != nil {
-		log.Printf("failed to send message %v to client: %v", m, err)
-		return
-	}
-}
-
 func serve(l net.Listener, sv server) {
 	for {
 		conn, err := l.Accept()
@@ -78,20 +35,23 @@ func handleConn(conn net.Conn, sv server) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cc := &clientconn{
+	mc := make(chan msg, 1)
+	s := subscriber{
 		done: ctx.Done(),
-		conn: conn,
+		mc:   mc,
 	}
 
 	context.AfterFunc(ctx, func() {
 		if err := conn.Close(); err != nil {
 			log.Printf("error when closing connection: %v", err)
 		}
-		sv.disconnect(cc)
+		sv.disconnect(s)
 	})
 
+	go writeToConn(ctx.Done(), mc, conn)
+
 	for {
-		if cc.isDone() {
+		if s.isDone() {
 			return
 		}
 
@@ -108,13 +68,36 @@ func handleConn(conn net.Conn, sv server) {
 		}
 		switch m.t {
 		case pingMsg:
-			cc.sendUnbuffered(msg{t: pingMsg})
+			m := msg{t: pingMsg}
+			if _, err := m.WriteTo(conn); err != nil {
+				log.Printf("failed to ping back: %v\n", err)
+				return
+			}
 		case pubMsg:
 			sv.publish(m.topic, m.payload)
 		case subMsg:
-			sv.subscribe(m.topic, cc, true)
+			sv.subscribe(m.topic, s, true)
 		case unsubMsg:
-			sv.subscribe(m.topic, cc, false)
+			sv.subscribe(m.topic, s, false)
+		}
+	}
+}
+
+func writeToConn(done <-chan zero, mc <-chan msg, conn net.Conn) {
+	buf := new(bytes.Buffer)
+	for {
+		select {
+		case <-done:
+			return
+		case m := <-mc:
+			if _, err := m.WriteTo(buf); err != nil {
+				log.Printf("failed to write message %v to buffer: %v", m, err)
+				return
+			}
+			if _, err := buf.WriteTo(conn); err != nil {
+				log.Printf("failed to write message %v to the connection: %v", m, err)
+				return
+			}
 		}
 	}
 }
