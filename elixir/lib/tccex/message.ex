@@ -21,7 +21,7 @@ defmodule Tccex.Message do
 
   def decode(_), do: {:error, :invalid_type}
 
-  def encode(:ping), do: <<0::big-unsigned-integer-16>>
+  def encode(:ping), do: << >>
 
   def encode({:sub, topic}),
     do: <<
