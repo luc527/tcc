@@ -55,6 +55,11 @@ func runClient(address string) {
 			}
 			cmd, ss := ss[0], ss[1:]
 
+			if cmd == "ping" {
+				write(msg{t: pingMsg})
+				continue
+			}
+
 			if len(ss) == 0 {
 				fmt.Printf("< topic?\n")
 				continue

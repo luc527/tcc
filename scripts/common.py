@@ -29,6 +29,18 @@ def parse_mem_data(path):
             }
     return data
 
+def parse_throughput_pub_line(line):
+    pat = r'pub: (\d+) topic=(\d+) pub=(\d+) msg=\d+ delayMs=(\d+) frame=(\d+) throughputPsec=([\d.]+)'
+    m = re.match(pat, line)
+    return {
+        'timestamp': int(m.group(1)),
+        'topic': int(m.group(2)),
+        'publisher': int(m.group(3)),
+        'delay_ms': int(m.group(4)),
+        'frame': int(m.group(5)),
+        'throughput_psec': float(m.group(6)),
+    } if m else None
+
 def parse_throughput_data(path):
     throughput_data = defaultdict(list)
     subs_data       = {}
@@ -92,3 +104,53 @@ def to_y(dic, ran, f=None):
 def to_df(dic):
     lis = [{'timestamp': t, **v} for t, v in dic.items()]
     return pd.DataFrame(lis)
+
+def prepare_throughput_data(tru_data, act_data, cpu_data, mem_data):
+    beginning = min(tru_data.keys())
+    ending    = max(tru_data.keys())
+    tru_data  = reindex(tru_data, beginning, ending)
+    act_data  = reindex(act_data, beginning, ending)
+    cpu_df = to_df(reindex(cpu_data, beginning, ending))
+    mem_df = to_df(reindex(mem_data, beginning, ending))
+
+    tru_data_degrouped = [{'timestamp': t, **v}
+                        for t, vs in tru_data.items()
+                        for v in vs]
+
+    tru_df = pd.DataFrame(tru_data_degrouped)
+    tru_df.loc[tru_df['throughput_psec'] >= 1000, 'throughput_psec'] = float('nan')
+    tru_df.bfill(inplace=True)
+
+    cpu_df = cpu_df.rolling(5).mean().bfill()
+
+    x = range(tru_df.timestamp.min(), tru_df.timestamp.max()+1)
+
+    cpu_df = cpu_df.reindex(x, method='nearest')
+    mem_df = mem_df.reindex(x, method='nearest')
+
+    return x, tru_df, act_data, cpu_df, mem_df
+
+def plot_cpu_usage(ax, x, cpu_df):
+    color = 'tab:blue'
+    ax.set_ylabel('CPU (%)')
+    cpu_usr_y = [cpu_df['user'][t] for t in x]
+    cpu_sys_y = [cpu_df['system'][t] for t in x]
+    ax.plot(x, cpu_usr_y, linewidth=1, linestyle='--', color=color)
+    ax.plot(x, cpu_sys_y, linewidth=1, linestyle=':', color=color)
+    ax.set_ylim(bottom=0)
+    ax.tick_params(axis='y')
+
+def plot_mem_usage(ax, x, mem_df, color='tab:green'):
+    mem_y = [mem_df['uss'][t] / 1024 / 1024 for t in x]
+    ax.set_ylabel('Memória (mb)')
+    ax.plot(x, mem_y, color=color, linewidth=1)
+    ax.set_ylim(bottom=0)
+    ax.tick_params(axis='y')
+
+def plot_ticks(ax, act_data, max):
+    color = 'tab:red'
+    ticks = [0, *act_data.keys(), max]
+    ax.set_xticks(ticks)
+    for line_x, o in act_data.items():
+        ax.axvline(line_x, color=color, linewidth=1, linestyle=':')
+        ax.text(line_x+1, 0.2, f'{o['topics_per_conn']}', color=color)

@@ -1,14 +1,14 @@
 import sys, os
-from pprint import pprint
-from common import parse_cpu_data, parse_mem_data, parse_throughput_data, reindex, to_y, to_df
+from common import parse_cpu_data, parse_mem_data, parse_throughput_data, prepare_throughput_data, plot_cpu_usage, plot_mem_usage, plot_ticks
 import pandas as pd
 import matplotlib.pyplot as plt
 
 try:
     lang = sys.argv[1]
     date = sys.argv[2]
+    which = sys.argv[3]
 except IndexError:
-    print('usage: <lang> <date>\n')
+    print('usage: <lang> <date> <which graph>\n')
     exit()
 
 if not os.path.exists('./data'):
@@ -30,47 +30,50 @@ if missing_paths:
     exit()
 
 tru_data, act_data = parse_throughput_data(cli_path)
-beginning = min(tru_data.keys())
-ending    = max(tru_data.keys())
-tru_data  = reindex(tru_data, beginning, ending)
-act_data  = reindex(act_data, beginning, ending)
-cpu_df = to_df(reindex(parse_cpu_data(cpu_path), beginning, ending))
-mem_df = to_df(reindex(parse_mem_data(mem_path), beginning, ending))
+cpu_data = parse_cpu_data(cpu_path)
+mem_data = parse_mem_data(mem_path)
 
-tru_data_degrouped = [{'timestamp': t, **v}
-                      for t, vs in tru_data.items()
-                      for v in vs]
+x, tru_df, act_data, cpu_df, mem_df = prepare_throughput_data(tru_data, act_data, cpu_data, mem_data)
 
-tru_df = pd.DataFrame(tru_data_degrouped)
-tru_df.loc[tru_df['throughput_psec'] >= 1000, 'throughput_psec'] = float('nan')
-tru_df.bfill(inplace=True)
+fig, ax = plt.subplots()
 
-cpu_df = cpu_df.rolling(5).mean().bfill()
+# TODO: which = delay, throughput, ...
 
-x = range(tru_df.timestamp.min(), tru_df.timestamp.max()+1)
+ax.set_xlabel('Segundos após início do teste')
+ax.grid(visible=True, axis='y')
 
-cpu_df = cpu_df.reindex(x, method='nearest')
-mem_df = mem_df.reindex(x, method='nearest')
+if which == 'cpu':
+    ax.set_title(f'Uso de CPU ({lang.capitalize()}, {test})')
+    plot_cpu_usage(ax, x, cpu_df)
+    plot_ticks(ax, act_data, tru_df.timestamp.max())
+    ax.legend(['Usuário', 'Sistema', 'Inscrições por conexão'])
+elif which == 'mem':
+    ax.set_title(f'Uso de memória ({lang.capitalize()}, {test})')
+    plot_mem_usage(ax, x, mem_df)
+    plot_ticks(ax, act_data, tru_df.timestamp.max())
+    ax.legend(['Memória', 'Inscrições por conexão'])
+elif which == 'tru':
+    x = x[10:]
 
-plt.xlabel('Segundos após início do teste')
+    ax.set_title(f'Throughput por segundo (média, {lang.capitalize()})')
 
-plt.grid(visible=True, axis='y')
+    # TODO: mean, min, p25, p50, p75, max
+    # although maybe not per second (grouping by timestamp)
+    # but more like each 5 seconds??
+    tru_mean = tru_df.groupby('timestamp').median()
+    tru_mean_psec = tru_mean.throughput_psec
+    tru_mean_psec = tru_mean_psec.reindex(x, method='nearest')
+    tru_mean_y = [tru_mean_psec[t] for t in x]
+    ax.set_label('Throughput (msg / segundo / publicante)')
+    ax.plot(x, tru_mean_y, color='tab:olive', linewidth=1)
+    ax.set_ylim(bottom=0)
+    ax.legend([''])
+else:
+    print(f'invalid which: {which}')
+    exit()
 
-# plt.ylabel('% CPU')
-# cpu_usr_y = [cpu_df['user'][t] for t in x]
-# cpu_sys_y = [cpu_df['system'][t] for t in x]
-# plt.plot(x, cpu_usr_y, 'b--', cpu_sys_y, 'b:', linewidth=1)
-# plt.legend(['Usuário', 'Sistema'])
-# max_y = max(*cpu_usr_y, *cpu_sys_y)
-
-plt.ylabel('Memória (mb)')
-mem_y = [mem_df['uss'][t] / 1024 / 1024 for t in x]
-plt.plot(x, mem_y)
-max_y = max(mem_y)
-
-plt.xticks(list(act_data.keys()))
-for x, o in act_data.items():
-    plt.axvline(x, color='grey', linewidth=1)
-    plt.text(x+1, 1/7 * max_y, f'{o['topics_per_conn']} i/c', rotation=0)
+fig.tight_layout()
 
 plt.show()
+# plt.savefig(f'graphs/{lang}_{test}_{which}.png', dpi=172)
+# plt.close()

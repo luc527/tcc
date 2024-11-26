@@ -15,7 +15,7 @@ import (
 )
 
 func fprf(w io.Writer, pre string, f string, a ...any) {
-	t := time.Now().Unix()
+	t := time.Now().UnixMicro()
 	fmt.Fprintf(w, "%s: %d %s\n", pre, t, fmt.Sprintf(f, a...))
 }
 
@@ -141,8 +141,6 @@ func throughputPublisher(ctx context.Context, cancel context.CancelFunc, wg *syn
 		}
 	}
 
-	tframe := newThroughputFrame(10 * time.Second)
-
 	msgi := 0
 	for {
 		if done() {
@@ -161,8 +159,8 @@ func throughputPublisher(ctx context.Context, cancel context.CancelFunc, wg *syn
 		if !tconn.publish(topic, pl1) {
 			return
 		}
+		prf("pub", "send topic=%d pub=%d", topic, id)
 		sent := time.Now()
-		measurement := tframe.onsend()
 		msgi++
 
 		if !tconn.waitPublication(topic, pl0, 1*time.Minute) {
@@ -173,28 +171,8 @@ func throughputPublisher(ctx context.Context, cancel context.CancelFunc, wg *syn
 			return
 		}
 		delay := time.Since(sent)
-
-		delayMs := delay.Milliseconds()
-		prf("pub", "topic=%d pub=%d msg=%d delayMs=%d frame=%d throughputPsec=%.4f", topic, id, msgi, delayMs, measurement.i, measurement.v)
+		prf("pub", "recv topic=%d pub=%d delayMs=%d", topic, id, delay.Milliseconds())
 	}
-}
-
-func throughputSubscriber(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup, conn net.Conn, topic uint16) {
-	defer func() {
-		cancel()
-		conn.Close()
-		wg.Done()
-	}()
-
-	go io.Copy(io.Discard, conn)
-
-	tconn := testconn{conn}
-	if !tconn.subscribe(topic) {
-		dbg("subscriber failed to subscribe")
-		return
-	}
-
-	<-ctx.Done()
 }
 
 func testThroughput(address string) {
