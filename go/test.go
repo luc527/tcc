@@ -262,7 +262,7 @@ func latencyPublisher(ctx context.Context, wg *sync.WaitGroup, conn net.Conn, to
 			if !tconn.publish(topic, payload) {
 				return
 			}
-			prf("pub", "usec=%d topic=%d payload=%s", time.Now().UnixMicro(), topic, payload)
+			prf("pub", "topic=%d payload=%s", topic, payload)
 		}
 		publicationIdx++
 	}
@@ -292,7 +292,7 @@ func latencySubscriber(ctx context.Context, wg *sync.WaitGroup, conn net.Conn) {
 		}
 
 		if m.t == pubMsg {
-			prf("sub", "usec=%d topic=%d payload=%s", time.Now().UnixMicro(), m.topic, m.payload)
+			prf("sub", "topic=%d payload=%s", m.topic, m.payload)
 		}
 	}
 }

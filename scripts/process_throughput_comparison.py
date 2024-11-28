@@ -19,31 +19,30 @@ langs = list(colors.keys())
 dfs = {}
 
 xs = []
-act_datas = []
+iter_datas = []
 
 for lang in langs:
-    tru_data, act_data = parse_throughput_data(f'data/{lang}_cli_throughput_{date}.txt')
-    cpu_data = parse_cpu_data(f'data/{lang}_cpu_throughput_{date}.csv')
-    mem_data = parse_mem_data(f'data/{lang}_mem_throughput_{date}.csv')
-    x, tru_df, act_data, cpu_df, mem_df = prepare_throughput_data(tru_data, act_data, cpu_data, mem_data)
+    mps_data, delay_data, iter_data = parse_throughput_data(f'data/throughput_{lang}_cli_{date}.txt')
+    cpu_data = parse_cpu_data(f'data/throughput_{lang}_cpu_{date}.csv')
+    mem_data = parse_mem_data(f'data/throughput_{lang}_mem_{date}.csv')
+    x, mps_df, delay_df, iter_data, cpu_df, mem_df = prepare_throughput_data(mps_data, iter_data, delay_data, cpu_data, mem_data)
     dfs[lang] = {
-        'tru': tru_df,
+        'mps': mps_df,
         'cpu': cpu_df,
         'mem': mem_df,
     }
     xs.append(x)
-    act_datas.append(act_data)
-
+    iter_datas.append(iter_data)
 
 xmin = min(*(min(x) for x in xs))
 xmax = max(*(max(x) for x in xs))
 x = range(xmin, xmax+1)
 
 for lang, dic in dfs.items():
-    for k, df in dic.items():
-        dfs[lang][k] = df.reindex(x, method='nearest')
+    dfs[lang]['cpu'] = dfs[lang]['cpu'].reindex(x, method='nearest')
+    dfs[lang]['mem'] = dfs[lang]['mem'].reindex(x, method='nearest')
 
-act_data = act_datas[0]
+iter_data = iter_datas[0]
 
 fig, ax = plt.subplots()
 
@@ -60,11 +59,11 @@ if which == 'mem':
     ax.set_ylabel('Memória (mb)')
     ax.set_ylim(bottom=0)
     ax.tick_params(axis='y')
-    plot_ticks(ax, act_data, xmax)
-    ax.legend([*langs, 'Inscrições por conexão'])
+    plot_ticks(ax, iter_data, xmax)
+    ax.legend([*langs, 'Conexões inscritas por canal'])
 
 elif which == 'cpu':
-    ax.set_title(f'Comparação do uso de CPU (throughput)')
+    ax.set_title(f'Comparação do uso de CPU (média móvel de 5, throughput)')
 
     legend = []
     for lang in langs:
@@ -79,14 +78,56 @@ elif which == 'cpu':
     ax.set_ylabel('CPU (%)')
     ax.set_ylim(bottom=0)
     ax.tick_params(axis='y')
-    plot_ticks(ax, act_data, xmax)
-    legend.append('inscrições por conexão')
+    plot_ticks(ax, iter_data, xmax)
+    legend.append('Conexões inscritas por canal')
+    ax.legend(legend)
+
+elif which == 'tru':
+
+    ax.set_title(f'Comparação de throughput (média móvel de 20)')
+    legend = []
+    for lang in langs:
+        color = colors[lang]
+        mps = dfs[lang]['mps']
+        cps = mps.groupby('timestamp')['count'].sum()
+        x = x[8:]
+        cps = cps.reindex(x, fill_value=0)
+
+        # rcps = cps
+        # rcps = cps.rolling(10).mean()
+        rcps = cps.rolling(20).mean()
+        # rcps = cps.rolling(30).mean()
+
+        y = [rcps[t] for t in x]
+        ax.plot(x, y, color=color, linewidth=1)
+        legend.append(lang)
+    ax.set_ylabel('Mensagens enviadas')
+    plot_ticks(ax, iter_data, xmax)
+    legend.append('Conexões inscritas por canal')
+    ax.legend(legend)
+
+elif which == 'trucum':
+
+    ax.set_title('Comparação de throughput (cumulativo)')
+    legend = []
+    for lang in langs:
+        color = colors[lang]
+        mps = dfs[lang]['mps']
+        cps = mps.groupby('timestamp')['count'].sum()
+        cps = cps.reindex(x, fill_value=0)
+        sps = cps.cumsum()
+        y = [sps[t] for t in x]
+        ax.plot(x, y, color=color, linewidth=1)
+        legend.append(lang)
+    ax.set_ylabel('Total de mensagens enviadas')
+    plot_ticks(ax, iter_data, xmax)
+    legend.append('Conexões inscritas por canal')
+    ax.ticklabel_format(style='plain')
     ax.legend(legend)
 
 ax.set_xlabel('Segundos após início do teste')
 
     
-fig.tight_layout()
-plt.savefig(f'graphs/throughput_{which}_comparison.png', dpi=172)
+plt.savefig(f'graphs/throughput_comparison_{which}.png', dpi=172)
 plt.close()
 # plt.show()

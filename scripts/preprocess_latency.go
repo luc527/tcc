@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"runtime"
 	"strconv"
+	"strings"
 )
 
 // TODO: also check for missing messages
@@ -47,15 +48,47 @@ func mustParseInt(s string) int64 {
 }
 
 func main() {
+	if len(os.Args) != 3 {
+		log.Fatal("missing lang and date")
+	}
+
+	lang := os.Args[1]
+	date := os.Args[2]
+
+	path := fmt.Sprintf("data/latency_%s_cli_%s.txt", lang, date)
+	in, err := os.Open(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer in.Close()
+
+	latencyPath := fmt.Sprintf("data/latency_%s_latencies_%s.csv", lang, date)
+	latencyOut, err := os.OpenFile(latencyPath, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer latencyOut.Close()
+
+	itersPath := fmt.Sprintf("data/latency_%s_iters_%s.csv", lang, date)
+	itersOut, err := os.OpenFile(itersPath, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer itersOut.Close()
+
+	log.Printf("latencies: %v", latencyPath)
+	log.Printf("iters:     %v", itersPath)
+
 	var (
-		reLine  = regexp.MustCompile(`(\w+): (\d+) (.*)`)
-		reEntry = regexp.MustCompile(`usec=(\d+) topic=(\d+) payload=pubsher (\d+), pubton (\d+)`)
+		reLine      = regexp.MustCompile(`(\w+): (\d+) (.*)`)
+		reIteration = regexp.MustCompile(`(\d+) subs per topic, (.*) connections`)
+		reEntry     = regexp.MustCompile(`topic=(\d+) payload=pubsher (\d+), pubton (\d+)`)
 	)
 
 	pubEntries := timedEntries{}
 	subEntries := timedEntries{}
 
-	scanner := bufio.NewScanner(os.Stdin)
+	scanner := bufio.NewScanner(in)
 	for scanner.Scan() {
 		line := scanner.Text()
 		lineParts := reLine.FindStringSubmatch(line)
@@ -73,38 +106,47 @@ func main() {
 		if err != nil {
 			log.Fatalf("invalid timestamp: %v", err)
 		}
-		_ = timestamp
 
 		rest := lineParts[3]
 
 		if dbg {
+			iterParts := reIteration.FindStringSubmatch(line)
+			if len(iterParts) == 0 {
+				continue
+			}
+			subs, err := strconv.ParseInt(iterParts[1], 10, 64)
+			if err != nil {
+				log.Fatal(err)
+			}
+			var conns int64
+			if iterParts[2] != "reusing" {
+				ss := strings.Split(iterParts[2], " ")
+				conns, err = strconv.ParseInt(ss[0], 10, 64)
+				if err != nil {
+					log.Fatal(err)
+				}
+			}
+			fmt.Fprintf(itersOut, "%d,%d,%d\n", timestamp/1000/1000, subs, conns)
 			// ignoring dbg for now
-			// TODO: count failures to read/subscribe/etc. too
-			// (!too many for node)
 		} else if pub || sub {
 			entryParts := reEntry.FindStringSubmatch(rest)
-			if len(entryParts) != 5 {
+			if len(entryParts) != 4 {
 				log.Printf("weird entry: %q", rest)
 				continue
 			}
-			usec := mustParseInt(entryParts[1])
-			topic := mustParseInt(entryParts[2])
-			publication := mustParseInt(entryParts[3])
-			publisher := mustParseInt(entryParts[4])
+			topic := mustParseInt(entryParts[1])
+			publication := mustParseInt(entryParts[2])
+			publisher := mustParseInt(entryParts[3])
 			e := entry{
 				topic:       uint16(topic),
 				publication: uint16(publication),
 				publisher:   uint16(publisher),
 			}
 			if pub {
-				pubEntries.append(usec, e)
+				pubEntries.append(timestamp, e)
 			} else if sub {
-				subEntries.append(usec, e)
-			} else {
-				log.Fatal("weird type 1")
+				subEntries.append(timestamp, e)
 			}
-		} else {
-			log.Fatal("weird type 2")
 		}
 	}
 
@@ -124,7 +166,7 @@ func main() {
 				subUsec := subEntries.usecs[j]
 				delayUsec := subUsec - pubUsec
 				timestampSec := pubUsec / 1000 / 1000
-				fmt.Printf("%d,%d,%d\n", timestampSec, pubEntry.topic, delayUsec)
+				fmt.Fprintf(latencyOut, "%d,%d,%d\n", timestampSec, pubEntry.topic, delayUsec)
 			}
 		}
 	}

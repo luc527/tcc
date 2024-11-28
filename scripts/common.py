@@ -2,6 +2,32 @@ import re
 import pandas as pd
 from collections import defaultdict
 
+def lines_csv(path):
+    ls = lines(path)
+    next(ls) # ignore first line (header)
+    return ls
+
+def lines(path):
+    with open(path, 'r') as f:
+        for line in f:
+            line = line.rstrip()
+            yield line
+
+def parse_cpu_line(line):
+    cols = line.split(',')
+    return {
+        'timestamp': int(cols[0]),
+        'user': float(cols[1]),
+        'system': float(cols[2])
+    }
+
+def parse_mem_line(line):
+    cols = line.split(',')
+    return {
+        'timestamp': int(cols[0]),
+        'uss': int(cols[1]),
+    }
+
 def parse_cpu_data(path):
     data = {}
     with open(path, 'r') as f:
@@ -29,46 +55,35 @@ def parse_mem_data(path):
             }
     return data
 
-def parse_throughput_pub_line(line):
-    pat = r'pub: (\d+) topic=(\d+) pub=(\d+) msg=\d+ delayMs=(\d+) frame=(\d+) throughputPsec=([\d.]+)'
-    m = re.match(pat, line)
-    return {
-        'timestamp': int(m.group(1)),
-        'topic': int(m.group(2)),
-        'publisher': int(m.group(3)),
-        'delay_ms': int(m.group(4)),
-        'frame': int(m.group(5)),
-        'throughput_psec': float(m.group(6)),
-    } if m else None
-
 def parse_throughput_data(path):
-    throughput_data = defaultdict(list)
-    subs_data       = {}
+    iter_data = {}
+    delay_data = defaultdict(list)
+    mps_data = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
     with open(path, 'r') as f:
         for line in f:
             line = line.rstrip()
-            if line.startswith('pub'):
-                pat = r'pub: (\d+) topic=\d+ pub=\d+ msg=\d+ delayMs=(\d+) frame=(\d+) throughputPsec=([\d.]+)'
+            if line.startswith('dbg'):
+                pat = r"dbg: (\d+) iteration \d+, topics per conn (\d+)"
                 m = re.match(pat, line)
                 if m:
-                    timestamp = int(m.group(1))
-                    throughput_data[timestamp].append({
-                        'delay_ms': int(m.group(2)),
-                        'frame': int(m.group(3)),
-                        'throughput_psec': float(m.group(4)),
-                    })
-            elif line.startswith('dbg'):
-                pat = r'dbg: (\d+) iteration (\d+), topics per conn (\d+)'
+                    timestamp = int(m.group(1)) // 1_000_000
+                    iter_data[timestamp] = int(m.group(2))
+            elif line.startswith('pub'):
+                pat = r"pub: (\d+) send topic=(\d+) pub=(\d+)"
                 m = re.match(pat, line)
                 if m:
-                    timestamp = int(m.group(1))
-                    subs_data[timestamp] = {
-                        'iteration': int(m.group(2)),
-                        'topics_per_conn': int(m.group(3)),
-                    }
-            else:
-                print(f'unknown line: {line}')
-    return throughput_data, subs_data
+                    timestamp = int(m.group(1)) // 1_000_000
+                    topic = int(m.group(2))
+                    publisher = int(m.group(3))
+                    mps_data[topic][publisher][timestamp] += 1
+                else:
+                    pat = r"pub: (\d+) secv topic=(\d+) pub=(\d+) delayMs=(\d+)"
+                    m = re.match(pat, line)
+                    if m:
+                        timestamp = int(m.group(1)) // 1_000_000
+                        delay_ms = int(m.group(4))
+                        delay_data[timestamp].append(delay_ms)
+    return mps_data, delay_data, iter_data
 
 def parse_latency_line(line):
     [timestamp_sec, topic, latency_usec] = line.split(',')
@@ -105,33 +120,39 @@ def to_df(dic):
     lis = [{'timestamp': t, **v} for t, v in dic.items()]
     return pd.DataFrame(lis)
 
-def prepare_throughput_data(tru_data, act_data, cpu_data, mem_data):
-    beginning = min(tru_data.keys())
-    ending    = max(tru_data.keys())
-    tru_data  = reindex(tru_data, beginning, ending)
-    act_data  = reindex(act_data, beginning, ending)
+def prepare_throughput_data(mps_data, iter_data, delay_data, cpu_data, mem_data):
+    mps_data_degrouped = [{'topic': topic,
+                           'publisher': publisher,
+                           'timestamp': timestamp,
+                           'count': mps_data[topic][publisher][timestamp]}
+                           for topic in mps_data
+                           for publisher in mps_data[topic]
+                           for timestamp in mps_data[topic][publisher]]
+
+    mps_df = pd.DataFrame(mps_data_degrouped)
+
+    beginning = mps_df.timestamp.min()
+    ending    = mps_df.timestamp.max()
+
+    mps_df['timestamp'] -= beginning
+
+    iter_data  = reindex(iter_data, beginning, ending)
+    delay_df = to_df(reindex(delay_data, beginning, ending))
     cpu_df = to_df(reindex(cpu_data, beginning, ending))
     mem_df = to_df(reindex(mem_data, beginning, ending))
 
-    tru_data_degrouped = [{'timestamp': t, **v}
-                        for t, vs in tru_data.items()
-                        for v in vs]
-
-    tru_df = pd.DataFrame(tru_data_degrouped)
-    tru_df.loc[tru_df['throughput_psec'] >= 1000, 'throughput_psec'] = float('nan')
-    tru_df.bfill(inplace=True)
-
+    # make graph smoother
     cpu_df = cpu_df.rolling(5).mean().bfill()
 
-    x = range(tru_df.timestamp.min(), tru_df.timestamp.max()+1)
+    x = range(mps_df.timestamp.min(), mps_df.timestamp.max()+1)
 
     cpu_df = cpu_df.reindex(x, method='nearest')
     mem_df = mem_df.reindex(x, method='nearest')
 
-    return x, tru_df, act_data, cpu_df, mem_df
+    return x, mps_df, delay_df, iter_data, cpu_df, mem_df
 
 def plot_cpu_usage(ax, x, cpu_df):
-    color = 'tab:blue'
+    color = 'black'
     ax.set_ylabel('CPU (%)')
     cpu_usr_y = [cpu_df['user'][t] for t in x]
     cpu_sys_y = [cpu_df['system'][t] for t in x]
@@ -140,7 +161,7 @@ def plot_cpu_usage(ax, x, cpu_df):
     ax.set_ylim(bottom=0)
     ax.tick_params(axis='y')
 
-def plot_mem_usage(ax, x, mem_df, color='tab:green'):
+def plot_mem_usage(ax, x, mem_df, color='black'):
     mem_y = [mem_df['uss'][t] / 1024 / 1024 for t in x]
     ax.set_ylabel('Memória (mb)')
     ax.plot(x, mem_y, color=color, linewidth=1)
@@ -150,7 +171,8 @@ def plot_mem_usage(ax, x, mem_df, color='tab:green'):
 def plot_ticks(ax, act_data, max):
     color = 'tab:red'
     ticks = [0, *act_data.keys(), max]
+    num_conns = 800
     ax.set_xticks(ticks)
-    for line_x, o in act_data.items():
+    for line_x, topics_per_conn in act_data.items():
         ax.axvline(line_x, color=color, linewidth=1, linestyle=':')
-        ax.text(line_x+1, 0.2, f'{o['topics_per_conn']}', color=color)
+        ax.text(line_x+1, 0.25, f'{num_conns * topics_per_conn}', color=color)

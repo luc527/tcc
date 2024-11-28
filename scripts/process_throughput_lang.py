@@ -15,12 +15,11 @@ if not os.path.exists('./data'):
     print('run this scipt at the root of the repository\n')
     exit()
 
-test = 'throughput'
-cli_ext = 'txt'
+cpu_path = f'data/throughput_{lang}_cpu_{date}.csv'
+mem_path = f'data/throughput_{lang}_mem_{date}.csv'
+cli_path = f'data/throughput_{lang}_cli_{date}.txt'
 
-cpu_path = f'data/{lang}_cpu_{test}_{date}.csv'
-mem_path = f'data/{lang}_mem_{test}_{date}.csv'
-cli_path = f'data/{lang}_cli_{test}_{date}.{cli_ext}'
+# TODO: fazer tb tabelas, média de cpu e memória e throughput dentro ao longo de cada etapa
 
 paths         = [cpu_path, mem_path, cli_path]
 missing_paths = [path for path in paths if not os.path.exists(path)]
@@ -29,51 +28,62 @@ if missing_paths:
         print(f'{path} not present')
     exit()
 
-tru_data, act_data = parse_throughput_data(cli_path)
 cpu_data = parse_cpu_data(cpu_path)
 mem_data = parse_mem_data(mem_path)
+mps_data, delay_data, iter_data = parse_throughput_data(cli_path)
 
-x, tru_df, act_data, cpu_df, mem_df = prepare_throughput_data(tru_data, act_data, cpu_data, mem_data)
+x, mps_df, delay_df, iter_data, cpu_df, mem_df = prepare_throughput_data(mps_data, iter_data, delay_data, cpu_data, mem_data)
 
 fig, ax = plt.subplots()
-
-# TODO: which = delay, throughput, ...
 
 ax.set_xlabel('Segundos após início do teste')
 ax.grid(visible=True, axis='y')
 
 if which == 'cpu':
-    ax.set_title(f'Uso de CPU ({lang.capitalize()}, {test})')
+    ax.set_title(f'Uso de CPU (médial móvel de 5, {lang.capitalize()}, throughput)')
     plot_cpu_usage(ax, x, cpu_df)
-    plot_ticks(ax, act_data, tru_df.timestamp.max())
-    ax.legend(['Usuário', 'Sistema', 'Inscrições por conexão'])
+    plot_ticks(ax, iter_data, mps_df.timestamp.max())
+    ax.legend(['Usuário', 'Sistema', 'Conexões inscritas por canal'])
 elif which == 'mem':
-    ax.set_title(f'Uso de memória ({lang.capitalize()}, {test})')
+    ax.set_title(f'Uso de memória ({lang.capitalize()}, throughput)')
     plot_mem_usage(ax, x, mem_df)
-    plot_ticks(ax, act_data, tru_df.timestamp.max())
-    ax.legend(['Memória', 'Inscrições por conexão'])
+    plot_ticks(ax, iter_data, mps_df.timestamp.max())
+    ax.legend(['Memória', 'Conexões inscritas por canal'])
 elif which == 'tru':
-    x = x[10:]
+    ax.set_title(f'Throughput de {28 * 5} publicantes ({lang.capitalize()})')
 
-    ax.set_title(f'Throughput por segundo (média, {lang.capitalize()})')
+    mps_df = mps_df[mps_df['timestamp'] > 8]
+    x = x[8:]
 
-    # TODO: mean, min, p25, p50, p75, max
-    # although maybe not per second (grouping by timestamp)
-    # but more like each 5 seconds??
-    tru_mean = tru_df.groupby('timestamp').median()
-    tru_mean_psec = tru_mean.throughput_psec
-    tru_mean_psec = tru_mean_psec.reindex(x, method='nearest')
-    tru_mean_y = [tru_mean_psec[t] for t in x]
-    ax.set_label('Throughput (msg / segundo / publicante)')
-    ax.plot(x, tru_mean_y, color='tab:olive', linewidth=1)
-    ax.set_ylim(bottom=0)
-    ax.legend([''])
+    cps = mps_df.groupby('timestamp')['count'].sum()
+    cps = cps.reindex(x, fill_value=0)
+    sps = cps.cumsum()
+    rcps = cps.rolling(10).mean()
+
+    y = [cps[t] for t in x]
+    color = 'black'
+    ax.set_ylabel('Mensagens enviadas por segundo (média móvel de 10)')
+    # ax.tick_params('y', labelcolor=color)
+    ax.bar(x, y, width=0.5, color=color, aa=True, alpha=0.3)
+
+    y = [rcps[t] for t in x]
+    ax.plot(x, y, color=color, linewidth=1)
+
+    # y = [sps[t] for t in x]
+    # color = 'black'
+    # ax2 = ax.twinx()
+    # ax2.set_ylabel('Mensagens enviadas (cumulativo)', color=color)
+    # ax2.tick_params('y', labelcolor=color)
+    # ax2.plot(x, y, linewidth=1, color=color)
+
+    plot_ticks(ax, iter_data, mps_df.timestamp.max())
 else:
     print(f'invalid which: {which}')
     exit()
 
 fig.tight_layout()
 
-plt.show()
-# plt.savefig(f'graphs/{lang}_{test}_{which}.png', dpi=172)
-# plt.close()
+plt.savefig(f'graphs/throughput_{lang}_{which}.png', dpi=172)
+plt.close()
+
+# plt.show()
