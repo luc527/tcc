@@ -168,11 +168,10 @@ def plot_mem_usage(ax, x, mem_df, color='black'):
     ax.set_ylim(bottom=0)
     ax.tick_params(axis='y')
 
-def plot_ticks(ax, act_data, max):
+def plot_ticks(ax, act_data, max, y_max=None):
     color = 'tab:red'
     ticks = [0, *act_data.keys(), max]
-    num_conns = 800
     ax.set_xticks(ticks)
     for line_x, topics_per_conn in act_data.items():
-        ax.axvline(line_x, color=color, linewidth=1, linestyle=':')
-        ax.text(line_x+1, 0.25, f'{num_conns * topics_per_conn}', color=color)
+        ax.axvline(line_x, color=color, linewidth=1, linestyle=':', alpha=0.5)
+        ax.text(line_x+1, 245, f'{topics_per_conn}', color=color, alpha=0.5)

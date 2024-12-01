@@ -2,6 +2,8 @@ import sys
 import matplotlib.pyplot as plt
 from common import parse_throughput_data, parse_cpu_data, parse_mem_data, prepare_throughput_data, plot_ticks, plot_mem_usage
 
+# TODO: force y axis starting at 0
+
 try:
     date = sys.argv[1]
     which = sys.argv[2]
@@ -47,6 +49,7 @@ iter_data = iter_datas[0]
 fig, ax = plt.subplots()
 
 ax.grid(visible=True, axis='y')
+ax.set_xlabel('Segundos após início do teste')
 
 if which == 'mem':
     ax.set_title(f'Comparação do uso de memória (throughput)')
@@ -84,7 +87,7 @@ elif which == 'cpu':
 
 elif which == 'tru':
 
-    ax.set_title(f'Comparação de throughput (média móvel de 20)')
+    ax.set_title(f'Comparação de throughput (média móvel de 10)')
     legend = []
     for lang in langs:
         color = colors[lang]
@@ -95,7 +98,7 @@ elif which == 'tru':
 
         # rcps = cps
         # rcps = cps.rolling(10).mean()
-        rcps = cps.rolling(20).mean()
+        rcps = cps.rolling(10).mean()
         # rcps = cps.rolling(30).mean()
 
         y = [rcps[t] for t in x]
@@ -120,14 +123,14 @@ elif which == 'trucum':
         ax.plot(x, y, color=color, linewidth=1)
         legend.append(lang)
     ax.set_ylabel('Total de mensagens enviadas')
-    plot_ticks(ax, iter_data, xmax)
-    legend.append('Conexões inscritas por canal')
     ax.ticklabel_format(style='plain')
+
+    legend.append('Conexões inscritas por canal')
     ax.legend(legend)
 
-ax.set_xlabel('Segundos após início do teste')
+    plot_ticks(ax, iter_data, xmax)
 
-    
+# ax.set_ylim(bottom=0, top=10)
 plt.savefig(f'graphs/throughput_comparison_{which}.png', dpi=172)
 plt.close()
 # plt.show()

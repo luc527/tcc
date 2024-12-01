@@ -15,30 +15,37 @@ defmodule Tccex.Message do
     {:ok, {:unsub, topic}}
   end
 
-  def decode(b) when is_binary(b) and byte_size(b) == 0 do
+  def decode(<< >>) do
     {:ok, :ping}
   end
 
-  def decode(_), do: {:error, :invalid_type}
+  def decode(_) do
+    {:error, :invalid_type}
+  end
 
-  def encode(:ping), do: << >>
+  def encode(:ping) do
+    <<>>
+  end
 
-  def encode({:sub, topic}),
-    do: <<
+  def encode({:sub, topic}) do
+    <<
       @sub::unsigned-integer-8,
       topic::big-unsigned-integer-16
     >>
+  end
 
-  def encode({:unsub, topic}),
-    do: <<
+  def encode({:unsub, topic}) do
+    <<
       @unsub::unsigned-integer-8,
       topic::big-unsigned-integer-16
     >>
+  end
 
-  def encode({:pub, topic, payload}),
-    do: <<
+  def encode({:pub, topic, payload}) do
+    <<
       @pub::unsigned-integer-8,
       topic::big-unsigned-integer-16,
       payload::binary
     >>
+  end
 end

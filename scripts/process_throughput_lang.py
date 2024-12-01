@@ -40,17 +40,19 @@ ax.set_xlabel('Segundos após início do teste')
 ax.grid(visible=True, axis='y')
 
 if which == 'cpu':
-    ax.set_title(f'Uso de CPU (médial móvel de 5, {lang.capitalize()}, throughput)')
+    ax.set_title(f'Uso de CPU (throughput, {lang.capitalize()}, média móvel de 5)')
     plot_cpu_usage(ax, x, cpu_df)
-    plot_ticks(ax, iter_data, mps_df.timestamp.max())
-    ax.legend(['Usuário', 'Sistema', 'Conexões inscritas por canal'])
+    y_max = max(cpu_df.user.max(), cpu_df.system.max())
+    plot_ticks(ax, iter_data, mps_df.timestamp.max(), y_max)
+    ax.legend(['Usuário', 'Sistema', 'Inscrições por tópico'])
 elif which == 'mem':
     ax.set_title(f'Uso de memória ({lang.capitalize()}, throughput)')
     plot_mem_usage(ax, x, mem_df)
-    plot_ticks(ax, iter_data, mps_df.timestamp.max())
-    ax.legend(['Memória', 'Conexões inscritas por canal'])
+    y_max = mem_df.uss.max()
+    plot_ticks(ax, iter_data, mps_df.timestamp.max(), y_max)
+    ax.legend(['Memória', 'Inscrições por tópico'])
 elif which == 'tru':
-    ax.set_title(f'Throughput de {28 * 5} publicantes ({lang.capitalize()})')
+    ax.set_title(f'Throughput ({lang.capitalize()}, média móvel de 10)')
 
     mps_df = mps_df[mps_df['timestamp'] > 8]
     x = x[8:]
@@ -60,11 +62,9 @@ elif which == 'tru':
     sps = cps.cumsum()
     rcps = cps.rolling(10).mean()
 
-    y = [cps[t] for t in x]
     color = 'black'
-    ax.set_ylabel('Mensagens enviadas por segundo (média móvel de 10)')
+    ax.set_ylabel('Mensagens por segundo')
     # ax.tick_params('y', labelcolor=color)
-    ax.bar(x, y, width=0.5, color=color, aa=True, alpha=0.3)
 
     y = [rcps[t] for t in x]
     ax.plot(x, y, color=color, linewidth=1)
@@ -76,13 +76,12 @@ elif which == 'tru':
     # ax2.tick_params('y', labelcolor=color)
     # ax2.plot(x, y, linewidth=1, color=color)
 
-    plot_ticks(ax, iter_data, mps_df.timestamp.max())
+    plot_ticks(ax, iter_data, mps_df.timestamp.max(), max(y))
 else:
     print(f'invalid which: {which}')
     exit()
 
-fig.tight_layout()
-
+ax.set_ylim(bottom=0)
 plt.savefig(f'graphs/throughput_{lang}_{which}.png', dpi=172)
 plt.close()
 

@@ -4,14 +4,14 @@ import (
 	"bufio"
 	"fmt"
 	"log"
+	"maps"
 	"os"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 )
-
-// TODO: also check for missing messages
 
 type entry struct {
 	topic       uint16
@@ -19,24 +19,32 @@ type entry struct {
 	publication uint16
 }
 
-func (e entry) eq(o entry) bool {
-	return e.topic == o.topic &&
-		e.publisher == o.publisher &&
-		e.publication == o.publication
+func (e entry) cmp(o entry) int {
+	if d := int(e.topic) - int(o.topic); d != 0 {
+		return d
+	}
+	if d := int(e.publisher) - int(o.publisher); d != 0 {
+		return d
+	}
+	if d := int(e.publication) - int(o.publication); d != 0 {
+		return d
+	}
+	return 0
 }
 
-type timedEntries struct {
-	entries []entry
-	usecs   []int64
+type entryTimed struct {
+	timestamp int64
+	entry
 }
 
-func (te *timedEntries) append(usec int64, e entry) {
-	te.entries = append(te.entries, e)
-	te.usecs = append(te.usecs, usec)
-}
-
-func (te *timedEntries) length() int {
-	return len(te.entries)
+func (e entryTimed) cmp(o entryTimed) int {
+	if d := e.entry.cmp(o.entry); d != 0 {
+		return d
+	}
+	if d := e.timestamp - o.timestamp; d != 0 {
+		return int(d)
+	}
+	return 0
 }
 
 func mustParseInt(s string) int64 {
@@ -62,22 +70,22 @@ func main() {
 	}
 	defer in.Close()
 
-	latencyPath := fmt.Sprintf("data/latency_%s_latencies_%s.csv", lang, date)
-	latencyOut, err := os.OpenFile(latencyPath, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	statsPath := fmt.Sprintf("data/latency_%s_statistics_%s.txt", lang, date)
+	statsOut, err := os.OpenFile(statsPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer latencyOut.Close()
+	defer statsOut.Close()
 
 	itersPath := fmt.Sprintf("data/latency_%s_iters_%s.csv", lang, date)
-	itersOut, err := os.OpenFile(itersPath, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	itersOut, err := os.OpenFile(itersPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer itersOut.Close()
 
-	log.Printf("latencies: %v", latencyPath)
-	log.Printf("iters:     %v", itersPath)
+	log.Printf("statistics: %v", statsPath)
+	log.Printf("iters:      %v", itersPath)
 
 	var (
 		reLine      = regexp.MustCompile(`(\w+): (\d+) (.*)`)
@@ -85,8 +93,8 @@ func main() {
 		reEntry     = regexp.MustCompile(`topic=(\d+) payload=pubsher (\d+), pubton (\d+)`)
 	)
 
-	pubEntries := timedEntries{}
-	subEntries := timedEntries{}
+	pubEntries := []entryTimed(nil)
+	subEntries := []entryTimed(nil)
 
 	scanner := bufio.NewScanner(in)
 	for scanner.Scan() {
@@ -127,7 +135,6 @@ func main() {
 				}
 			}
 			fmt.Fprintf(itersOut, "%d,%d,%d\n", timestamp/1000/1000, subs, conns)
-			// ignoring dbg for now
 		} else if pub || sub {
 			entryParts := reEntry.FindStringSubmatch(rest)
 			if len(entryParts) != 4 {
@@ -137,15 +144,18 @@ func main() {
 			topic := mustParseInt(entryParts[1])
 			publication := mustParseInt(entryParts[2])
 			publisher := mustParseInt(entryParts[3])
-			e := entry{
-				topic:       uint16(topic),
-				publication: uint16(publication),
-				publisher:   uint16(publisher),
+			e := entryTimed{
+				timestamp: timestamp,
+				entry: entry{
+					topic:       uint16(topic),
+					publication: uint16(publication),
+					publisher:   uint16(publisher),
+				},
 			}
 			if pub {
-				pubEntries.append(timestamp, e)
+				pubEntries = append(pubEntries, e)
 			} else if sub {
-				subEntries.append(timestamp, e)
+				subEntries = append(subEntries, e)
 			}
 		}
 	}
@@ -156,18 +166,91 @@ func main() {
 
 	runtime.GC()
 
-	for i := range pubEntries.entries {
-		pubEntry := pubEntries.entries[i]
-		pubUsec := pubEntries.usecs[i]
+	slices.SortFunc(pubEntries, entryTimed.cmp)
+	slices.SortFunc(subEntries, entryTimed.cmp)
 
-		for j := range subEntries.entries {
-			subEntry := subEntries.entries[j]
-			if pubEntry.eq(subEntry) {
-				subUsec := subEntries.usecs[j]
-				delayUsec := subUsec - pubUsec
-				timestampSec := pubUsec / 1000 / 1000
-				fmt.Fprintf(latencyOut, "%d,%d,%d\n", timestampSec, pubEntry.topic, delayUsec)
+	data := make(map[int64][]int)
+
+	notfound := 0
+
+	for i := range pubEntries {
+		pubEntry := pubEntries[i]
+
+		j, found := slices.BinarySearchFunc(
+			subEntries,
+			pubEntry.entry,
+			func(e entryTimed, t entry) int {
+				return e.entry.cmp(t)
+			},
+		)
+		if !found {
+			notfound++
+			continue
+		}
+		subEntry := subEntries[j]
+
+		sec := pubEntry.timestamp / 1000 / 1000
+		latency := int(subEntry.timestamp - pubEntry.timestamp)
+
+		data[sec] = append(data[sec], latency)
+	}
+
+	log.Printf("did not find receives for %d out of %d publications", notfound, len(pubEntries))
+
+	timestamps := slices.Sorted(maps.Keys(data))
+	min := make(map[int64]int)
+	max := make(map[int64]int)
+	mean := make(map[int64]int)
+	median := make(map[int64]int)
+	p90 := make(map[int64]int)
+	p95 := make(map[int64]int)
+	p99 := make(map[int64]int)
+
+	for _, t := range timestamps {
+		lats := data[t]
+		slices.Sort(lats)
+		min[t] = lats[0]
+		max[t] = lats[len(lats)-1]
+
+		if len(lats)%2 == 0 {
+			i := len(lats) / 2
+			median[t] = (lats[i] + lats[i+1]) / 2
+		} else {
+			i := len(lats) / 2
+			median[t] = lats[i]
+		}
+
+		i90 := int(0.90 * float64(len(lats)))
+		i95 := int(0.95 * float64(len(lats)))
+		i99 := int(0.99 * float64(len(lats)))
+		p90[t] = lats[i90]
+		p95[t] = lats[i95]
+		p99[t] = lats[i99]
+
+		sum := int64(0)
+		for _, lat := range lats {
+			sum += int64(lat)
+		}
+		mean_ := float64(sum) / float64(len(lats))
+		mean[t] = int(mean_)
+	}
+
+	writem := func(name string, m map[int64]int) {
+		if _, err := fmt.Fprintf(statsOut, "#%s\n", name); err != nil {
+			log.Fatal(err)
+		}
+		for _, t := range timestamps {
+			if _, err := fmt.Fprintf(statsOut, "%d,%d\n", t, m[t]); err != nil {
+				log.Fatal(err)
 			}
 		}
 	}
+
+	writem("min", min)
+	writem("max", max)
+	writem("mean", mean)
+	writem("median", median)
+	writem("p90", p90)
+	writem("p95", p95)
+	writem("p99", p99)
 }

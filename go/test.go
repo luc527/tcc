@@ -310,6 +310,8 @@ func testLatency(address string) {
 	numTotalPubConns := numTopics * numPublishersPerTopic
 	dbg("starting %d publisher connections", numTotalPubConns)
 
+	ctx1, cancel1 := context.WithCancel(context.Background())
+
 	pubConns := multiconnect(nil, numTotalPubConns, 30, address)
 	for publisherIdx := range numPublishersPerTopic {
 		for topic := range uint16(numTopics) {
@@ -320,7 +322,7 @@ func testLatency(address string) {
 				continue
 			}
 			wg0.Add(1)
-			go latencyPublisher(ctx0, wg0, conn, topic, publisherIdx, pubInterval)
+			go latencyPublisher(ctx1, wg0, conn, topic, publisherIdx, pubInterval)
 			time.Sleep(137 * time.Millisecond)
 		}
 	}
@@ -409,6 +411,13 @@ func testLatency(address string) {
 		time.Sleep(30 * time.Second)
 		prevNumSubs = numSubs
 	}
+
+	// se eu terminar o teste depois de 30 segundos, não vai dar tempo das mensagens mais demoradas
+	// serem recebidas, então a latência diminuiria! seria um viés de seleção
+	dbg("finishing publishers")
+	cancel1()
+
+	time.Sleep((180 - 30) * time.Second)
 
 	dbg("finishing latency test")
 	cancel0()
