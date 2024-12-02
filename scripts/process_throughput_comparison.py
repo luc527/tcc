@@ -1,5 +1,6 @@
 import sys
 import matplotlib.pyplot as plt
+import numpy as np
 from common import parse_throughput_data, parse_cpu_data, parse_mem_data, prepare_throughput_data, plot_ticks, plot_mem_usage
 
 # TODO: force y axis starting at 0
@@ -17,6 +18,7 @@ colors = {
 }
 
 langs = list(colors.keys())
+langscap = [lang.capitalize() for lang in langs]
 
 dfs = {}
 
@@ -52,7 +54,7 @@ ax.grid(visible=True, axis='y')
 ax.set_xlabel('Segundos após início do teste')
 
 if which == 'mem':
-    ax.set_title(f'Comparação do uso de memória (throughput)')
+    ax.set_title(f'Uso de memória no teste de throughput')
 
     for lang in langs:
         color = colors[lang]
@@ -62,11 +64,12 @@ if which == 'mem':
     ax.set_ylabel('Memória (mb)')
     ax.set_ylim(bottom=0)
     ax.tick_params(axis='y')
+    ax.set_yticks(np.arange(0, 425, 25))
     plot_ticks(ax, iter_data, xmax)
-    ax.legend([*langs, 'Conexões inscritas por canal'])
+    ax.legend([*langscap, 'Inscritos por tópico'])
 
 elif which == 'cpu':
-    ax.set_title(f'Comparação do uso de CPU (média móvel de 5, throughput)')
+    ax.set_title(f'Uso de CPU no teste de throughput (média móvel de 5)')
 
     legend = []
     for lang in langs:
@@ -75,19 +78,19 @@ elif which == 'cpu':
         cpu_sys_y = [dfs[lang]['cpu']['system'][t] for t in x]
         ax.plot(x, cpu_usr_y, color=color, linewidth=1, linestyle='--')
         ax.plot(x, cpu_sys_y, color=color, linewidth=1, linestyle=':')
-        legend.append(f'{lang}, usuário')
-        legend.append(f'{lang}, sistema')
+        legend.append(f'{lang.capitalize()}, usuário')
+        legend.append(f'{lang.capitalize()}, sistema')
 
     ax.set_ylabel('CPU (%)')
     ax.set_ylim(bottom=0)
     ax.tick_params(axis='y')
     plot_ticks(ax, iter_data, xmax)
-    legend.append('Conexões inscritas por canal')
+    legend.append('Inscritos por tópico')
     ax.legend(legend)
 
 elif which == 'tru':
 
-    ax.set_title(f'Comparação de throughput (média móvel de 10)')
+    ax.set_title(f'Mensagens/segundo (média móvel de 10)')
     legend = []
     for lang in langs:
         color = colors[lang]
@@ -103,15 +106,15 @@ elif which == 'tru':
 
         y = [rcps[t] for t in x]
         ax.plot(x, y, color=color, linewidth=1)
-        legend.append(lang)
+        legend.append(lang.capitalize())
     ax.set_ylabel('Mensagens enviadas')
     plot_ticks(ax, iter_data, xmax)
-    legend.append('Conexões inscritas por canal')
+    legend.append('Inscritos por tópico')
     ax.legend(legend)
 
 elif which == 'trucum':
 
-    ax.set_title('Comparação de throughput (cumulativo)')
+    ax.set_title('Mensagens/segundo (cumulativo)')
     legend = []
     for lang in langs:
         color = colors[lang]
@@ -121,16 +124,16 @@ elif which == 'trucum':
         sps = cps.cumsum()
         y = [sps[t] for t in x]
         ax.plot(x, y, color=color, linewidth=1)
-        legend.append(lang)
-    ax.set_ylabel('Total de mensagens enviadas')
+        legend.append(lang.capitalize())
+    ax.set_ylabel('Número de mensagens enviadas')
     ax.ticklabel_format(style='plain')
 
-    legend.append('Conexões inscritas por canal')
+    legend.append('Inscritos por tópico')
     ax.legend(legend)
 
     plot_ticks(ax, iter_data, xmax)
 
-# ax.set_ylim(bottom=0, top=10)
+ax.set_ylim(bottom=0)
 plt.savefig(f'graphs/throughput_comparison_{which}.png', dpi=172)
 plt.close()
 # plt.show()

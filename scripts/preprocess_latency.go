@@ -55,13 +55,24 @@ func mustParseInt(s string) int64 {
 	return i
 }
 
+type iteration struct {
+	timestamp      int64
+	subscribers    int64
+	newConnections int64
+}
+
 func main() {
-	if len(os.Args) != 3 {
+	if len(os.Args) < 3 {
 		log.Fatal("missing lang and date")
 	}
 
 	lang := os.Args[1]
 	date := os.Args[2]
+
+	periter := false
+	if len(os.Args) == 4 && os.Args[3] == "periter" {
+		periter = true
+	}
 
 	path := fmt.Sprintf("data/latency_%s_cli_%s.txt", lang, date)
 	in, err := os.Open(path)
@@ -70,7 +81,11 @@ func main() {
 	}
 	defer in.Close()
 
-	statsPath := fmt.Sprintf("data/latency_%s_statistics_%s.txt", lang, date)
+	s := ""
+	if periter {
+		s = "_periter"
+	}
+	statsPath := fmt.Sprintf("data/latency_%s_statistics%s_%s.txt", lang, s, date)
 	statsOut, err := os.OpenFile(statsPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		log.Fatal(err)
@@ -95,6 +110,7 @@ func main() {
 
 	pubEntries := []entryTimed(nil)
 	subEntries := []entryTimed(nil)
+	iterations := []iteration(nil)
 
 	scanner := bufio.NewScanner(in)
 	for scanner.Scan() {
@@ -134,7 +150,12 @@ func main() {
 					log.Fatal(err)
 				}
 			}
-			fmt.Fprintf(itersOut, "%d,%d,%d\n", timestamp/1000/1000, subs, conns)
+			it := iteration{
+				timestamp:      timestamp / 1000 / 1000,
+				subscribers:    subs,
+				newConnections: conns,
+			}
+			iterations = append(iterations, it)
 		} else if pub || sub {
 			entryParts := reEntry.FindStringSubmatch(rest)
 			if len(entryParts) != 4 {
@@ -166,6 +187,21 @@ func main() {
 
 	runtime.GC()
 
+	for _, it := range iterations {
+		fmt.Fprintf(itersOut, "%d,%d,%d\n", it.timestamp, it.subscribers, it.newConnections)
+	}
+
+	subscribersAt := func(timestamp int64) int64 {
+		prev := int64(0)
+		for _, it := range iterations {
+			if timestamp < it.timestamp {
+				break
+			}
+			prev = it.subscribers
+		}
+		return prev
+	}
+
 	slices.SortFunc(pubEntries, entryTimed.cmp)
 	slices.SortFunc(subEntries, entryTimed.cmp)
 
@@ -189,15 +225,20 @@ func main() {
 		}
 		subEntry := subEntries[j]
 
-		sec := pubEntry.timestamp / 1000 / 1000
-		latency := int(subEntry.timestamp - pubEntry.timestamp)
+		timestamp := pubEntry.timestamp / 1000 / 1000
 
-		data[sec] = append(data[sec], latency)
+		key := timestamp
+		if periter {
+			key = subscribersAt(timestamp)
+		}
+
+		latency := int(subEntry.timestamp - pubEntry.timestamp)
+		data[key] = append(data[key], latency)
 	}
 
 	log.Printf("did not find receives for %d out of %d publications", notfound, len(pubEntries))
 
-	timestamps := slices.Sorted(maps.Keys(data))
+	keys := slices.Sorted(maps.Keys(data))
 	min := make(map[int64]int)
 	max := make(map[int64]int)
 	mean := make(map[int64]int)
@@ -206,41 +247,42 @@ func main() {
 	p95 := make(map[int64]int)
 	p99 := make(map[int64]int)
 
-	for _, t := range timestamps {
-		lats := data[t]
+	for _, k := range keys {
+		lats := data[k]
 		slices.Sort(lats)
-		min[t] = lats[0]
-		max[t] = lats[len(lats)-1]
+
+		min[k] = lats[0]
+		max[k] = lats[len(lats)-1]
 
 		if len(lats)%2 == 0 {
 			i := len(lats) / 2
-			median[t] = (lats[i] + lats[i+1]) / 2
+			median[k] = (lats[i] + lats[i+1]) / 2
 		} else {
 			i := len(lats) / 2
-			median[t] = lats[i]
+			median[k] = lats[i]
 		}
 
 		i90 := int(0.90 * float64(len(lats)))
 		i95 := int(0.95 * float64(len(lats)))
 		i99 := int(0.99 * float64(len(lats)))
-		p90[t] = lats[i90]
-		p95[t] = lats[i95]
-		p99[t] = lats[i99]
+		p90[k] = lats[i90]
+		p95[k] = lats[i95]
+		p99[k] = lats[i99]
 
 		sum := int64(0)
 		for _, lat := range lats {
 			sum += int64(lat)
 		}
 		mean_ := float64(sum) / float64(len(lats))
-		mean[t] = int(mean_)
+		mean[k] = int(mean_)
 	}
 
 	writem := func(name string, m map[int64]int) {
 		if _, err := fmt.Fprintf(statsOut, "#%s\n", name); err != nil {
 			log.Fatal(err)
 		}
-		for _, t := range timestamps {
-			if _, err := fmt.Fprintf(statsOut, "%d,%d\n", t, m[t]); err != nil {
+		for _, k := range keys {
+			if _, err := fmt.Fprintf(statsOut, "%d,%d\n", k, m[k]); err != nil {
 				log.Fatal(err)
 			}
 		}

@@ -44,13 +44,13 @@ if which == 'cpu':
     plot_cpu_usage(ax, x, cpu_df)
     y_max = max(cpu_df.user.max(), cpu_df.system.max())
     plot_ticks(ax, iter_data, mps_df.timestamp.max(), y_max)
-    ax.legend(['Usuário', 'Sistema', 'Inscrições por tópico'])
+    ax.legend(['Usuário', 'Sistema', 'Inscritos por tópico'])
 elif which == 'mem':
     ax.set_title(f'Uso de memória ({lang.capitalize()}, throughput)')
     plot_mem_usage(ax, x, mem_df)
     y_max = mem_df.uss.max()
     plot_ticks(ax, iter_data, mps_df.timestamp.max(), y_max)
-    ax.legend(['Memória', 'Inscrições por tópico'])
+    ax.legend(['Memória', 'Inscritos por tópico'])
 elif which == 'tru':
     ax.set_title(f'Throughput ({lang.capitalize()}, média móvel de 10)')
 

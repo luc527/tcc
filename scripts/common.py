@@ -1,5 +1,7 @@
 import re
 import pandas as pd
+import colorsys
+from matplotlib.colors import to_rgb
 from collections import defaultdict
 
 def lines_csv(path):
@@ -85,6 +87,19 @@ def parse_throughput_data(path):
                         delay_data[timestamp].append(delay_ms)
     return mps_data, delay_data, iter_data
 
+def degroup_throughput_data(data):
+    return [
+        {
+            'topic': topic,
+            'publisher': publisher,
+            'timestamp': timestamp,
+            'count': data[topic][publisher][timestamp],
+        }
+        for topic in data
+        for publisher in data[topic]
+        for timestamp in data[topic][publisher]
+    ]
+
 def parse_latency_line(line):
     [timestamp_sec, topic, latency_usec] = line.split(',')
     return int(timestamp_sec), int(latency_usec)
@@ -162,6 +177,8 @@ def plot_cpu_usage(ax, x, cpu_df):
     ax.tick_params(axis='y')
 
 def plot_mem_usage(ax, x, mem_df, color='black'):
+    # /proc/<pid>/smaps and smaps_rollup print in kB, but psutils multiplies by 1024 to get the size
+    # in bytes, so /1024/1024 to get the mB is actually correct (phew...)
     mem_y = [mem_df['uss'][t] / 1024 / 1024 for t in x]
     ax.set_ylabel('Memória (mb)')
     ax.plot(x, mem_y, color=color, linewidth=1)
@@ -174,4 +191,30 @@ def plot_ticks(ax, act_data, max, y_max=None):
     ax.set_xticks(ticks)
     for line_x, topics_per_conn in act_data.items():
         ax.axvline(line_x, color=color, linewidth=1, linestyle=':', alpha=0.5)
-        ax.text(line_x+1, 245, f'{topics_per_conn}', color=color, alpha=0.5)
+        ax.text(line_x+1, 90, f'{topics_per_conn}', color=color, alpha=0.5)
+
+def subscribers_at(obj, iter_data):
+    prev = 0
+    for timestamp, subscribers in iter_data.items():
+        if obj['timestamp'] < timestamp:
+            break
+        prev = subscribers
+    return prev
+
+def list_subscribers_at(obj, iter_data):
+    return subscribers_at(obj, {obj['timestamp']: obj['subscribers'] for obj in iter_data})
+
+def darken(color):
+    (r, g, b) = to_rgb(color)
+    (h, l, s) = colorsys.rgb_to_hls(r, g, b)
+    (r, g, b) = colorsys.hls_to_rgb(h, l*0.7, s)
+    color = f'#{int(255*r):2x}{int(255*g):2x}{int(255*b):2x}'
+    return color
+
+
+def lighten(color):
+    (r, g, b) = to_rgb(color)
+    (h, l, s) = colorsys.rgb_to_hls(r, g, b)
+    (r, g, b) = colorsys.hls_to_rgb(h, l*1.2, s)
+    color = f'#{int(255*r):2x}{int(255*g):2x}{int(255*b):2x}'
+    return color

@@ -66,10 +66,10 @@ defmodule Tccex.Client do
     tcp_send({:unsub, topic}, sock)
   end
 
-  defp handle_msg({:pub, topic, _payload}=msg, sock) do
+  defp handle_msg({:pub, topic, payload}, sock) do
     Registry.dispatch(Tccex.Topic.Registry, topic, fn entries ->
       Enum.each(entries, fn {pid, _value} ->
-        send(pid, msg)
+        send(pid, {:pub, topic, payload})
       end)
     end)
     {:noreply, sock}

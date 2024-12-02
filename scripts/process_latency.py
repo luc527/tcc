@@ -1,6 +1,7 @@
 import sys
 import pandas as pd
-from common import lines, lines_csv, parse_cpu_line, parse_mem_line
+import numpy as np
+from common import lighten, darken, lines, lines_csv, parse_cpu_line, parse_mem_line, list_subscribers_at
 from collections import defaultdict
 import matplotlib.pyplot as plt
 
@@ -8,6 +9,7 @@ lang    = None
 compare = False
 table   = False
 date    = None
+bar     = False
 graph   = None
 save    = False
 
@@ -46,6 +48,8 @@ try:
                 percentile = int(v[0])
             case "cpu":
                 cpu_which = v[0]
+            case "bar":
+                bar = True
 except IndexError:
     usage()
 
@@ -53,12 +57,12 @@ if date is None:
     print("missing date")
     usage()
 
-if graph is None:
+if not table and graph is None:
     print("missing graph")
     usage()
 
-if (lang is None) and (not compare):
-    print("missing lang or 'comparison'")
+if (lang is None) and (not compare) and (not table) and (not bar):
+    print("missing 'lang' or 'comparison' or 'table' or 'bar'")
     usage()
 
 if lang is not None and lang not in "go node elixir".split(" "):
@@ -75,7 +79,7 @@ def latency_statistics(path):
             cols = line.split(',')
             stats[label].append({
                 'timestamp': int(cols[0]),
-                'latency': float(cols[1]) / 1000 / 1000
+                'latency': float(cols[1]) / 1000 / 1000 #in seconds
             })
     return stats
 
@@ -112,23 +116,261 @@ def get_lang_data(lang):
 
     return cpu_df, mem_df, stats_dfs, itr_df
 
+lang_colors = {
+    'go':      'tab:blue',
+    'elixir':  'tab:purple',
+    'node':    'tab:green',
+}
+langs = list(lang_colors.keys())
+
+
+if table or bar:
+    table_df = pd.DataFrame()
+    for lang in langs:
+        itr_path = f'data/latency_{lang}_iters_{date}.csv'
+        itr_data = [
+            {
+                'timestamp': int(cols[0]),
+                'subscribers': int(cols[1]),
+                'new_connections': int(cols[2]),
+            }
+            for line in lines(itr_path)
+            if (cols := line.split(','))
+        ]
+
+        # just to get min and max timestamps
+        path = f'data/latency_{lang}_statistics_{date}.txt'
+        timestamps = [int(cols[0])
+                      for line in lines(path)
+                      if not line.startswith('#') and (cols := line.split(','))]
+        beg = min(timestamps)
+        end = max(timestamps)
+
+        cpu_path = f'data/latency_{lang}_cpu_{date}.csv'
+        cpu_data = [parse_cpu_line(line) for line in lines_csv(cpu_path)]
+        cpu_data = [
+            {
+                'iter': list_subscribers_at(obj, itr_data),
+                'user': obj['user'],
+                'system': obj['system'],
+            }
+            for obj in cpu_data
+            if beg <= obj['timestamp'] <= end
+        ]
+
+        mem_path = f'data/latency_{lang}_mem_{date}.csv'
+        mem_data = [parse_mem_line(line) for line in lines_csv(mem_path)]
+        mem_data = [
+            {
+                'iter': list_subscribers_at(obj, itr_data),
+                'uss': obj['uss'] / 1024 / 1024,
+            }
+            for obj in mem_data
+            if beg <= obj['timestamp'] <= end
+        ]
+
+        stats_path = f'data/latency_{lang}_statistics_periter_{date}.txt'
+        stats = latency_statistics(stats_path)
+        stats = {
+            label: [
+                {
+                    'iter': obj['timestamp'],
+                    'latency': obj['latency']
+                }
+                for obj in data
+            ]
+            for label, data in stats.items()
+        }
+        stats_dfs = {label: pd.DataFrame(data).set_index('iter') for label, data in stats.items()}
+
+        cpu_df = pd.DataFrame(cpu_data)
+        mem_df = pd.DataFrame(mem_data)
+
+        if 'iter' not in table_df.columns:
+            table_df['iter'] = [obj['subscribers'] for obj in itr_data]
+            table_df.set_index('iter', inplace=True)
+
+        table_df[f'{lang}:cpu.user.mean']   = cpu_df.groupby('iter').mean().user
+        table_df[f'{lang}:cpu.user.std']    = cpu_df.groupby('iter').std().user
+        table_df[f'{lang}:cpu.system.mean'] = cpu_df.groupby('iter').mean().system
+        table_df[f'{lang}:cpu.system.std']  = cpu_df.groupby('iter').std().system
+
+        table_df[f'{lang}:mem.uss.last'] = mem_df.groupby('iter').agg(lambda a: a[a.index[-1]]).uss
+
+        for label, df in stats_dfs.items():
+            table_df[f'{lang}:lat.{label}.latency'] = df
+
+    iters = table_df.index
+
+    if table:
+        print('\n\ncpu')
+        print('Ins', end='')
+        for lang in langs:
+            for kind in ['Us', 'Sis']:
+                print(f' & {lang.capitalize()}{kind}\\%', end='')
+        print(' \\\\ \\hline')
+        for it in iters:
+            print(it, end='')
+            for lang in langs:
+                for kind in ['user', 'system']:
+                    mean = table_df[f'{lang}:cpu.{kind}.mean'][it]
+                    std  = table_df[f'{lang}:cpu.{kind}.std'][it]
+                    print(f' & ${mean:.2f} \\pm {std:.2f}$', end='')
+            print(' \\\\')
+
+        print('\n\nmem')
+        print('Ins', end='')
+        for lang in langs:
+            print(f' & {lang.capitalize()} (mB)', end='')
+        print(' \\\\ \\hline')
+        for it in iters:
+            print(it, end='')
+            for lang in langs:
+                last = table_df[f'{lang}:mem.uss.last'][it] / 1024 / 1024
+                print(f' & {last:.1f}', end='')
+            print(' \\\\')
+
+        shorten_lang = {
+            'go': 'Go',
+            'node': 'No',
+            'elixir': 'Ex',
+        }
+
+        def percentile_tex(keys):
+            print('\n\n')
+            print('Ins', end='')
+            for key in keys:
+                for lang in langs:
+                    perc = ('med' if key == 'median' else key).capitalize()
+                    print(f' & {shorten_lang[lang]}{perc}', end='')
+            print(' \\\\ \\hline')
+
+            for it in iters:
+                print(it, end='')
+                for key in keys:
+                    for lang in langs:
+                        lat = table_df[f'{lang}:lat.{key}.latency'][it]
+                        print(f' & {lat:.2f}', end='')
+                print(' \\\\')
+
+        percentile_tex(['mean', 'median'])
+        percentile_tex(['p90', 'p95', 'p99'])
+    elif bar:
+        fig, ax = plt.subplots()
+
+        x = np.arange(0, len(iters))
+        ax.set_xlim(left=-0.5, right=len(iters)-0.5)
+        ax.set_xticks(x)
+        ax.set_xticklabels(iters)
+
+        ax.set_xlabel('Inscritos por tópico')
+        ax.grid(visible='True', axis='y')
+
+        if graph == "mem":
+            ax.set_title('Uso de memória no teste de latência')
+            ax.set_ylabel('Memória (mB)')
+
+            for offset, lang in zip((-0.22, 0, +0.22), langs):
+                color = lang_colors[lang]
+                ax.bar(
+                    x + offset,
+                    table_df[f'{lang}:mem.uss.last'],
+                    color=color,
+                    zorder=3,
+                    width=0.2,
+                    label=lang.capitalize()
+                )
+
+        elif graph == "cpu":
+            ax.set_yticks(np.arange(1, 15, 1))
+            ax.set_title('Uso de CPU no teste de latência')
+            ax.set_ylabel('CPU (%)')
+
+            for lang_offset, lang in zip((-0.25, 0, +0.25), langs):
+                for kind_offset, kind in zip((-0.05, +0.05), ['system', 'user']):
+                    color = lang_colors[lang]
+                    if kind == 'user':
+                        colord = darken(color)
+                        print(f'before: {color}, after: {colord}')
+                        color = colord
+
+                    ax.bar(
+                        x + lang_offset + kind_offset,
+                        table_df[f'{lang}:cpu.{kind}.mean'],
+                        color=color,
+                        zorder=3,
+                        width=0.1,
+                        label=f'{lang.capitalize()} ({'usuário' if kind == 'user' else 'sistema'})'
+                    )
+
+        elif graph == "lat_m":
+            ax.set_title(f'Média e mediana de latência')
+            ax.set_ylabel('Latência (segundos)')
+
+            for lang_offset, lang in zip((-0.23, 0, +0.23), langs):
+                for kind_offset, kind in zip((-0.05, +0.05), ['mean', 'median']):
+                    color = lang_colors[lang]
+                    if kind == 'mean':
+                        color = darken(color)
+                    ax.bar(
+                        x + lang_offset + kind_offset,
+                        table_df[f'{lang}:lat.{kind}.latency'],
+                        color=color,
+                        zorder=3,
+                        width=0.1,
+                        label=f'{lang.capitalize()} ({'média' if kind == 'mean' else 'mediana'})'
+                    )
+
+            yticks = ax.get_yticks()
+            yticks = np.arange(0, yticks[-1], 0.5)
+            ax.set_yticks(yticks)
+            ax.set_ylim(top=6)
+
+            val = table_df['go:lat.mean.latency'][960]
+            ax.text(s=f'{val:.2f}s', x=3.1, y=5.65, color=darken('tab:blue'))
+
+            val = table_df['go:lat.mean.latency'][1920]
+            ax.text(s=f'{val:.2f}s', x=4.1, y=5.65, color=darken('tab:blue'))
+
+            val = table_df['go:lat.median.latency'][1920]
+            ax.text(s=f'{val:.2f}s', x=4.9, y=5.65, color=darken('tab:blue'))
+
+        elif graph == "lat_p":
+            ax.set_title(f'P90, P95 e P99 de latência')
+            ax.set_ylabel('Latência (segundos)')
+
+            for offset, lang in zip((-0.23, 0, +0.23), langs):
+                for i, p in zip((+1, 0, -1), [99, 95, 90]):
+                    color = lang_colors[lang]
+                    if i == -1:
+                        color = darken(color)
+                    if i == 1:
+                        color = lighten(color)
+                    y = table_df[f'{lang}:lat.p{p}.latency']
+                    ax.bar(
+                        x + offset,
+                        y,
+                        color=color,
+                        zorder=3,
+                        width=0.2,
+                        label=f'{lang.capitalize()} (P{p})'
+                    )
+
+        ax.legend()
+
+        if save:
+            plt.savefig(f'graphs/latency_comparison_bar_{graph}.png', dpi=172)
+            plt.close()
+        else:
+            plt.show()
+
+    exit()
+
 fig, ax = plt.subplots()
 ax.set_xlabel('Segundos após o início do teste')
 ax.grid(visible='True', axis='y')
 
-if table:
-
-    # avg etc etc *per iteration*
-    pass
-
-elif compare:
-    colors = {
-        'go':      'tab:blue',
-        'elixir':  'tab:purple',
-        'node':    'tab:green',
-    }
-    langs = list(colors.keys())
-
+if compare:
     lang_dfs = {}
     for lang in langs:
         cpu_df, mem_df, stats_dfs, itr_df = get_lang_data(lang)
@@ -174,10 +416,10 @@ elif compare:
             df = df.rolling(5).mean()
             Lang = lang.capitalize()
             if cpu_which == 'user':
-                ax.plot(x, df.user, linewidth=1, linestyle='--', color=colors[lang])
+                ax.plot(x, df.user, linewidth=1, linestyle='--', color=lang_colors[lang])
                 legend.append(f'{Lang}: usuário')
             else:
-                ax.plot(x, df.system, linewidth=1, linestyle=':', color=colors[lang])
+                ax.plot(x, df.system, linewidth=1, linestyle=':', color=lang_colors[lang])
                 legend.append(f'{Lang}: sistema')
 
     elif graph == "mem":
@@ -185,7 +427,7 @@ elif compare:
         ax.set_ylabel('Memória (mb)')
         for lang, (dfs, _) in lang_dfs.items():
             df = dfs['mem']
-            ax.plot(x, df.uss, linewidth=1, linestyle='-', color=colors[lang])
+            ax.plot(x, df.uss, linewidth=1, linestyle='-', color=lang_colors[lang])
             legend.append(f'{lang.capitalize()}')
 
     elif graph == "lat_mean":
@@ -195,7 +437,7 @@ elif compare:
         for lang, (_, dfs) in lang_dfs.items():
             df = dfs['mean']
             df = df.rolling(10).mean()
-            ax.plot(x, df, linewidth=1, linestyle='-', color=colors[lang])
+            ax.plot(x, df, linewidth=1, linestyle='-', color=lang_colors[lang])
             legend.append(f'{lang.capitalize()}')
 
     elif graph == "lat_p":
@@ -210,7 +452,7 @@ elif compare:
         for lang, (_, dfs) in lang_dfs.items():
             df = dfs[key]
             df = df.rolling(10).mean()
-            ax.plot(x, df, linewidth=1, linestyle='-', color=colors[lang])
+            ax.plot(x, df, linewidth=1, linestyle='-', color=lang_colors[lang])
             legend.append(f'{lang.capitalize()}')
 
     else:
@@ -343,10 +585,10 @@ else:
         xticks = xticks[:nticks-1]
     ax.set_xticks(xticks)
 
-    legend.append('Inscrições por tópico')
+    legend.append('Inscritos por tópico')
     # mas quantas conexões por tópico? não é tão simples de calcular devido ao jeito como
     # o teste foi desenvolvido
-    # TODO: talvez usar 'inscrições por tópico' também no throughput, p/ padronizar?
+    # TODO: talvez usar 'Inscritos por tópico' também no throughput, p/ padronizar?
     ax.legend(legend)
 
 ax.set_ylim(bottom=0)
