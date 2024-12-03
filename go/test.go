@@ -3,15 +3,18 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
+	crand "crypto/rand"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net"
 	"os"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
+	"unique"
 )
 
 func fprf(w io.Writer, pre string, f string, a ...any) {
@@ -132,7 +135,7 @@ func throughputPublisher(ctx context.Context, cancel context.CancelFunc, wg *syn
 	if bigpayload {
 		bb = new(bytes.Buffer)
 		bs = make([]byte, 2048)
-		if _, err := rand.Read(bs); err != nil {
+		if _, err := crand.Read(bs); err != nil {
 			dbg("topic=%d pub=%d failed to generate random bytes for big payload", topic, id)
 			return
 		}
@@ -425,9 +428,188 @@ func testLatency(address string) {
 	dbg("finished latency test")
 }
 
-// next tests:
-// messages involving computation (what to measure?)
-// connections and subscribers coming ang going
-// ...
+var (
+	rng              = rand.NewChaCha8([32]byte{'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'a', 'b', 'c', 'd', 'e', 'f'})
+	currentRotLength = new(atomic.Int32)
+	cpuSendMap       = new(sync.Map)
+)
 
-// obs: ignore throughputbig
+func cpuTextPublisher(done <-chan zero, wg *sync.WaitGroup, conn net.Conn, interval time.Duration, topic uint16, publisher int) {
+	defer conn.Close()
+	defer wg.Done()
+	defer dbg("publisher %2d of topic %2d terminated", publisher, topic)
+
+	tc := testconn{conn}
+	i := 0
+	tick := time.Tick(interval)
+	for {
+		select {
+		case <-done:
+			return
+		case <-tick:
+			payload := fmt.Sprintf("publication %d, %d", publisher, i)
+			i++
+			if !tc.publish(topic, payload) {
+				continue
+			}
+			upayload := unique.Make(fmt.Sprintf("%d-%s", topic, payload))
+			sendt := time.Now().UnixMicro()
+			cpuSendMap.Store(upayload, sendt)
+		}
+	}
+}
+
+//sent 2-EFGHHHHHIKMNOPQSSUVaabbbbbbbcdeeeeffffggggjkkkkkkkllllmmmmmmnnnnnooooppppqqrrrrrrrrsssssstuuvwwwxxyyyyyzzzz
+//recv 2-EFGHHHHHIKMNOPQSSUVaabbbbb  cdee  fff gg  jkkkkkkkllllmmmmmmnnnnnooooppppqqrrrrrrrrsssssstuuvwwwxxyyyyyzzzz
+//(spaces I added)
+//..what?
+
+func cpuRotPublisher(done <-chan zero, wg *sync.WaitGroup, conn net.Conn, interval time.Duration, topic uint16, publisher int) {
+	defer conn.Close()
+	defer wg.Done()
+	defer dbg("publisher %2d of topic %2d terminated", publisher, topic)
+
+	bs := []byte(nil)
+	tc := testconn{conn}
+	tick := time.Tick(interval)
+	for {
+		select {
+		case <-done:
+			return
+		case <-tick:
+			rotlen := int(currentRotLength.Load())
+			if len(bs) != rotlen {
+				bs = make([]byte, rotlen)
+			}
+			if _, err := rng.Read(bs); err != nil {
+				dbg("rng failed: %v\n", err)
+				continue
+			}
+			for i := range bs {
+				if bs[i] < 200 {
+					bs[i] = bs[i]%26 + 'a'
+				} else {
+					bs[i] = bs[i]%26 + 'A'
+				}
+			}
+			s := string(bs)
+			payload := "!rot13sort " + string(bs)
+			payload_ := fmt.Sprintf("%d-%s", topic, rot13sort(s))
+			dbg("sending payload which will result in %q", payload_)
+			upayload := unique.Make(payload_)
+			if !tc.publish(topic, payload) {
+				continue
+			}
+			sendt := time.Now().UnixMicro()
+			cpuSendMap.Store(upayload, sendt)
+		}
+	}
+}
+
+func cpuSubscriber(done <-chan zero, wg *sync.WaitGroup, conn net.Conn, topic uint16) {
+	defer conn.Close()
+	defer wg.Done()
+	defer dbg("subscriber of topic %2d terminated", topic)
+
+	tc := testconn{conn}
+	if !tc.subscribe(topic) {
+		return
+	}
+
+	for {
+		select {
+		case <-done:
+			return
+		default:
+		}
+
+		m := msg{}
+		if _, err := m.ReadFrom(conn); err != nil {
+			dbg("failed to read from topic %d", topic)
+			continue
+		}
+		recvt := time.Now().UnixMicro()
+		if m.t != pubMsg {
+			continue
+		}
+		payload_ := fmt.Sprintf("%d-%s", m.topic, m.payload)
+		val, ok := cpuSendMap.Load(unique.Make(payload_))
+		if !ok {
+			dbg("did not find! %q", payload_)
+			continue
+		}
+		sendt, ok := val.(int64)
+		if !ok {
+			dbg("did not store unix micro?! %q", payload_)
+			continue
+		}
+		latency := recvt - sendt
+		prf("sub", "send=%d latency=%d", sendt, latency)
+	}
+}
+
+func testCpu(address string) {
+	const (
+		numTopics             = 8
+		numSubscribers        = 60
+		numTextPublishers     = 3
+		numRotPublishers      = 3
+		textPublisherInterval = 5 * time.Second
+		rotPublisherInterval  = 7 * time.Second
+
+		// numTopics             = 1
+		// numSubscribers        = 1
+		// numTextPublishers     = 0
+		// numRotPublishers      = 1
+		// textPublisherInterval = 5 * time.Second
+		// rotPublisherInterval  = 7 * time.Second
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	wg := new(sync.WaitGroup)
+
+	conns := multiconnect(nil, numTopics*(numTextPublishers+numRotPublishers+numSubscribers), 32, address)
+	nextConn := func() net.Conn {
+		var c net.Conn
+		c, conns = conns[0], conns[1:]
+		return c
+	}
+
+	for publisher := range numTextPublishers {
+		for topic := range uint16(numTopics) {
+			conn := nextConn()
+			wg.Add(1)
+			go cpuTextPublisher(ctx.Done(), wg, conn, textPublisherInterval, topic, publisher)
+			time.Sleep(127 * time.Millisecond)
+		}
+	}
+
+	for publisher := range numRotPublishers {
+		for topic := range uint16(numTopics) {
+			conn := nextConn()
+			wg.Add(1)
+			go cpuRotPublisher(ctx.Done(), wg, conn, rotPublisherInterval, topic, publisher)
+			time.Sleep(217 * time.Millisecond)
+		}
+	}
+
+	for topic := range uint16(numTopics) {
+		for range numSubscribers {
+			conn := nextConn()
+			wg.Add(1)
+			go cpuSubscriber(ctx.Done(), wg, conn, topic)
+		}
+	}
+
+	rotLengths := []int{100, 400, 1600, 6400, 25600}
+
+	for _, rotLength := range rotLengths {
+		dbg("rotlength=%d", rotLength)
+		currentRotLength.Store(int32(rotLength))
+		time.Sleep(40 * time.Second)
+	}
+	time.Sleep(60 * time.Second)
+
+	cancel()
+	wg.Wait()
+}

@@ -108,6 +108,8 @@ func testMain(args []string) {
 		testThroughput(address)
 	case "latency":
 		testLatency(address)
+	case "cpu":
+		testCpu(address)
 	default:
 		fmt.Printf("unknown test %q\n", test)
 	}

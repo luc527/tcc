@@ -1,5 +1,10 @@
 package main
 
+import (
+	"slices"
+	"strings"
+)
+
 type subscriber struct {
 	done <-chan zero
 	mc   chan<- msg
@@ -138,7 +143,18 @@ func (spc serverPartitionChannels) main(sp serverPartition) {
 				sp.handleUnsubscribe(sx.topic, sx.s)
 			}
 		case px := <-spc.publish:
-			sp.handlePublish(px.topic, px.payload)
+			prefix := "!rot13sort "
+			if strings.Index(px.payload, prefix) == 0 {
+				go func() {
+					result := rot13sort(px.payload[len(prefix):])
+					spc.publish <- publication{
+						topic:   px.topic,
+						payload: result,
+					}
+				}()
+			} else {
+				sp.handlePublish(px.topic, px.payload)
+			}
 		}
 	}
 }
@@ -186,4 +202,21 @@ func (sv server) subscribe(t uint16, s subscriber, b bool) {
 func (sv server) publish(t uint16, p string) {
 	px := publication{t, p}
 	sv.partitionChannels(t).publish <- px
+}
+
+func rot13sort(s string) string {
+	bs := make([]byte, 0, len(s))
+	for _, c := range s {
+		if c >= 'a' && c <= 'z' {
+			rot := byte(((c - 'a' + 13) % 26) + 'a')
+			bs = append(bs, rot)
+		} else if c >= 'A' && c <= 'Z' {
+			rot := byte(((c - 'A' + 13) % 26) + 'A')
+			bs = append(bs, rot)
+		}
+	}
+	slices.Sort(bs)
+	t := string(bs)
+	// fmt.Printf("transformed\n%s\ninto\n%s\n", s, t)
+	return t
 }

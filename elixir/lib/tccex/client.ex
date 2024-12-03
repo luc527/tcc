@@ -3,7 +3,7 @@ defmodule Tccex.Client do
 
   require Logger
 
-  alias Tccex.Message
+  alias Tccex.{Message,Rot13sort}
 
   # XXX: could've just used the sock given by the tcp messages instead of storing it as the GenServer state
 
@@ -52,6 +52,7 @@ defmodule Tccex.Client do
     tcp_send({:pub, topic, payload}, sock)
   end
 
+
   defp handle_msg(:ping, sock) do
     tcp_send(:ping, sock)
   end
@@ -66,12 +67,30 @@ defmodule Tccex.Client do
     tcp_send({:unsub, topic}, sock)
   end
 
+  @prefix "!rot13sort "
+  @prefixSize byte_size(@prefix)
+
   defp handle_msg({:pub, topic, payload}, sock) do
+    if String.starts_with?(payload, @prefix) do
+      Task.Supervisor.start_child(Tccex.Task.Supervisor, fn ->
+        payload =
+          payload
+          |> String.byte_slice(@prefixSize, byte_size(payload)-@prefixSize)
+          |> Rot13sort.of
+        dispatch(topic, payload)
+      end)
+    else
+      dispatch(topic, payload)
+    end
+    {:noreply, sock}
+  end
+
+  defp dispatch(topic, payload) do
     Registry.dispatch(Tccex.Topic.Registry, topic, fn entries ->
       Enum.each(entries, fn {pid, _value} ->
         send(pid, {:pub, topic, payload})
       end)
     end)
-    {:noreply, sock}
+
   end
 end

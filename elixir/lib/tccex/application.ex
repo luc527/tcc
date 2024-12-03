@@ -16,6 +16,7 @@ defmodule Tccex.Application do
       {Registry,
        keys: :duplicate, partitions: System.schedulers_online(), name: Tccex.Topic.Registry},
       {DynamicSupervisor, strategy: :one_for_one, name: Tccex.Client.Supervisor},
+      {Task.Supervisor, name: Tccex.Task.Supervisor},
       {Tccex.Listener, {ip, port}}
     ]
 

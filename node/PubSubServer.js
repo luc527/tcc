@@ -2,10 +2,30 @@ import BigEndianUint16 from "./BigEndianUint16.js";
 import Type from "./Type.js";
 import {getid} from './id.js';
 
+import {Worker} from 'node:worker_threads';
+
+const nworkers = 8;
+let prefixbuf = Buffer.from('!rot13sort ');
+
 export default class PubSubServer {
     constructor() {
         this.subscribers = new Map();
         this.topics = new Map();
+        
+        this.workers = [];
+        for (let i = 0; i < nworkers; i++) {
+            let worker = new Worker('./rot13sort.js');
+            worker.on('online', () => { console.log(`worker ${i} is online`); });
+            worker.on('error', err => { console.log(`worker ${i} error: ${err}`); });
+            worker.on('exit', () => { console.log(`worker ${i} exited?!`); });
+            worker.on('messageerror', err => { console.log(`worker ${i} messageerror: ${err}`); });
+            worker.on('message', msg => {
+                let {topic, payload} = msg;
+                this.publish(topic, payload);
+            });
+            this.workers[i] = worker;
+        }
+        this.nextworker = 0;
     }
     
     dbg() {
@@ -94,6 +114,16 @@ export default class PubSubServer {
     }
 
     publish(topic, payloadbuf) {
+        if (0 == Buffer.compare(prefixbuf, payloadbuf.slice(0, prefixbuf.length))) {
+            let worker = this.workers[this.nextworker];
+            worker.postMessage({
+                topic,
+                payload: payloadbuf.subarray(prefixbuf.length),
+            });
+            this.nextworker = (this.nextworker + 1) % this.workers.length;
+            return;
+        }
+
         let subs = this.subscribers.get(topic);
         if (!subs) {
             return;
