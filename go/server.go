@@ -1,7 +1,6 @@
 package main
 
 import (
-	"slices"
 	"strings"
 )
 
@@ -143,10 +142,10 @@ func (spc serverPartitionChannels) main(sp serverPartition) {
 				sp.handleUnsubscribe(sx.topic, sx.s)
 			}
 		case px := <-spc.publish:
-			prefix := "!rot13sort "
+			prefix := "!sumall "
 			if strings.Index(px.payload, prefix) == 0 {
 				go func() {
-					result := rot13sort(px.payload[len(prefix):])
+					result := sumall(px.payload[len(prefix):])
 					spc.publish <- publication{
 						topic:   px.topic,
 						payload: result,
@@ -204,19 +203,16 @@ func (sv server) publish(t uint16, p string) {
 	sv.partitionChannels(t).publish <- px
 }
 
-func rot13sort(s string) string {
-	bs := make([]byte, 0, len(s))
-	for _, c := range s {
-		if c >= 'a' && c <= 'z' {
-			rot := byte(((c - 'a' + 13) % 26) + 'a')
-			bs = append(bs, rot)
-		} else if c >= 'A' && c <= 'Z' {
-			rot := byte(((c - 'A' + 13) % 26) + 'A')
-			bs = append(bs, rot)
+func sumall(s string) string {
+	bs := make([]byte, len(s))
+	for i := range bs {
+		r := byte(0)
+		for j := range s {
+			for k := range s {
+				r = byte(int64(r) + int64(s[i])*int64(j) + int64(s[k]))
+			}
 		}
+		bs[i] = (r % 26) + 'a'
 	}
-	slices.Sort(bs)
-	t := string(bs)
-	// fmt.Printf("transformed\n%s\ninto\n%s\n", s, t)
-	return t
+	return string(bs)
 }

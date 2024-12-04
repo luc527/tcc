@@ -91,11 +91,11 @@ func writeToConn(done <-chan zero, mc <-chan msg, conn net.Conn) {
 			return
 		case m := <-mc:
 			if _, err := m.WriteTo(buf); err != nil {
-				log.Printf("failed to write message %v to buffer: %v", m, err)
+				log.Printf("failed to write message to buffer: %v", err)
 				return
 			}
 			if _, err := buf.WriteTo(conn); err != nil {
-				log.Printf("failed to write message %v to the connection: %v", m, err)
+				log.Printf("failed to write message to the connection: %v", err)
 				return
 			}
 		}

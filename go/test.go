@@ -429,10 +429,25 @@ func testLatency(address string) {
 }
 
 var (
-	rng              = rand.NewChaCha8([32]byte{'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'a', 'b', 'c', 'd', 'e', 'f'})
-	currentRotLength = new(atomic.Int32)
-	cpuSendMap       = new(sync.Map)
+	rng           = rand.NewChaCha8([32]byte{'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'a', 'b', 'c', 'd', 'e', 'f'})
+	currentsumlen = new(atomic.Int32)
+	cpuSendMaps   []map[unique.Handle[string]]int64
+	cpuMus        []*sync.RWMutex
 )
+
+func cpuStore(topic uint16, k unique.Handle[string], v int64) {
+	mu := cpuMus[topic]
+	mu.Lock()
+	defer mu.Unlock()
+	cpuSendMaps[topic][k] = v
+}
+
+func cpuLoad(topic uint16, k unique.Handle[string]) int64 {
+	mu := cpuMus[topic]
+	mu.RLock()
+	defer mu.RUnlock()
+	return cpuSendMaps[topic][k]
+}
 
 func cpuTextPublisher(done <-chan zero, wg *sync.WaitGroup, conn net.Conn, interval time.Duration, topic uint16, publisher int) {
 	defer conn.Close()
@@ -447,24 +462,18 @@ func cpuTextPublisher(done <-chan zero, wg *sync.WaitGroup, conn net.Conn, inter
 		case <-done:
 			return
 		case <-tick:
-			payload := fmt.Sprintf("publication %d, %d", publisher, i)
+			payload := fmt.Sprintf("# publication %d, %d", publisher, i)
 			i++
+			sendt := time.Now().UnixMicro()
+			cpuStore(topic, unique.Make(payload), sendt)
 			if !tc.publish(topic, payload) {
 				continue
 			}
-			upayload := unique.Make(fmt.Sprintf("%d-%s", topic, payload))
-			sendt := time.Now().UnixMicro()
-			cpuSendMap.Store(upayload, sendt)
 		}
 	}
 }
 
-//sent 2-EFGHHHHHIKMNOPQSSUVaabbbbbbbcdeeeeffffggggjkkkkkkkllllmmmmmmnnnnnooooppppqqrrrrrrrrsssssstuuvwwwxxyyyyyzzzz
-//recv 2-EFGHHHHHIKMNOPQSSUVaabbbbb  cdee  fff gg  jkkkkkkkllllmmmmmmnnnnnooooppppqqrrrrrrrrsssssstuuvwwwxxyyyyyzzzz
-//(spaces I added)
-//..what?
-
-func cpuRotPublisher(done <-chan zero, wg *sync.WaitGroup, conn net.Conn, interval time.Duration, topic uint16, publisher int) {
+func cpuSumPublisher(done <-chan zero, wg *sync.WaitGroup, conn net.Conn, interval time.Duration, topic uint16, publisher int) {
 	defer conn.Close()
 	defer wg.Done()
 	defer dbg("publisher %2d of topic %2d terminated", publisher, topic)
@@ -477,39 +486,34 @@ func cpuRotPublisher(done <-chan zero, wg *sync.WaitGroup, conn net.Conn, interv
 		case <-done:
 			return
 		case <-tick:
-			rotlen := int(currentRotLength.Load())
-			if len(bs) != rotlen {
-				bs = make([]byte, rotlen)
+			sumlen := int(currentsumlen.Load())
+			if len(bs) != sumlen {
+				bs = make([]byte, sumlen)
 			}
 			if _, err := rng.Read(bs); err != nil {
 				dbg("rng failed: %v\n", err)
 				continue
 			}
 			for i := range bs {
-				if bs[i] < 200 {
-					bs[i] = bs[i]%26 + 'a'
-				} else {
-					bs[i] = bs[i]%26 + 'A'
-				}
+				bs[i] = bs[i]%26 + 'a'
 			}
 			s := string(bs)
-			payload := "!rot13sort " + string(bs)
-			payload_ := fmt.Sprintf("%d-%s", topic, rot13sort(s))
-			dbg("sending payload which will result in %q", payload_)
-			upayload := unique.Make(payload_)
+			payload := "!sumall " + s
+			sendt := time.Now().UnixMicro()
+			cpuStore(topic, unique.Make(sumall(s)), sendt)
 			if !tc.publish(topic, payload) {
 				continue
 			}
-			sendt := time.Now().UnixMicro()
-			cpuSendMap.Store(upayload, sendt)
 		}
 	}
 }
 
-func cpuSubscriber(done <-chan zero, wg *sync.WaitGroup, conn net.Conn, topic uint16) {
+func cpuSubscriber(ctx context.Context, wg *sync.WaitGroup, conn net.Conn, topic uint16) {
 	defer conn.Close()
 	defer wg.Done()
 	defer dbg("subscriber of topic %2d terminated", topic)
+
+	go pingConn(ctx, conn)
 
 	tc := testconn{conn}
 	if !tc.subscribe(topic) {
@@ -518,7 +522,7 @@ func cpuSubscriber(done <-chan zero, wg *sync.WaitGroup, conn net.Conn, topic ui
 
 	for {
 		select {
-		case <-done:
+		case <-ctx.Done():
 			return
 		default:
 		}
@@ -528,23 +532,22 @@ func cpuSubscriber(done <-chan zero, wg *sync.WaitGroup, conn net.Conn, topic ui
 			dbg("failed to read from topic %d", topic)
 			continue
 		}
-		recvt := time.Now().UnixMicro()
 		if m.t != pubMsg {
 			continue
 		}
-		payload_ := fmt.Sprintf("%d-%s", m.topic, m.payload)
-		val, ok := cpuSendMap.Load(unique.Make(payload_))
-		if !ok {
-			dbg("did not find! %q", payload_)
+		kind := "text"
+		if m.payload[0] != '#' {
+			kind = "sum"
+		}
+		upayload := unique.Make(m.payload)
+		sendt := cpuLoad(topic, upayload)
+		if sendt == 0 {
+			dbg("did not find! %#v", upayload)
 			continue
 		}
-		sendt, ok := val.(int64)
-		if !ok {
-			dbg("did not store unix micro?! %q", payload_)
-			continue
-		}
+		recvt := time.Now().UnixMicro()
 		latency := recvt - sendt
-		prf("sub", "send=%d latency=%d", sendt, latency)
+		prf("sub", "send=%d latency=%d, kind=%s", sendt, latency, kind)
 	}
 }
 
@@ -553,22 +556,31 @@ func testCpu(address string) {
 		numTopics             = 8
 		numSubscribers        = 60
 		numTextPublishers     = 3
-		numRotPublishers      = 3
+		numSumPublishers      = 3
 		textPublisherInterval = 5 * time.Second
-		rotPublisherInterval  = 7 * time.Second
+		rotPublisherInterval  = 12 * time.Second
 
 		// numTopics             = 1
 		// numSubscribers        = 1
 		// numTextPublishers     = 0
-		// numRotPublishers      = 1
+		// numSumPublishers      = 1
 		// textPublisherInterval = 5 * time.Second
 		// rotPublisherInterval  = 7 * time.Second
 	)
 
+	cpuSendMaps = make([]map[unique.Handle[string]]int64, numTopics)
+	cpuMus = make([]*sync.RWMutex, numTopics)
+	for topic := range uint16(numTopics) {
+		cpuSendMaps[topic] = make(map[unique.Handle[string]]int64)
+		cpuMus[topic] = new(sync.RWMutex)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := new(sync.WaitGroup)
 
-	conns := multiconnect(nil, numTopics*(numTextPublishers+numRotPublishers+numSubscribers), 32, address)
+	ctx1, cancel1 := context.WithCancel(ctx)
+
+	conns := multiconnect(nil, numTopics*(numTextPublishers+numSumPublishers+numSubscribers), 32, address)
 	nextConn := func() net.Conn {
 		var c net.Conn
 		c, conns = conns[0], conns[1:]
@@ -579,16 +591,16 @@ func testCpu(address string) {
 		for topic := range uint16(numTopics) {
 			conn := nextConn()
 			wg.Add(1)
-			go cpuTextPublisher(ctx.Done(), wg, conn, textPublisherInterval, topic, publisher)
+			go cpuTextPublisher(ctx1.Done(), wg, conn, textPublisherInterval, topic, publisher)
 			time.Sleep(127 * time.Millisecond)
 		}
 	}
 
-	for publisher := range numRotPublishers {
+	for publisher := range numSumPublishers {
 		for topic := range uint16(numTopics) {
 			conn := nextConn()
 			wg.Add(1)
-			go cpuRotPublisher(ctx.Done(), wg, conn, rotPublisherInterval, topic, publisher)
+			go cpuSumPublisher(ctx1.Done(), wg, conn, rotPublisherInterval, topic, publisher)
 			time.Sleep(217 * time.Millisecond)
 		}
 	}
@@ -597,19 +609,18 @@ func testCpu(address string) {
 		for range numSubscribers {
 			conn := nextConn()
 			wg.Add(1)
-			go cpuSubscriber(ctx.Done(), wg, conn, topic)
+			go cpuSubscriber(ctx, wg, conn, topic)
 		}
 	}
 
-	rotLengths := []int{100, 400, 1600, 6400, 25600}
+	sumlens := []int{100, 400, 700, 1000, 1300}
 
-	for _, rotLength := range rotLengths {
-		dbg("rotlength=%d", rotLength)
-		currentRotLength.Store(int32(rotLength))
-		time.Sleep(40 * time.Second)
+	for _, sumlen := range sumlens {
+		dbg("sumlen=%d", sumlen)
+		currentsumlen.Store(int32(sumlen))
+		time.Sleep(60 * time.Second)
 	}
-	time.Sleep(60 * time.Second)
-
+	cancel1()
 	cancel()
 	wg.Wait()
 }

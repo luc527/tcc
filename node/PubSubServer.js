@@ -5,7 +5,7 @@ import {getid} from './id.js';
 import {Worker} from 'node:worker_threads';
 
 const nworkers = 8;
-let prefixbuf = Buffer.from('!rot13sort ');
+let prefixbuf = Buffer.from('!sumall ');
 
 export default class PubSubServer {
     constructor() {
@@ -14,7 +14,7 @@ export default class PubSubServer {
         
         this.workers = [];
         for (let i = 0; i < nworkers; i++) {
-            let worker = new Worker('./rot13sort.js');
+            let worker = new Worker('./sumall.js');
             worker.on('online', () => { console.log(`worker ${i} is online`); });
             worker.on('error', err => { console.log(`worker ${i} error: ${err}`); });
             worker.on('exit', () => { console.log(`worker ${i} exited?!`); });

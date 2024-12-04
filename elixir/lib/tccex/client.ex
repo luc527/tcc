@@ -3,7 +3,7 @@ defmodule Tccex.Client do
 
   require Logger
 
-  alias Tccex.{Message,Rot13sort}
+  alias Tccex.{Message, Sumall}
 
   # XXX: could've just used the sock given by the tcp messages instead of storing it as the GenServer state
 
@@ -67,16 +67,18 @@ defmodule Tccex.Client do
     tcp_send({:unsub, topic}, sock)
   end
 
-  @prefix "!rot13sort "
+  @prefix "!sumall "
   @prefixSize byte_size(@prefix)
 
   defp handle_msg({:pub, topic, payload}, sock) do
     if String.starts_with?(payload, @prefix) do
+      # problem with this: the task keeps going even if the client terminates
+      # should've done .async(), I guess?
       Task.Supervisor.start_child(Tccex.Task.Supervisor, fn ->
         payload =
           payload
           |> String.byte_slice(@prefixSize, byte_size(payload)-@prefixSize)
-          |> Rot13sort.of
+          |> Sumall.of
         dispatch(topic, payload)
       end)
     else
